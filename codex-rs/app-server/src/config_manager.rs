@@ -12,6 +12,7 @@ use codex_exec_server::LOCAL_FS;
 use codex_features::feature_for_key;
 use codex_login::AuthManager;
 use codex_login::default_client::set_default_client_residency_requirement;
+use codex_runtime_profile::RuntimePreset;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use codex_utils_json_to_toml::json_to_toml;
 use std::collections::BTreeMap;
@@ -33,6 +34,7 @@ pub(crate) struct ConfigManager {
     runtime_feature_enablement: Arc<RwLock<BTreeMap<String, bool>>>,
     loader_overrides: LoaderOverrides,
     strict_config: bool,
+    runtime_preset: RuntimePreset,
     cloud_config_bundle: Arc<RwLock<CloudConfigBundleLoader>>,
     arg0_paths: Arg0DispatchPaths,
     thread_config_loader: Arc<dyn ThreadConfigLoader>,
@@ -54,10 +56,16 @@ impl ConfigManager {
             runtime_feature_enablement: Arc::new(RwLock::new(BTreeMap::new())),
             loader_overrides,
             strict_config,
+            runtime_preset: RuntimePreset::Full,
             cloud_config_bundle: Arc::new(RwLock::new(cloud_config_bundle)),
             arg0_paths,
             thread_config_loader,
         }
+    }
+
+    pub(crate) fn with_runtime_preset(mut self, runtime_preset: RuntimePreset) -> Self {
+        self.runtime_preset = runtime_preset;
+        self
     }
 
     pub(crate) fn codex_home(&self) -> &Path {
@@ -176,6 +184,7 @@ impl ConfigManager {
             .loader_overrides(loader_overrides)
             .fallback_cwd(Some(self.codex_home.clone()))
             .cloud_config_bundle(CloudConfigBundleLoader::default())
+            .runtime_preset(self.runtime_preset)
             .build()
             .await?;
         self.apply_runtime_feature_enablement(&mut config);
@@ -247,6 +256,7 @@ impl ConfigManager {
             .fallback_cwd(fallback_cwd)
             .cloud_config_bundle(self.current_cloud_config_bundle())
             .thread_config_loader(Arc::clone(&self.thread_config_loader))
+            .runtime_preset(self.runtime_preset)
             .build()
             .await?;
         self.apply_runtime_feature_enablement(&mut config);

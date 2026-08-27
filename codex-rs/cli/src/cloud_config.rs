@@ -9,12 +9,22 @@ use codex_core::config::LoaderOverrides;
 use codex_core::config::bootstrap_auth_config;
 use codex_core::config::find_codex_home;
 use codex_core::config::load_config_toml_with_layer_stack;
+use codex_runtime_profile::RuntimePreset;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use codex_utils_cli::CliConfigOverrides;
 
+#[allow(dead_code)]
 pub(crate) async fn load_config(
     config_overrides: &CliConfigOverrides,
     loader_overrides: LoaderOverrides,
+) -> Result<Config> {
+    load_config_with_runtime_preset(config_overrides, loader_overrides, RuntimePreset::Full).await
+}
+
+pub(crate) async fn load_config_with_runtime_preset(
+    config_overrides: &CliConfigOverrides,
+    loader_overrides: LoaderOverrides,
+    runtime_preset: RuntimePreset,
 ) -> Result<Config> {
     let cli_overrides = config_overrides
         .parse_overrides()
@@ -46,6 +56,7 @@ pub(crate) async fn load_config(
         .cli_overrides(cli_overrides)
         .loader_overrides(loader_overrides)
         .cloud_config_bundle(cloud_config_bundle)
+        .runtime_preset(runtime_preset)
         .build()
         .await
         .context("failed to load configuration")

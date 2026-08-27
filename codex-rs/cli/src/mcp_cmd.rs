@@ -40,11 +40,15 @@ use codex_rmcp_client::StreamableHttpRedirectMode;
 use codex_rmcp_client::delete_oauth_tokens;
 use codex_rmcp_client::perform_oauth_login;
 use codex_rmcp_client::resolve_mcp_oauth_callback_url;
+use codex_runtime_profile::RuntimePreset;
 use codex_utils_cli::CliConfigOverrides;
 use codex_utils_cli::format_env_display;
 
 use crate::cloud_config;
-use crate::plugin_cmd::load_cli_auth_manager;
+
+async fn load_cli_auth_manager(config: &Config) -> Result<Arc<AuthManager>> {
+    Ok(AuthManager::shared_from_config(config, /*enable_codex_api_key_env*/ true).await?)
+}
 
 /// Subcommands:
 /// - `list`   — list configured servers (with `--json`)
@@ -218,6 +222,15 @@ pub struct LogoutArgs {
 
 impl McpCli {
     pub async fn run(self, loader_overrides: LoaderOverrides) -> Result<()> {
+        self.run_with_runtime_preset(loader_overrides, RuntimePreset::Full)
+            .await
+    }
+
+    pub async fn run_with_runtime_preset(
+        self,
+        loader_overrides: LoaderOverrides,
+        runtime_preset: RuntimePreset,
+    ) -> Result<()> {
         let McpCli {
             config_overrides,
             subcommand,
@@ -229,11 +242,21 @@ impl McpCli {
 
         match subcommand {
             McpSubcommand::List(args) => {
-                let config = cloud_config::load_config(&config_overrides, loader_overrides).await?;
+                let config = cloud_config::load_config_with_runtime_preset(
+                    &config_overrides,
+                    loader_overrides,
+                    runtime_preset,
+                )
+                .await?;
                 run_list(&config, args).await?;
             }
             McpSubcommand::Get(args) => {
-                let config = cloud_config::load_config(&config_overrides, loader_overrides).await?;
+                let config = cloud_config::load_config_with_runtime_preset(
+                    &config_overrides,
+                    loader_overrides,
+                    runtime_preset,
+                )
+                .await?;
                 run_get(&config, args).await?;
             }
             McpSubcommand::Add(args) => {
@@ -243,11 +266,21 @@ impl McpCli {
                 run_remove(&config_overrides, args).await?;
             }
             McpSubcommand::Login(args) => {
-                let config = cloud_config::load_config(&config_overrides, loader_overrides).await?;
+                let config = cloud_config::load_config_with_runtime_preset(
+                    &config_overrides,
+                    loader_overrides,
+                    runtime_preset,
+                )
+                .await?;
                 run_login(&config, args).await?;
             }
             McpSubcommand::Logout(args) => {
-                let config = cloud_config::load_config(&config_overrides, loader_overrides).await?;
+                let config = cloud_config::load_config_with_runtime_preset(
+                    &config_overrides,
+                    loader_overrides,
+                    runtime_preset,
+                )
+                .await?;
                 run_logout(&config, args).await?;
             }
         }

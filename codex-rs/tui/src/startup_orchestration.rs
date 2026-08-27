@@ -10,6 +10,7 @@ pub(super) async fn run_main_inner(
     arg0_paths: Arg0DispatchPaths,
     loader_overrides: LoaderOverrides,
     explicit_remote_endpoint: Option<RemoteAppServerEndpoint>,
+    runtime_preset: RuntimePreset,
 ) -> std::io::Result<AppExitInfo> {
     let strict_config = cli.strict_config;
     let (sandbox_mode, approval_policy) = if cli.dangerously_bypass_approvals_and_sandbox {
@@ -108,7 +109,7 @@ pub(super) async fn run_main_inner(
         } else {
             CloudConfigBundleLoader::default()
         };
-        load_config_or_exit(
+        load_config_or_exit_with_runtime_preset(
             cli_kv_overrides.clone(),
             ConfigOverrides {
                 model: cli.model.clone(),
@@ -131,11 +132,13 @@ pub(super) async fn run_main_inner(
             validation_loader_overrides,
             validation_cloud_config_bundle,
             strict_config,
+            runtime_preset,
         )
         .await;
     }
 
-    let reuse_implicit_local_daemon = !workload_identity_selected
+    let reuse_implicit_local_daemon = runtime_preset == RuntimePreset::Full
+        && !workload_identity_selected
         && (cli.agents_overview
             || can_reuse_implicit_local_daemon(
                 &cli_kv_overrides,
@@ -338,12 +341,13 @@ pub(super) async fn run_main_inner(
     };
 
     let config = startup_draft
-        .run_until(load_config_or_exit(
+        .run_until(load_config_or_exit_with_runtime_preset(
             cli_kv_overrides.clone(),
             overrides.clone(),
             loader_overrides.clone(),
             cloud_config_bundle.clone(),
             strict_config,
+            runtime_preset,
         ))
         .await?;
     startup_draft.apply_config(&config);
@@ -545,6 +549,7 @@ pub(super) async fn run_main_inner(
         state_db,
         environment_manager,
         startup_draft,
+        runtime_preset,
     )
     .await
     .map_err(|err| {

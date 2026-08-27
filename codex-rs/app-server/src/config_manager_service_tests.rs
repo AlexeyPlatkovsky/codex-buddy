@@ -719,6 +719,38 @@ async fn load_default_config_preserves_managed_requirements_and_selected_user_co
 }
 
 #[tokio::test]
+async fn config_rebuilds_preserve_the_runtime_preset() {
+    let tmp = tempdir().expect("tempdir");
+    let service = ConfigManager::new(
+        tmp.path().to_path_buf(),
+        Vec::new(),
+        LoaderOverrides::without_managed_config_for_tests(),
+        /*strict_config*/ false,
+        CloudConfigBundleLoader::default(),
+        codex_arg0::Arg0DispatchPaths::default(),
+        std::sync::Arc::new(codex_config::NoopThreadConfigLoader),
+    )
+    .with_runtime_preset(codex_runtime_profile::RuntimePreset::Coding);
+
+    let latest = service
+        .load_latest_config(/*fallback_cwd*/ None)
+        .await
+        .expect("latest config");
+    let default = service.load_default_config().await.expect("default config");
+
+    assert_eq!(
+        (
+            latest.runtime_profile.preset(),
+            default.runtime_profile.preset(),
+        ),
+        (
+            codex_runtime_profile::RuntimePreset::Coding,
+            codex_runtime_profile::RuntimePreset::Coding,
+        )
+    );
+}
+
+#[tokio::test]
 async fn managed_auth_policy_survives_unusable_requirements_file_changes() -> Result<()> {
     let tmp = tempdir()?;
     std::fs::write(tmp.path().join(CONFIG_TOML_FILE), "")?;

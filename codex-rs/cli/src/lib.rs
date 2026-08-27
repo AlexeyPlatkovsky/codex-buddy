@@ -1,13 +1,37 @@
+#[path = "cloud_config.rs"]
+pub(crate) mod cloud_config;
 pub(crate) mod debug_sandbox;
 mod exit_status;
 pub(crate) mod login;
+#[path = "mcp_cmd.rs"]
+pub mod mcp_cmd;
 
 use clap::Args;
 use clap::Parser;
+use codex_config::LoaderOverrides;
+use codex_core::config::find_codex_home;
+use codex_core::config::resolve_profile_v2_config_path;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use codex_utils_cli::CliConfigOverrides;
 use codex_utils_cli::ProfileV2Name;
 use std::path::PathBuf;
+
+/// Resolves the user-config loader inputs for an optional v2 profile.
+pub fn loader_overrides_for_profile(
+    profile_v2: Option<&ProfileV2Name>,
+) -> anyhow::Result<LoaderOverrides> {
+    match profile_v2 {
+        Some(profile_v2) => {
+            let codex_home = find_codex_home()?;
+            Ok(LoaderOverrides {
+                user_config_path: Some(resolve_profile_v2_config_path(&codex_home, profile_v2)),
+                user_config_profile: Some(profile_v2.clone()),
+                ..Default::default()
+            })
+        }
+        None => Ok(LoaderOverrides::default()),
+    }
+}
 
 pub use debug_sandbox::run_command_under_landlock;
 pub use debug_sandbox::run_command_under_seatbelt;

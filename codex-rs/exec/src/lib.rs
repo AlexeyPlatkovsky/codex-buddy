@@ -100,6 +100,7 @@ use codex_protocol::protocol::ReviewTarget;
 use codex_protocol::protocol::SessionConfiguredEvent;
 use codex_protocol::protocol::SessionSource;
 use codex_protocol::user_input::UserInput;
+use codex_runtime_profile::RuntimePreset;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use codex_utils_absolute_path::canonicalize_existing_preserving_symlinks;
 use codex_utils_cli::SharedCliOptions;
@@ -244,6 +245,15 @@ fn exec_stderr_env_filter() -> EnvFilter {
 }
 
 pub async fn run_main(cli: Cli, arg0_paths: Arg0DispatchPaths) -> anyhow::Result<()> {
+    run_main_with_runtime_preset(cli, arg0_paths, RuntimePreset::Full).await
+}
+
+/// Runs the non-interactive executor with an explicit product runtime preset.
+pub async fn run_main_with_runtime_preset(
+    cli: Cli,
+    arg0_paths: Arg0DispatchPaths,
+    runtime_preset: RuntimePreset,
+) -> anyhow::Result<()> {
     if let Err(err) = set_default_originator("codex_exec".to_string()) {
         tracing::warn!(?err, "Failed to set codex exec originator override {err:?}");
     }
@@ -443,6 +453,7 @@ pub async fn run_main(cli: Cli, arg0_paths: Arg0DispatchPaths) -> anyhow::Result
             .loader_overrides(loader_overrides.clone())
             .strict_config(strict_config)
             .cloud_config_bundle(cloud_config_bundle.clone())
+            .runtime_preset(runtime_preset)
             .build()
     };
     let config = build_exec_config(

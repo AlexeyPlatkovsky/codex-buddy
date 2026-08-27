@@ -64,6 +64,7 @@ use codex_protocol::config_types::SandboxMode;
 use codex_protocol::config_types::WindowsSandboxLevel;
 use codex_rollout::StateDbHandle;
 use codex_rollout::state_db;
+use codex_runtime_profile::RuntimePreset;
 use codex_state::log_db;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use codex_utils_absolute_path::canonicalize_existing_preserving_symlinks;
@@ -939,11 +940,30 @@ pub async fn run_main(
     loader_overrides: LoaderOverrides,
     explicit_remote_endpoint: Option<RemoteAppServerEndpoint>,
 ) -> std::io::Result<AppExitInfo> {
+    run_main_with_runtime_preset(
+        cli,
+        arg0_paths,
+        loader_overrides,
+        explicit_remote_endpoint,
+        RuntimePreset::Full,
+    )
+    .await
+}
+
+/// Runs the interactive TUI with an explicit product runtime preset.
+pub async fn run_main_with_runtime_preset(
+    cli: Cli,
+    arg0_paths: Arg0DispatchPaths,
+    loader_overrides: LoaderOverrides,
+    explicit_remote_endpoint: Option<RemoteAppServerEndpoint>,
+    runtime_preset: RuntimePreset,
+) -> std::io::Result<AppExitInfo> {
     match startup_orchestration::run_main_inner(
         cli,
         arg0_paths,
         loader_overrides,
         explicit_remote_endpoint,
+        runtime_preset,
     )
     .await
     {
@@ -977,6 +997,7 @@ async fn run_ratatui_app(
     state_db: Option<StateDbHandle>,
     environment_manager: Arc<EnvironmentManager>,
     startup_draft: startup_draft::StartupDraft,
+    runtime_preset: RuntimePreset,
 ) -> color_eyre::Result<AppExitInfo> {
     let uses_remote_workspace = app_server_target.uses_remote_workspace();
     let workload_identity_selected = is_workload_identity_selected();
@@ -1215,12 +1236,13 @@ async fn run_ratatui_app(
                     if !uses_remote_workspace
                         && (onboarding_result.directory_trust_persisted || show_login_screen)
                     {
-                        load_config_or_exit(
+                        load_config_or_exit_with_runtime_preset(
                             cli_kv_overrides.clone(),
                             overrides.clone(),
                             loader_overrides.clone(),
                             cloud_config_bundle.clone(),
                             strict_config,
+                            runtime_preset,
                         )
                         .await
                     } else {
@@ -1530,13 +1552,14 @@ async fn run_ratatui_app(
             startup_draft
                 .run_until(
                     &mut tui,
-                    load_config_or_exit_with_fallback_cwd(
+                    load_config_or_exit_with_fallback_cwd_and_runtime_preset(
                         cli_kv_overrides.clone(),
                         overrides.clone(),
                         loader_overrides.clone(),
                         cloud_config_bundle.clone(),
                         strict_config,
                         fallback_cwd,
+                        runtime_preset,
                     ),
                 )
                 .await
@@ -1545,12 +1568,13 @@ async fn run_ratatui_app(
             startup_draft
                 .run_until(
                     &mut tui,
-                    load_config_or_exit(
+                    load_config_or_exit_with_runtime_preset(
                         cli_kv_overrides.clone(),
                         overrides.clone(),
                         loader_overrides.clone(),
                         cloud_config_bundle.clone(),
                         strict_config,
+                        runtime_preset,
                     ),
                 )
                 .await
@@ -1826,31 +1850,34 @@ async fn get_login_status(
     Ok((login_status, account))
 }
 
-async fn load_config_or_exit(
+async fn load_config_or_exit_with_runtime_preset(
     cli_kv_overrides: Vec<(String, toml::Value)>,
     overrides: ConfigOverrides,
     loader_overrides: LoaderOverrides,
     cloud_config_bundle: CloudConfigBundleLoader,
     strict_config: bool,
+    runtime_preset: RuntimePreset,
 ) -> Config {
-    load_config_or_exit_with_fallback_cwd(
+    load_config_or_exit_with_fallback_cwd_and_runtime_preset(
         cli_kv_overrides,
         overrides,
         loader_overrides,
         cloud_config_bundle,
         strict_config,
         /*fallback_cwd*/ None,
+        runtime_preset,
     )
     .await
 }
 
-async fn load_config_or_exit_with_fallback_cwd(
+async fn load_config_or_exit_with_fallback_cwd_and_runtime_preset(
     cli_kv_overrides: Vec<(String, toml::Value)>,
     overrides: ConfigOverrides,
     loader_overrides: LoaderOverrides,
     cloud_config_bundle: CloudConfigBundleLoader,
     strict_config: bool,
     fallback_cwd: Option<PathBuf>,
+    runtime_preset: RuntimePreset,
 ) -> Config {
     #[allow(clippy::print_stderr)]
     match ConfigBuilder::default()
@@ -1860,6 +1887,7 @@ async fn load_config_or_exit_with_fallback_cwd(
         .strict_config(strict_config)
         .cloud_config_bundle(cloud_config_bundle)
         .fallback_cwd(fallback_cwd)
+        .runtime_preset(runtime_preset)
         .build()
         .await
     {

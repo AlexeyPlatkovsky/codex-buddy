@@ -62,7 +62,8 @@ impl App {
             .cli_overrides(self.cli_kv_overrides.clone())
             .harness_overrides(overrides)
             .loader_overrides(self.loader_overrides.clone())
-            .cloud_config_bundle(self.cloud_config_bundle.clone());
+            .cloud_config_bundle(self.cloud_config_bundle.clone())
+            .runtime_preset(self.config.runtime_profile.preset());
         build_config_on_runtime_worker(
             builder,
             format!("Failed to rebuild config for cwd {cwd_display}"),
@@ -84,7 +85,8 @@ impl App {
             .cli_overrides(self.cli_kv_overrides.clone())
             .harness_overrides(overrides)
             .loader_overrides(self.loader_overrides.clone())
-            .cloud_config_bundle(self.cloud_config_bundle.clone());
+            .cloud_config_bundle(self.cloud_config_bundle.clone())
+            .runtime_preset(self.config.runtime_profile.preset());
         build_config_on_runtime_worker(
             builder,
             format!("Failed to rebuild config for permission profile {profile_id}"),
@@ -1498,6 +1500,7 @@ mod tests {
             .codex_home(codex_home.path().to_path_buf())
             .loader_overrides(LoaderOverrides::without_managed_config_for_tests())
             .cloud_config_bundle(cloud_config_bundle.clone())
+            .runtime_preset(codex_runtime_profile::RuntimePreset::Coding)
             .build()
             .await?;
         app.config = config;
@@ -1524,6 +1527,10 @@ enabled = false
                 Some(vec![required_policy])
             );
             assert_eq!(config.permissions.approval_policy.value(), required_policy);
+            assert_eq!(
+                config.runtime_profile.preset(),
+                codex_runtime_profile::RuntimePreset::Coding
+            );
         };
 
         assert_cloud_requirements(&app);
