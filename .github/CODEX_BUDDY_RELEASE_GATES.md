@@ -29,3 +29,10 @@ scripts.
 
 Do not expose excluded commands or capabilities through the Buddy package while
 retaining their upstream targets for synchronization and full-runtime builds.
+
+## Configuration compatibility notes
+
+The top-level `runtime` key is reserved for the `[runtime]` table. Older local
+configuration that used `runtime` as an ignored scalar must remove or migrate
+that value before starting Codex Buddy. Strict parsing is intentional so an
+invalid runtime policy cannot silently broaden the enabled capability set.
