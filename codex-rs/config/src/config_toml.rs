@@ -6,6 +6,7 @@ use std::num::NonZeroU64;
 use std::path::Path;
 
 use crate::HooksToml;
+use crate::RuntimeToml;
 use crate::browser_use::BrowserUseConfigToml;
 use crate::computer_use::ComputerUseConfigToml;
 use crate::permissions_toml::PermissionsToml;
@@ -222,6 +223,10 @@ pub struct ConfigToml {
 
     /// System instructions.
     pub instructions: Option<String>,
+
+    /// Product-runtime restrictions for optional external inputs.
+    #[serde(default)]
+    pub runtime: Option<RuntimeToml>,
 
     /// Developer instructions inserted as a `developer` role message.
     #[serde(default)]

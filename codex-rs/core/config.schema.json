@@ -3312,6 +3312,61 @@
       },
       "type": "object"
     },
+    "RuntimeSourcePolicyToml": {
+      "description": "TOML representation of a restriction for one optional external source.\n\nThe setting can only narrow the product policy selected by the runtime preset. It never enables a source that the product or compile ceiling has removed.",
+      "oneOf": [
+        {
+          "description": "Preserve the product policy for this source.",
+          "enum": [
+            "inherit"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Permit the source only when it comes from an explicit trusted origin.",
+          "enum": [
+            "explicit-only"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Do not load the source.",
+          "enum": [
+            "disabled"
+          ],
+          "type": "string"
+        }
+      ]
+    },
+    "RuntimeSourcesToml": {
+      "additionalProperties": false,
+      "description": "Source-specific runtime restrictions under `[runtime.sources]`.",
+      "properties": {
+        "client_tools": {
+          "$ref": "#/definitions/RuntimeSourcePolicyToml"
+        },
+        "instructions": {
+          "$ref": "#/definitions/RuntimeSourcePolicyToml"
+        },
+        "mcp": {
+          "$ref": "#/definitions/RuntimeSourcePolicyToml"
+        },
+        "skills": {
+          "$ref": "#/definitions/RuntimeSourcePolicyToml"
+        }
+      },
+      "type": "object"
+    },
+    "RuntimeToml": {
+      "additionalProperties": false,
+      "description": "Runtime configuration under `[runtime]`.",
+      "properties": {
+        "sources": {
+          "$ref": "#/definitions/RuntimeSourcesToml"
+        }
+      },
+      "type": "object"
+    },
     "SandboxMode": {
       "enum": [
         "read-only",
@@ -6492,6 +6547,15 @@
     "review_model": {
       "description": "Review model override used by the `/review` feature.",
       "type": "string"
+    },
+    "runtime": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/RuntimeToml"
+        }
+      ],
+      "default": null,
+      "description": "Product-runtime restrictions for optional external inputs."
     },
     "sandbox_mode": {
       "allOf": [
