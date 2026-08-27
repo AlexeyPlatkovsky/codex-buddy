@@ -5,10 +5,14 @@ priority: high
 type: task
 status: backlog
 created_at: '2026-08-27T14:14:33Z'
-updated_at: '2026-08-27T14:14:33Z'
+updated_at: '2026-08-27T18:15:35Z'
 parent_id: CB-18
 tags:
 - cargo
 - cleanup
 description: Exclude browser/computer use, image generation, realtime/audio, memories, pets, personality, cloud tasks, and code-mode/V8 from the coding release build.
+links:
+  blocks:
+  - CB-21
+  - CB-22
 created_by: codex

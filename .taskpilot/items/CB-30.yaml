@@ -5,10 +5,14 @@ priority: high
 type: task
 status: backlog
 created_at: '2026-08-27T14:14:42Z'
-updated_at: '2026-08-27T14:14:42Z'
+updated_at: '2026-08-27T18:15:31Z'
 parent_id: CB-29
 tags:
 - tui
 - layout
 description: 'Add a clamped 28-36 column right panel at the app renderer boundary. Acceptance: chat width and desired-height calculations use the reduced area correctly.'
+links:
+  blocks:
+  - CB-32
+  - CB-31
 created_by: codex
