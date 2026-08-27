@@ -1830,29 +1830,39 @@ impl ThreadRequestProcessor {
     }
 
     async fn memory_reset_response_inner(&self) -> Result<MemoryResetResponse, JSONRPCErrorError> {
-        let state_db = self
-            .state_db
-            .clone()
-            .ok_or_else(|| internal_error("sqlite state db unavailable for memory reset"))?;
+        #[cfg(not(feature = "memories"))]
+        {
+            return Err(invalid_request(
+                "memory reset is unavailable in this Codex runtime",
+            ));
+        }
 
-        state_db
-            .memories()
-            .clear_memory_data()
-            .await
-            .map_err(|err| {
-                internal_error(format!("failed to clear memory rows in memories db: {err}"))
-            })?;
+        #[cfg(feature = "memories")]
+        {
+            let state_db = self
+                .state_db
+                .clone()
+                .ok_or_else(|| internal_error("sqlite state db unavailable for memory reset"))?;
 
-        clear_memory_roots_contents(&self.config.codex_home)
-            .await
-            .map_err(|err| {
-                internal_error(format!(
-                    "failed to clear memory directories under {}: {err}",
-                    self.config.codex_home.display()
-                ))
-            })?;
+            state_db
+                .memories()
+                .clear_memory_data()
+                .await
+                .map_err(|err| {
+                    internal_error(format!("failed to clear memory rows in memories db: {err}"))
+                })?;
 
-        Ok(MemoryResetResponse {})
+            clear_memory_roots_contents(&self.config.codex_home)
+                .await
+                .map_err(|err| {
+                    internal_error(format!(
+                        "failed to clear memory directories under {}: {err}",
+                        self.config.codex_home.display()
+                    ))
+                })?;
+
+            Ok(MemoryResetResponse {})
+        }
     }
 
     async fn thread_metadata_update_response_inner(

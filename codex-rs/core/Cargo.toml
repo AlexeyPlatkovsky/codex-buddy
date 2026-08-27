@@ -16,8 +16,9 @@ path = "src/bin/config_schema.rs"
 workspace = true
 
 [features]
-default = ["audio-input"]
+default = ["audio-input", "memories"]
 audio-input = ["dep:codex-utils-audio"]
+memories = ["dep:codex-memories-read"]
 
 [dependencies]
 anyhow = { workspace = true }
@@ -48,7 +49,7 @@ codex-features = { workspace = true }
 codex-feedback = { workspace = true }
 codex-file-system = { workspace = true }
 codex-login = { workspace = true }
-codex-memories-read = { workspace = true }
+codex-memories-read = { workspace = true, optional = true }
 codex-mcp = { workspace = true }
 codex-model-provider-info = { workspace = true }
 codex-models-manager = { workspace = true }

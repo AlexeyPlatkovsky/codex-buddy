@@ -3,6 +3,7 @@ use crate::config_values::merge_missing_mcp_servers;
 use crate::config_values::merge_missing_toml_values;
 use crate::config_values::migrated_mcp_server_names;
 use crate::config_values::write_toml_file;
+#[cfg(feature = "memories")]
 use crate::memory_import;
 use crate::migration_source::ExternalAgentSource;
 use crate::migration_source::InstructionSourceGroup;
@@ -391,6 +392,7 @@ impl ExternalAgentConfigService {
                     }
                     Ok(())
                 })(),
+                #[cfg(feature = "memories")]
                 ExternalAgentConfigMigrationItemType::Memory if self.source.supports_memory() => {
                     async {
                         let selected_memory = migration_item

@@ -15,7 +15,9 @@ use crate::session::turn_context::TurnContext;
 use crate::tools::parallel::ToolCallRuntime;
 use crate::tools::router::ToolRouter;
 use crate::tools::router::tool_log_payload;
+#[cfg(feature = "memories")]
 use codex_memories_read::citations::parse_memory_citation;
+#[cfg(feature = "memories")]
 use codex_memories_read::citations::thread_ids_from_memory_citation;
 use codex_protocol::error::CodexErr;
 use codex_protocol::error::Result;
@@ -31,6 +33,16 @@ use futures::Future;
 use tracing::debug;
 use tracing::instrument;
 use tracing::warn;
+
+#[cfg(not(feature = "memories"))]
+fn parse_memory_citation(_: Vec<String>) -> Option<MemoryCitation> {
+    None
+}
+
+#[cfg(not(feature = "memories"))]
+fn thread_ids_from_memory_citation(_: &MemoryCitation) -> Vec<codex_protocol::ThreadId> {
+    Vec::new()
+}
 
 fn strip_hidden_assistant_markup(text: &str, plan_mode: bool) -> String {
     let (without_citations, _) = strip_citations(text);

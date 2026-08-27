@@ -1,10 +1,14 @@
 use crate::tools::context::ToolInvocation;
 use crate::tools::context::ToolPayload;
+#[cfg(feature = "memories")]
 use crate::tools::flat_tool_name;
 use crate::tools::handlers::unified_exec::ExecCommandArgs;
+#[cfg(feature = "memories")]
 use codex_memories_read::usage::MEMORIES_USAGE_METRIC;
+#[cfg(feature = "memories")]
 use codex_memories_read::usage::memories_usage_kinds_from_command;
 
+#[cfg(feature = "memories")]
 pub(crate) fn emit_metric_for_tool_read(invocation: &ToolInvocation, success: bool) {
     let Some(command) = shell_script_for_invocation(invocation) else {
         return;
@@ -24,6 +28,9 @@ pub(crate) fn emit_metric_for_tool_read(invocation: &ToolInvocation, success: bo
         );
     }
 }
+
+#[cfg(not(feature = "memories"))]
+pub(crate) fn emit_metric_for_tool_read(_: &ToolInvocation, _: bool) {}
 
 pub(crate) fn shell_script_for_invocation(invocation: &ToolInvocation) -> Option<String> {
     let ToolPayload::Function { arguments } = &invocation.payload else {

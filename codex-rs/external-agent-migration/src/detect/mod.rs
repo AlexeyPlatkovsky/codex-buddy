@@ -1,3 +1,4 @@
+#[cfg(feature = "memories")]
 mod memory;
 pub(crate) mod plugins;
 pub(crate) mod sessions;
@@ -56,6 +57,7 @@ impl ExternalAgentConfigService {
             self.detect_migrations(&scope, &mut items).await?;
         }
 
+        #[cfg(feature = "memories")]
         if params.include_home
             && params.include_memory
             && self.source.supports_memory()

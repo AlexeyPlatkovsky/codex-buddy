@@ -74,6 +74,7 @@ fn validate_response_item_image_urls(items: &[ResponseItem]) -> Result<(), JSONR
 #[derive(Clone)]
 pub(crate) struct TurnRequestProcessor {
     agent_runner: AgentRunner,
+    #[cfg(feature = "memories")]
     auth_manager: Arc<AuthManager>,
     thread_manager: Arc<ThreadManager>,
     outgoing: Arc<OutgoingMessageSender>,
@@ -145,8 +146,11 @@ impl TurnRequestProcessor {
         turn_cost_worker: Option<crate::turn_cost_worker::TurnCostWorkerHandle>,
     ) -> Self {
         let agent_runner = AgentRunner::new(Arc::downgrade(&thread_manager));
+        #[cfg(not(feature = "memories"))]
+        let _ = auth_manager;
         Self {
             agent_runner,
+            #[cfg(feature = "memories")]
             auth_manager,
             thread_manager,
             outgoing,
@@ -566,6 +570,7 @@ impl TurnRequestProcessor {
             resolve_turn_environment_selections(self.thread_manager.as_ref(), params.environments)?;
 
         let additional_context = map_additional_context(params.additional_context);
+        #[cfg(feature = "memories")]
         let turn_has_input = !params.input.is_empty();
         let input = if let Some(tool_output) = params.tool_output {
             let item = ResponseItem::FunctionCallOutput {
@@ -655,6 +660,10 @@ impl TurnRequestProcessor {
             }
         };
 
+        #[cfg(not(feature = "memories"))]
+        let _ = started;
+
+        #[cfg(feature = "memories")]
         if turn_has_input && started {
             let config_snapshot = thread.config_snapshot().await;
             if config_snapshot.is_primary_environment_configured() {

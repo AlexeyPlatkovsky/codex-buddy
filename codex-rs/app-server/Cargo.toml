@@ -28,11 +28,13 @@ workspace = true
 default = ["full-runtime-extensions"]
 full-runtime-extensions = [
     "codex-core/audio-input",
+    "codex-core/memories",
+    "codex-external-agent-migration/memories",
     "image-generation",
     "memories",
 ]
 image-generation = ["dep:codex-image-generation-extension"]
-memories = ["dep:codex-memories-extension"]
+memories = ["dep:codex-memories-extension", "dep:codex-memories-write"]
 
 [dependencies]
 anyhow = { workspace = true }
@@ -81,7 +83,7 @@ codex-login = { workspace = true }
 codex-image-generation-extension = { workspace = true, optional = true }
 codex-memories-extension = { workspace = true, optional = true }
 codex-web-search-extension = { workspace = true }
-codex-memories-write = { workspace = true }
+codex-memories-write = { workspace = true, optional = true }
 codex-mcp = { workspace = true }
 codex-mcp-extension = { workspace = true }
 codex-model-provider = { workspace = true }

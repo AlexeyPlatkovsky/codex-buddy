@@ -81,6 +81,7 @@ impl ExternalAgentSource {
         }
     }
 
+    #[cfg(feature = "memories")]
     pub(super) fn supports_memory(self) -> bool {
         match self {
             Self::Cla => true,

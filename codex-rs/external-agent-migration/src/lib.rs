@@ -6,7 +6,9 @@ mod hooks_cla;
 mod hooks_common;
 mod hooks_cur;
 mod mcp;
+#[cfg(feature = "memories")]
 mod memory;
+#[cfg(feature = "memories")]
 mod memory_import;
 mod migration_source;
 mod model;
@@ -53,7 +55,9 @@ pub use mcp::build_mcp_config_from_json_file;
 use mcp::external_agent_project_config_file;
 #[cfg(test)]
 use mcp::parse_env_placeholder;
+#[cfg(feature = "memories")]
 pub use memory::ExternalMemoryFile;
+#[cfg(feature = "memories")]
 pub use memory::discover_external_memory_files;
 pub use rewrite::RewriteProfile;
 pub use service::DetectedConnectorCandidate;

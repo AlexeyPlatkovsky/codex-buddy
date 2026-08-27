@@ -12,6 +12,10 @@ path = "src/lib.rs"
 [lints]
 workspace = true
 
+[features]
+default = ["memories"]
+memories = ["dep:codex-memories-write"]
+
 [dependencies]
 chrono = { workspace = true }
 codex-analytics = { workspace = true }
@@ -20,7 +24,7 @@ codex-core = { workspace = true }
 codex-core-plugins = { workspace = true }
 codex-hooks = { workspace = true }
 codex-login = { workspace = true }
-codex-memories-write = { workspace = true }
+codex-memories-write = { workspace = true, optional = true }
 codex-otel = { workspace = true }
 codex-plugin = { workspace = true }
 codex-protocol = { workspace = true }
