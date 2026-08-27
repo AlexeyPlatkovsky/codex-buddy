@@ -1,0 +1,4 @@
+interface:
+  display_name: "TaskPilot Planning"
+  short_description: "Plan and maintain Codex Buddy work in TaskPilot"
+  default_prompt: "Turn this work into a validated TaskPilot hierarchy and keep item status current."

@@ -1,0 +1,14 @@
+schema_version: 1
+id: CB-5
+title: Define the coding baseline tool set
+priority: high
+type: task
+status: backlog
+created_at: '2026-08-27T14:14:21Z'
+updated_at: '2026-08-27T14:14:21Z'
+parent_id: CB-2
+tags:
+- tools
+- product
+description: 'Define shell, process input, apply_patch, local search via shell, web search, image viewing, subagent lifecycle, and applicable approval controls. Acceptance: exact model-visible tool inventory is testable.'
+created_by: codex

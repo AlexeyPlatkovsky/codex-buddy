@@ -1,0 +1,14 @@
+schema_version: 1
+id: CB-42
+title: Preserve existing rollout and protocol deserialization
+priority: high
+type: task
+status: backlog
+created_at: '2026-08-27T14:14:52Z'
+updated_at: '2026-08-27T14:14:52Z'
+parent_id: CB-40
+tags:
+- rollouts
+- protocol
+description: 'Keep legacy tool and extension item variants readable and render unsupported historical items safely. Acceptance: no history rewrite on resume.'
+created_by: codex

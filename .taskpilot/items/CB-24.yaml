@@ -1,0 +1,17 @@
+schema_version: 1
+id: CB-24
+title: Subagent tree state and event projection
+priority: high
+type: feature
+status: backlog
+created_at: '2026-08-27T14:14:36Z'
+updated_at: '2026-08-27T14:18:18Z'
+parent_id: CB-23
+tags:
+- agents
+- state
+description: Build a bounded presentation model from existing agent navigation and app-server events.
+links:
+  blocks:
+  - CB-29
+created_by: codex
