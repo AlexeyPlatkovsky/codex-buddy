@@ -102,6 +102,9 @@ use codex_protocol::protocol::MultiAgentVersion;
 use codex_protocol::protocol::NetworkAccess;
 use codex_protocol::protocol::RealtimeVoice;
 use codex_protocol::protocol::SandboxPolicy;
+use codex_runtime_profile::CapabilityDecision;
+use codex_runtime_profile::RuntimePreset;
+use codex_runtime_profile::ToolCapability;
 use codex_utils_path_uri::LegacyAppPathString;
 use serde::Deserialize;
 use tempfile::tempdir;
@@ -12798,6 +12801,36 @@ async fn absent_allow_login_shell_does_not_report_an_override() -> std::io::Resu
             .startup_warnings
             .iter()
             .all(|warning| !warning.contains("allow_login_shell"))
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn config_builder_defaults_full_and_resolves_selected_runtime_preset() -> anyhow::Result<()> {
+    let codex_home = TempDir::new()?;
+    let full = ConfigBuilder::without_managed_config_for_tests()
+        .codex_home(codex_home.path().to_path_buf())
+        .build()
+        .await?;
+    let coding = ConfigBuilder::without_managed_config_for_tests()
+        .codex_home(codex_home.path().to_path_buf())
+        .runtime_preset(RuntimePreset::Coding)
+        .build()
+        .await?;
+
+    assert_eq!(
+        (
+            full.runtime_profile.preset(),
+            full.runtime_profile.tool(ToolCapability::ComputerUse),
+            coding.runtime_profile.preset(),
+            coding.runtime_profile.tool(ToolCapability::ComputerUse),
+        ),
+        (
+            RuntimePreset::Full,
+            CapabilityDecision::Enabled,
+            RuntimePreset::Coding,
+            CapabilityDecision::ExcludedByPreset,
+        )
     );
     Ok(())
 }

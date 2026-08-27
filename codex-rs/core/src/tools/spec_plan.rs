@@ -58,6 +58,9 @@ use crate::tools::registry::RegisteredTool;
 use crate::tools::registry::ToolExposure;
 use crate::tools::registry::ToolRegistry;
 use crate::tools::router::ToolRouter;
+use crate::tools::runtime_policy::explicit_source_tool_enabled;
+use crate::tools::runtime_policy::full_tool_surface_enabled;
+use crate::tools::runtime_policy::tool_enabled;
 use crate::tools::tool_namespaces_info::collect_tool_namespaces_info;
 use codex_extension_api::ExtensionData;
 use codex_features::Feature;
@@ -74,6 +77,8 @@ use codex_protocol::openai_models::ConfigShellToolType;
 use codex_protocol::openai_models::InputModality;
 use codex_protocol::openai_models::ToolMode;
 use codex_protocol::protocol::MultiAgentVersion;
+use codex_runtime_profile::ExternalSource;
+use codex_runtime_profile::ToolCapability;
 use codex_tools::ResponsesApiNamespace;
 use codex_tools::ResponsesApiNamespaceTool;
 use codex_tools::TOOL_SEARCH_TOOL_NAME;
@@ -169,7 +174,7 @@ pub(crate) fn build_tool_router(
             extension_tool_executors(session, step_store),
             &mut registry,
         );
-        append_dynamic_tool_runtimes(&turn_context.dynamic_tools, &mut registry);
+        append_dynamic_tool_runtimes(turn_context, &turn_context.dynamic_tools, &mut registry);
         hosted_model_tool_specs(turn_context, standalone_web_search_tool.as_slice())
     };
 
@@ -299,7 +304,7 @@ pub(crate) fn append_source_tools(
     }
     let standalone_web_search_tool =
         append_extension_tool_executors(turn_context, extension_tool_executors, registry);
-    append_dynamic_tool_runtimes(dynamic_tools, registry);
+    append_dynamic_tool_runtimes(turn_context, dynamic_tools, registry);
     hosted_model_tool_specs(turn_context, standalone_web_search_tool.as_slice())
 }
 
@@ -566,6 +571,10 @@ fn hosted_model_tool_specs(
         return Vec::new();
     }
 
+    if !tool_enabled(turn_context, ToolCapability::WebSearch) {
+        return Vec::new();
+    }
+
     let mut specs = Vec::new();
     let standalone_web_search_available = standalone_web_search_enabled(turn_context)
         && registered_extension_tool_names.contains(&ToolName::namespaced("web", "run"));
@@ -719,6 +728,9 @@ fn register_code_mode_executors(
     turn_context: &TurnContext,
     registry: &mut ToolRegistry,
 ) -> BTreeMap<String, ToolName> {
+    if !full_tool_surface_enabled(turn_context) {
+        return BTreeMap::new();
+    }
     let tool_mode = effective_tool_mode(turn_context);
     if !matches!(tool_mode, ToolMode::CodeMode | ToolMode::CodeModeOnly) {
         return BTreeMap::new();
@@ -920,7 +932,8 @@ fn add_core_tool_sources(context: &CoreToolPlanContext<'_>, registry: &mut ToolR
         let environment_mode = tool_environment_mode(context.environments);
         if environment_mode.has_environment() {
             let include_environment_id = matches!(environment_mode, ToolEnvironmentMode::Multiple);
-            if turn_context.config.features.enabled(Feature::ShellTool)
+            if tool_enabled(turn_context, ToolCapability::Shell)
+                && turn_context.config.features.enabled(Feature::ShellTool)
                 && turn_context.config.features.enabled(Feature::UnifiedExec)
                 && !matches!(
                     turn_context.model_info().shell_type,
@@ -936,9 +949,20 @@ fn add_core_tool_sources(context: &CoreToolPlanContext<'_>, registry: &mut ToolR
                         context.environments,
                     ),
                 }));
+            }
+            if tool_enabled(turn_context, ToolCapability::ProcessInput)
+                && turn_context.config.features.enabled(Feature::ShellTool)
+                && turn_context.config.features.enabled(Feature::UnifiedExec)
+                && !matches!(
+                    turn_context.model_info().shell_type,
+                    ConfigShellToolType::Disabled
+                )
+            {
                 registry.add(WriteStdinHandler);
             }
-            if turn_context.config.features.enabled(Feature::ViewImage) {
+            if tool_enabled(turn_context, ToolCapability::ViewImage)
+                && turn_context.config.features.enabled(Feature::ViewImage)
+            {
                 registry.add(ViewImageHandler::new(ViewImageToolOptions {
                     can_request_original_image_detail: can_request_original_image_detail(
                         turn_context.model_info(),
@@ -961,7 +985,8 @@ fn add_core_tool_sources(context: &CoreToolPlanContext<'_>, registry: &mut ToolR
 }
 
 fn standalone_web_search_enabled(turn_context: &TurnContext) -> bool {
-    namespace_tools_enabled(turn_context)
+    tool_enabled(turn_context, ToolCapability::WebSearch)
+        && namespace_tools_enabled(turn_context)
         && turn_context.provider.capabilities().web_search
         && (turn_context.model_info().use_responses_lite
             || turn_context
@@ -1000,16 +1025,20 @@ fn add_shell_tools(context: &CoreToolPlanContext<'_>, registry: &mut ToolRegistr
     let allow_login_shell = any_environment_allows_login_shell(context.environments);
     let exec_permission_approvals_enabled = features.enabled(Feature::ExecPermissionApprovals);
     let include_environment_id = matches!(environment_mode, ToolEnvironmentMode::Multiple);
-    registry.add(ExecCommandHandler::new(ExecCommandHandlerOptions {
-        allow_login_shell,
-        exec_permission_approvals_enabled,
-        include_environment_id,
-        include_shell_parameter: unified_exec_should_include_shell_parameter(
-            turn_context,
-            context.environments,
-        ),
-    }));
-    registry.add(WriteStdinHandler);
+    if tool_enabled(turn_context, ToolCapability::Shell) {
+        registry.add(ExecCommandHandler::new(ExecCommandHandlerOptions {
+            allow_login_shell,
+            exec_permission_approvals_enabled,
+            include_environment_id,
+            include_shell_parameter: unified_exec_should_include_shell_parameter(
+                turn_context,
+                context.environments,
+            ),
+        }));
+    }
+    if tool_enabled(turn_context, ToolCapability::ProcessInput) {
+        registry.add(WriteStdinHandler);
+    }
 }
 
 fn unified_exec_should_include_shell_parameter(
@@ -1026,7 +1055,7 @@ fn unified_exec_should_include_shell_parameter(
 
 #[instrument(level = "trace", skip_all)]
 fn add_mcp_resource_tools(context: &CoreToolPlanContext<'_>, registry: &mut ToolRegistry) {
-    if context.mcp.has_servers() {
+    if tool_enabled(context.turn_context, ToolCapability::Mcp) && context.mcp.has_servers() {
         registry.add(ListMcpResourcesHandler);
         registry.add(ListMcpResourceTemplatesHandler);
         registry.add(ReadMcpResourceHandler);
@@ -1039,11 +1068,11 @@ fn add_core_utility_tools(context: &CoreToolPlanContext<'_>, registry: &mut Tool
     let features = turn_context.config.features.get();
     let environment_mode = tool_environment_mode(context.environments);
 
-    if turn_context.config.update_plan_enabled {
+    if full_tool_surface_enabled(turn_context) && turn_context.config.update_plan_enabled {
         registry.add(PlanHandler);
     }
 
-    if features.enabled(Feature::DeferredExecutor) {
+    if full_tool_surface_enabled(turn_context) && features.enabled(Feature::DeferredExecutor) {
         registry.add(
             context
                 .wait_for_environment_tool_config
@@ -1055,7 +1084,9 @@ fn add_core_utility_tools(context: &CoreToolPlanContext<'_>, registry: &mut Tool
         );
     }
 
-    if turn_context.config.experimental_request_user_input_enabled {
+    if tool_enabled(turn_context, ToolCapability::UserInput)
+        && turn_context.config.experimental_request_user_input_enabled
+    {
         registry.add_with_exposure(
             RequestUserInputHandler {
                 available_modes: request_user_input_available_modes(features),
@@ -1064,7 +1095,8 @@ fn add_core_utility_tools(context: &CoreToolPlanContext<'_>, registry: &mut Tool
         );
     }
 
-    if !turn_context.session_source.is_non_root_agent()
+    if full_tool_surface_enabled(turn_context)
+        && !turn_context.session_source.is_non_root_agent()
         && turn_context
             .model_info()
             .experimental_supported_tools
@@ -1074,16 +1106,19 @@ fn add_core_utility_tools(context: &CoreToolPlanContext<'_>, registry: &mut Tool
         registry.add_with_exposure(SendUserMessageAsyncHandler, ToolExposure::DirectModelOnly);
     }
 
-    if environment_mode.has_environment() && features.enabled(Feature::RequestPermissionsTool) {
+    if tool_enabled(turn_context, ToolCapability::Permissions)
+        && environment_mode.has_environment()
+        && features.enabled(Feature::RequestPermissionsTool)
+    {
         registry.add(RequestPermissionsHandler);
     }
 
-    if features.enabled(Feature::TokenBudget) {
+    if full_tool_surface_enabled(turn_context) && features.enabled(Feature::TokenBudget) {
         registry.add_with_exposure(NewContextWindowHandler, ToolExposure::DirectModelOnly);
         registry.add(GetContextRemainingHandler);
     }
 
-    if features.enabled(Feature::CurrentTimeReminder) {
+    if full_tool_surface_enabled(turn_context) && features.enabled(Feature::CurrentTimeReminder) {
         registry.add(CurrentTimeHandler);
         if turn_context
             .config
@@ -1095,7 +1130,8 @@ fn add_core_utility_tools(context: &CoreToolPlanContext<'_>, registry: &mut Tool
         }
     }
 
-    if tool_suggest_enabled(turn_context)
+    if full_tool_surface_enabled(turn_context)
+        && tool_suggest_enabled(turn_context)
         && let Some(candidates) = context
             .tool_suggest_candidates
             .filter(|candidates| !candidates.tools.is_empty())
@@ -1111,23 +1147,28 @@ fn add_core_utility_tools(context: &CoreToolPlanContext<'_>, registry: &mut Tool
         ));
     }
 
-    if environment_mode.has_environment()
+    if tool_enabled(turn_context, ToolCapability::ApplyPatch)
+        && environment_mode.has_environment()
         && turn_context.model_info().apply_patch_tool_type.is_some()
     {
         let include_environment_id = matches!(environment_mode, ToolEnvironmentMode::Multiple);
         registry.add(ApplyPatchHandler::new(include_environment_id));
     }
 
-    if turn_context
-        .model_info()
-        .experimental_supported_tools
-        .iter()
-        .any(|tool| tool == "test_sync_tool")
+    if full_tool_surface_enabled(turn_context)
+        && turn_context
+            .model_info()
+            .experimental_supported_tools
+            .iter()
+            .any(|tool| tool == "test_sync_tool")
     {
         registry.add(TestSyncHandler);
     }
 
-    if environment_mode.has_environment() && features.enabled(Feature::ViewImage) {
+    if tool_enabled(turn_context, ToolCapability::ViewImage)
+        && environment_mode.has_environment()
+        && features.enabled(Feature::ViewImage)
+    {
         let include_environment_id = matches!(environment_mode, ToolEnvironmentMode::Multiple);
         registry.add(ViewImageHandler::new(ViewImageToolOptions {
             can_request_original_image_detail: can_request_original_image_detail(
@@ -1145,7 +1186,8 @@ fn add_core_utility_tools(context: &CoreToolPlanContext<'_>, registry: &mut Tool
 #[instrument(level = "trace", skip_all)]
 fn add_collaboration_tools(context: &CoreToolPlanContext<'_>, registry: &mut ToolRegistry) {
     let turn_context = context.turn_context;
-    if collab_tools_enabled(turn_context) {
+    if tool_enabled(turn_context, ToolCapability::MultiAgent) && collab_tools_enabled(turn_context)
+    {
         if multi_agent_v2_enabled(turn_context) {
             let exposure = if turn_context.config.multi_agent_v2.non_code_mode_only {
                 ToolExposure::DirectModelOnly
@@ -1232,7 +1274,19 @@ fn add_collaboration_tools(context: &CoreToolPlanContext<'_>, registry: &mut Too
 }
 
 #[instrument(level = "trace", skip_all, fields(dynamic_tool_count = dynamic_tools.len()))]
-fn append_dynamic_tool_runtimes(dynamic_tools: &[DynamicToolSpec], registry: &mut ToolRegistry) {
+fn append_dynamic_tool_runtimes(
+    turn_context: &TurnContext,
+    dynamic_tools: &[DynamicToolSpec],
+    registry: &mut ToolRegistry,
+) {
+    if !explicit_source_tool_enabled(
+        turn_context,
+        ToolCapability::ClientTools,
+        ExternalSource::ClientTools,
+    ) {
+        return;
+    }
+
     for spec in dynamic_tools {
         match spec {
             DynamicToolSpec::Function(tool) => {
@@ -1299,7 +1353,8 @@ fn append_extension_tool_executors(
             continue;
         }
         if tool_name == ToolName::namespaced(IMAGE_GEN_NAMESPACE, IMAGEGEN_TOOL_NAME)
-            && !image_generation_available(turn_context)
+            && (!tool_enabled(turn_context, ToolCapability::ImageGeneration)
+                || !image_generation_available(turn_context))
         {
             continue;
         }

@@ -122,6 +122,10 @@ use codex_protocol::permissions::ReadDenyMatcher;
 use codex_protocol::protocol::AskForApproval;
 use codex_protocol::protocol::MultiAgentVersion;
 use codex_protocol::protocol::SandboxPolicy;
+use codex_runtime_profile::ResolvedRuntimeProfile;
+use codex_runtime_profile::RuntimeCompileCeiling;
+use codex_runtime_profile::RuntimePolicyPatch;
+use codex_runtime_profile::RuntimePreset;
 pub use codex_thread_store::ExtraConfig;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use codex_utils_absolute_path::AbsolutePathBufGuard;
@@ -601,6 +605,12 @@ pub enum ThreadStoreConfig {
 /// Application configuration loaded from disk and merged with overrides.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Config {
+    /// Product runtime capabilities resolved once from the preset and config layers.
+    pub runtime_profile: ResolvedRuntimeProfile,
+
+    /// Provenance-aware external-source grants used with the resolved runtime profile.
+    pub runtime_profile_policy: codex_config::RuntimeProfilePolicy,
+
     /// Provenance for how this [`Config`] was derived (merged layers + enforced
     /// requirements).
     pub config_layer_stack: ConfigLayerStack,
@@ -1357,6 +1367,7 @@ pub struct ConfigBuilder {
     cloud_config_bundle: CloudConfigBundleLoader,
     thread_config_loader: Option<Arc<dyn ThreadConfigLoader>>,
     fallback_cwd: Option<PathBuf>,
+    runtime_preset: Option<RuntimePreset>,
 }
 
 impl ConfigBuilder {
@@ -1403,6 +1414,12 @@ impl ConfigBuilder {
         self
     }
 
+    /// Selects the product runtime preset. The upstream product defaults to [`RuntimePreset::Full`].
+    pub fn runtime_preset(mut self, runtime_preset: RuntimePreset) -> Self {
+        self.runtime_preset = Some(runtime_preset);
+        self
+    }
+
     pub async fn build(self) -> std::io::Result<Config> {
         // Keep the large config-loading future off small runtime thread stacks.
         Box::pin(self.build_inner()).await
@@ -1418,6 +1435,7 @@ impl ConfigBuilder {
             cloud_config_bundle,
             thread_config_loader,
             fallback_cwd,
+            runtime_preset,
         } = self;
         let codex_home = match codex_home {
             Some(codex_home) => AbsolutePathBuf::from_absolute_path(codex_home)?,
@@ -1471,12 +1489,13 @@ impl ConfigBuilder {
                 return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, err));
             }
         };
-        Config::load_config_with_layer_stack(
+        Config::load_config_with_layer_stack_and_runtime_preset(
             LOCAL_FS.as_ref(),
             config_toml,
             harness_overrides,
             codex_home,
             config_layer_stack,
+            runtime_preset.unwrap_or(RuntimePreset::Full),
         )
         .await
     }
@@ -1826,7 +1845,7 @@ impl Config {
             .map(AbsolutePathBuf::try_from)
             .transpose()?;
 
-        Self::load_config_with_layer_stack(
+        Self::load_config_with_layer_stack_and_runtime_preset(
             LOCAL_FS.as_ref(),
             cfg,
             ConfigOverrides {
@@ -1836,6 +1855,7 @@ impl Config {
             },
             refreshed_config.codex_home.clone(),
             config_layer_stack,
+            self.runtime_profile.preset(),
         )
         .await
     }
@@ -3125,10 +3145,29 @@ impl Config {
 
     pub(crate) async fn load_config_with_layer_stack(
         fs: &dyn ExecutorFileSystem,
+        cfg: ConfigToml,
+        overrides: ConfigOverrides,
+        codex_home: AbsolutePathBuf,
+        config_layer_stack: ConfigLayerStack,
+    ) -> std::io::Result<Self> {
+        Self::load_config_with_layer_stack_and_runtime_preset(
+            fs,
+            cfg,
+            overrides,
+            codex_home,
+            config_layer_stack,
+            RuntimePreset::Full,
+        )
+        .await
+    }
+
+    async fn load_config_with_layer_stack_and_runtime_preset(
+        fs: &dyn ExecutorFileSystem,
         mut cfg: ConfigToml,
         overrides: ConfigOverrides,
         codex_home: AbsolutePathBuf,
         config_layer_stack: ConfigLayerStack,
+        runtime_preset: RuntimePreset,
     ) -> std::io::Result<Self> {
         // Keep the large config-construction future off small test thread stacks.
         Box::pin(async move {
@@ -4102,7 +4141,18 @@ impl Config {
         )
         .map_err(std::io::Error::from)?;
         let otel = otel::resolve_config(cfg.otel.unwrap_or_default(), &mut startup_warnings);
+        let runtime_profile_policy = codex_config::runtime_profile_policy_from_stack(
+            &config_layer_stack,
+            RuntimePolicyPatch::default(),
+        );
+        let runtime_profile = ResolvedRuntimeProfile::resolve(
+            runtime_preset,
+            &RuntimeCompileCeiling::full(),
+            runtime_profile_policy.restrictions(),
+        );
         let config = Self {
+            runtime_profile,
+            runtime_profile_policy,
             model,
             service_tier,
             review_model,

@@ -28,6 +28,11 @@ use codex_protocol::protocol::MultiAgentVersion;
 use codex_protocol::protocol::SessionSource;
 use codex_protocol::protocol::SubAgentSource;
 use codex_protocol::protocol::TurnEnvironmentSelection;
+use codex_runtime_profile::ExternalSource;
+use codex_runtime_profile::ExternalSourcePolicy;
+use codex_runtime_profile::ResolvedRuntimeProfile;
+use codex_runtime_profile::RuntimeCompileCeiling;
+use codex_runtime_profile::RuntimePolicyPatch;
 use codex_tools::DiscoverablePluginInfo;
 use codex_tools::DiscoverableTool;
 use codex_tools::ResponsesApiNamespaceTool;
@@ -283,6 +288,13 @@ fn set_web_search_mode(turn: &mut TurnContext, mode: WebSearchMode) {
             .web_search_mode
             .set(mode)
             .expect("test web search mode should be accepted");
+    });
+}
+
+fn use_coding_runtime_profile(turn: &mut TurnContext, patch: RuntimePolicyPatch) {
+    update_config(turn, |config| {
+        config.runtime_profile =
+            ResolvedRuntimeProfile::coding(&RuntimeCompileCeiling::full(), &patch);
     });
 }
 
@@ -812,6 +824,101 @@ async fn request_user_input_tool_respects_experimental_config_gate() {
     .await;
     disabled.assert_visible_lacks(&["request_user_input"]);
     disabled.assert_registered_lacks(&["request_user_input"]);
+}
+
+#[tokio::test]
+async fn coding_runtime_profile_exposes_exact_coding_tool_inventory() {
+    let plan = probe_with(
+        |turn| {
+            use_coding_runtime_profile(turn, RuntimePolicyPatch::default());
+            set_features(
+                turn,
+                &[
+                    Feature::ShellTool,
+                    Feature::RequestPermissionsTool,
+                    Feature::ViewImage,
+                    Feature::Collab,
+                    Feature::CodeMode,
+                    Feature::TokenBudget,
+                    Feature::CurrentTimeReminder,
+                ],
+            );
+            set_feature(turn, Feature::MultiAgentV2, /*enabled*/ false);
+            update_turn_settings_for_test(turn, |settings| {
+                let model_info = Arc::make_mut(&mut settings.model_info);
+                model_info.shell_type = ConfigShellToolType::UnifiedExec;
+                model_info.apply_patch_tool_type = Some(ApplyPatchToolType::Freeform);
+                model_info.supports_search_tool = false;
+            });
+        },
+        ToolPlanInputs {
+            dynamic_tools: vec![dynamic_tool(
+                /*namespace*/ None,
+                "client_echo",
+                /*defer_loading*/ false,
+            )],
+            ..ToolPlanInputs::default()
+        },
+    )
+    .await;
+
+    assert_eq!(
+        plan.visible_names,
+        vec![
+            "exec_command",
+            "write_stdin",
+            "request_user_input",
+            "request_permissions",
+            "apply_patch",
+            "view_image",
+            MULTI_AGENT_V1_NAMESPACE,
+            "web_search",
+        ]
+    );
+    assert_eq!(
+        plan.registered_names,
+        vec![
+            "apply_patch",
+            "exec_command",
+            "request_permissions",
+            "request_user_input",
+            "view_image",
+            "write_stdin",
+            "multi_agent_v1close_agent",
+            "multi_agent_v1resume_agent",
+            "multi_agent_v1send_input",
+            "multi_agent_v1spawn_agent",
+            "multi_agent_v1wait_agent",
+        ]
+    );
+    plan.assert_registered_lacks(&["client_echo"]);
+}
+
+#[tokio::test]
+async fn coding_runtime_profile_honors_disabled_client_tool_source() {
+    let plan = probe_with(
+        |turn| {
+            use_coding_runtime_profile(
+                turn,
+                RuntimePolicyPatch::default().restrict_external_source(
+                    ExternalSource::ClientTools,
+                    ExternalSourcePolicy::Disabled,
+                ),
+            );
+        },
+        ToolPlanInputs {
+            dynamic_tools: vec![dynamic_tool(
+                /*namespace*/ None,
+                "client_echo",
+                /*defer_loading*/ false,
+            )],
+            ..ToolPlanInputs::default()
+        },
+    )
+    .await;
+
+    plan.assert_visible_lacks(&["client_echo"]);
+    plan.assert_registered_lacks(&["client_echo"]);
 }
 
 #[tokio::test]
