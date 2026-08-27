@@ -10,6 +10,12 @@ use codex_protocol::ThreadId;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
+#[path = "agent_tree_status.rs"]
+mod agent_tree_status;
+
+pub(crate) use agent_tree_status::AgentTreeLifecycleEvent;
+pub(crate) use agent_tree_status::AgentTreeStatus;
+
 /// Upper bound for a single presentation snapshot. The navigation cache may retain more history,
 /// but a malformed or unusually large cache must not cause a render-time allocation to grow
 /// without bound.
@@ -27,8 +33,7 @@ pub(crate) struct AgentTreeInput {
     pub(crate) agent_path: Option<String>,
     pub(crate) agent_nickname: Option<String>,
     pub(crate) agent_role: Option<String>,
-    pub(crate) is_running: bool,
-    pub(crate) is_closed: bool,
+    pub(crate) status: AgentTreeStatus,
 }
 
 impl AgentTreeInput {
@@ -43,9 +48,19 @@ impl AgentTreeInput {
             agent_path: entry.agent_path.clone(),
             agent_nickname: entry.agent_nickname.clone(),
             agent_role: entry.agent_role.clone(),
-            is_running: entry.is_running,
-            is_closed: entry.is_closed,
+            status: AgentTreeStatus::from_picker_metadata(entry.is_running, entry.is_closed),
         }
+    }
+
+    /// Replaces the picker-derived lifecycle state with a richer observation from the caller.
+    pub(crate) fn with_status(mut self, status: AgentTreeStatus) -> Self {
+        self.status = status;
+        self
+    }
+
+    /// Applies a lifecycle observation to cached metadata before it is projected into a row.
+    pub(crate) fn apply_status_event(&mut self, event: AgentTreeLifecycleEvent) {
+        self.status = self.status.transition(event);
     }
 }
 
@@ -57,8 +72,7 @@ pub(crate) struct AgentTreeRow {
     pub(crate) depth: usize,
     pub(crate) agent_path: Option<String>,
     pub(crate) label: String,
-    pub(crate) is_running: bool,
-    pub(crate) is_closed: bool,
+    pub(crate) status: AgentTreeStatus,
     pub(crate) is_current: bool,
     pub(crate) is_selected: bool,
 }
@@ -195,8 +209,7 @@ impl AgentTreeSnapshot {
                         input.agent_role.as_deref(),
                         primary_thread_id == Some(input.thread_id),
                     ),
-                    is_running: input.is_running,
-                    is_closed: input.is_closed,
+                    status: input.status,
                     is_current: current_thread_id == Some(input.thread_id),
                     is_selected: selected_thread_id == Some(input.thread_id),
                 }

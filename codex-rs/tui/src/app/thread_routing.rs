@@ -892,6 +892,7 @@ impl App {
             .await
         {
             Ok(()) => {
+                self.agent_navigation.resolve_server_request(thread_id);
                 if ThreadEventStore::op_can_change_pending_replay_state(op) {
                     self.note_thread_outbound_op(thread_id, op).await;
                     self.refresh_pending_thread_approvals().await;
@@ -1029,6 +1030,9 @@ impl App {
         } else {
             None
         };
+        self.cache_collab_receiver_threads_for_notification(&notification);
+        self.agent_navigation
+            .observe_server_notification(thread_id, &notification);
         let is_turn_started = matches!(notification, ServerNotification::TurnStarted(_));
         let is_thread_closed = matches!(notification, ServerNotification::ThreadClosed(_));
         let notification_status_change = SideParentStatusChange::for_notification(&notification);

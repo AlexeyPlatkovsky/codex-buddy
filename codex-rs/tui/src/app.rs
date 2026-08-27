@@ -206,6 +206,7 @@ mod agent_navigation;
 mod agent_picker;
 mod agent_status_feed;
 mod agent_tree;
+mod agent_tree_status_state;
 mod agents_overview;
 mod agents_overview_view;
 pub(crate) use agents_overview::AGENTS_OVERVIEW_VIEW_ID;

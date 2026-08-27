@@ -167,6 +167,9 @@ impl App {
                     .pending_app_server_requests
                     .resolve_notification(&notification.thread_id, &notification.request_id)
                 {
+                    if let Some(thread_id) = notification_thread_id {
+                        self.agent_navigation.resolve_server_request(thread_id);
+                    }
                     self.chat_widget.dismiss_app_server_request(&request);
                     if self.startup_pending_protected_request {
                         self.startup_pending_protected_request =
@@ -532,6 +535,11 @@ impl App {
                 tracing::warn!("{err}");
             }
             return;
+        }
+
+        if let Some(thread_id) = thread_id {
+            self.agent_navigation
+                .observe_server_request(thread_id, &request);
         }
 
         let Some(thread_id) = thread_id else {

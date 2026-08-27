@@ -14,8 +14,7 @@ fn input(
         agent_path: agent_path.map(str::to_string),
         agent_nickname: nickname.map(str::to_string),
         agent_role: Some("worker".to_string()),
-        is_running: !closed,
-        is_closed: closed,
+        status: AgentTreeStatus::from_picker_metadata(!closed, closed),
     }
 }
 
@@ -145,8 +144,7 @@ fn markers_and_closed_metadata_are_preserved_without_special_cases() {
     assert!(!snapshot.rows[0].is_selected);
     assert!(snapshot.rows[1].is_selected);
     assert!(!snapshot.rows[1].is_current);
-    assert!(snapshot.rows[1].is_closed);
-    assert!(!snapshot.rows[1].is_running);
+    assert_eq!(snapshot.rows[1].status, AgentTreeStatus::Completed);
 }
 
 #[test]
@@ -191,4 +189,22 @@ fn current_detached_agent_is_not_mislabeled_as_main() {
 
     assert_eq!(snapshot.rows[0].label, "[worker]");
     assert!(snapshot.rows[0].is_current);
+}
+
+#[test]
+fn rich_status_is_projected_without_changing_tree_order_or_selection() {
+    let root = ThreadId::new();
+    let approval = ThreadId::new();
+    let approval_input = input(approval, Some(root), None, Some("Approval"), false)
+        .with_status(AgentTreeStatus::NeedsApproval);
+    let snapshot = AgentTreeSnapshot::from_inputs(
+        vec![input(root, None, None, None, false), approval_input],
+        Some(root),
+        Some(approval),
+        Some(root),
+    );
+
+    assert_eq!(ids(&snapshot), vec![root, approval]);
+    assert_eq!(snapshot.rows[1].status, AgentTreeStatus::NeedsApproval);
+    assert!(snapshot.rows[1].is_selected);
 }

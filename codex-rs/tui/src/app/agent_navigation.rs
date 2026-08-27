@@ -19,11 +19,16 @@
 //! order. Once a thread id is observed it keeps its place in the cycle even if the entry is later
 //! updated or marked closed.
 
+use super::agent_tree::AgentTreeLifecycleEvent;
+use super::agent_tree::AgentTreeStatus;
+use super::agent_tree_status_state::AgentTreeStatusState;
 use crate::multi_agents::AgentPickerThreadEntry;
 use crate::multi_agents::SubAgentActivityDisplay;
 use crate::multi_agents::format_agent_picker_item_name;
 use crate::multi_agents::next_agent_shortcut;
 use crate::multi_agents::previous_agent_shortcut;
+use codex_app_server_protocol::ServerNotification;
+use codex_app_server_protocol::ServerRequest;
 use codex_protocol::ThreadId;
 use ratatui::text::Span;
 use std::collections::HashMap;
@@ -51,6 +56,8 @@ pub(crate) struct AgentNavigationState {
     parent_owned_threads: HashSet<ThreadId>,
     /// Coalesces root refreshes while rejecting replies from a previous session.
     picker_refresh: Option<(ThreadId, Uuid)>,
+    /// Bounded, event-driven lifecycle state for tree rows.
+    tree_statuses: AgentTreeStatusState,
 }
 
 /// Direction of keyboard traversal through the stable picker order.
@@ -137,6 +144,10 @@ impl AgentNavigationState {
                 is_closed,
             },
         );
+        self.tree_statuses.initialize(
+            thread_id,
+            AgentTreeStatus::from_picker_metadata(previous_is_running && !is_closed, is_closed),
+        );
     }
 
     pub(crate) fn record_sub_agent_activity(&mut self, activity: SubAgentActivityDisplay) {
@@ -163,6 +174,10 @@ impl AgentNavigationState {
             entry.is_running = false;
             self.stopped_threads.insert(activity.thread_id);
         }
+        self.observe_tree_status(
+            activity.thread_id,
+            AgentTreeLifecycleEvent::from_activity_hint(activity.is_running_hint),
+        );
     }
 
     pub(crate) fn mark_running(&mut self, thread_id: ThreadId) {
@@ -175,11 +190,13 @@ impl AgentNavigationState {
         }
         self.stopped_threads.remove(&thread_id);
         self.set_running(thread_id, /*is_running*/ true);
+        self.observe_tree_status(thread_id, AgentTreeLifecycleEvent::TurnStarted);
     }
 
     pub(crate) fn mark_stopped(&mut self, thread_id: ThreadId) {
         self.stopped_threads.insert(thread_id);
         self.set_running(thread_id, /*is_running*/ false);
+        self.observe_tree_status(thread_id, AgentTreeLifecycleEvent::Waiting);
     }
 
     pub(crate) fn set_running(&mut self, thread_id: ThreadId, is_running: bool) {
@@ -212,6 +229,7 @@ impl AgentNavigationState {
                 /*is_closed*/ true,
             );
         }
+        self.observe_tree_status(thread_id, AgentTreeLifecycleEvent::ThreadClosed);
     }
 
     /// Drops all cached picker state.
@@ -224,6 +242,7 @@ impl AgentNavigationState {
         self.stopped_threads.clear();
         self.parent_owned_threads.clear();
         self.picker_refresh = None;
+        self.tree_statuses.clear();
     }
 
     /// Removes a tracked thread entirely from picker metadata and traversal order.
@@ -236,6 +255,35 @@ impl AgentNavigationState {
         self.order.retain(|candidate| *candidate != thread_id);
         self.stopped_threads.remove(&thread_id);
         self.parent_owned_threads.remove(&thread_id);
+        self.tree_statuses.remove(thread_id);
+    }
+
+    /// Returns richer event-driven status when it is available for a cached tree row.
+    pub(crate) fn tree_status(&self, thread_id: &ThreadId) -> Option<AgentTreeStatus> {
+        self.tree_statuses.get(thread_id)
+    }
+
+    /// Records the lifecycle observation encoded by an existing app-server notification.
+    pub(crate) fn observe_server_notification(
+        &mut self,
+        thread_id: ThreadId,
+        notification: &ServerNotification,
+    ) {
+        if let Some(event) = AgentTreeLifecycleEvent::from_server_notification(notification) {
+            self.observe_tree_status(thread_id, event);
+        }
+    }
+
+    /// Records a supported interactive server request without making it part of picker routing.
+    pub(crate) fn observe_server_request(&mut self, thread_id: ThreadId, request: &ServerRequest) {
+        if let Some(event) = AgentTreeLifecycleEvent::from_server_request(request) {
+            self.observe_tree_status(thread_id, event);
+        }
+    }
+
+    /// Clears a resolved interactive request while preserving terminal status if it arrived first.
+    pub(crate) fn resolve_server_request(&mut self, thread_id: ThreadId) {
+        self.observe_tree_status(thread_id, AgentTreeLifecycleEvent::InteractiveResolved);
     }
 
     /// Returns whether there is at least one tracked thread other than the primary one.
@@ -259,6 +307,18 @@ impl AgentNavigationState {
             .iter()
             .filter_map(|thread_id| self.threads.get(thread_id).map(|entry| (*thread_id, entry)))
             .collect()
+    }
+
+    fn observe_tree_status(&mut self, thread_id: ThreadId, event: AgentTreeLifecycleEvent) {
+        let Some(entry) = self.threads.get(&thread_id) else {
+            return;
+        };
+        if entry.is_closed && !matches!(event, AgentTreeLifecycleEvent::ThreadClosed) {
+            return;
+        }
+        let initial_status =
+            AgentTreeStatus::from_picker_metadata(entry.is_running, entry.is_closed);
+        self.tree_statuses.observe(thread_id, initial_status, event);
     }
 
     pub(crate) fn ordered_path_backed_subagent_threads(
@@ -511,6 +571,25 @@ mod tests {
         assert_eq!(
             state.active_agent_label(Some(main_thread_id), Some(main_thread_id)),
             Some("Main [default]".to_string())
+        );
+    }
+
+    #[test]
+    fn tree_status_tracks_lifecycle_without_changing_navigation_order() {
+        let (mut state, main_thread_id, first_agent_id, second_agent_id) = populated_state();
+
+        state.mark_running(first_agent_id);
+        state.resolve_server_request(first_agent_id);
+        state.mark_closed(first_agent_id);
+        state.observe_tree_status(first_agent_id, AgentTreeLifecycleEvent::TurnStarted);
+
+        assert_eq!(
+            state.ordered_thread_ids(),
+            vec![main_thread_id, first_agent_id, second_agent_id]
+        );
+        assert_eq!(
+            state.tree_status(&first_agent_id),
+            Some(AgentTreeStatus::Completed)
         );
     }
 }
