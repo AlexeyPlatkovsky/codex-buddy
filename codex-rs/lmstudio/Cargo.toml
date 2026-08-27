@@ -11,7 +11,7 @@ doctest = false
 
 
 [dependencies]
-codex-core = { path = "../core" }
+codex-core = { workspace = true }
 codex-http-client = { workspace = true }
 codex-model-provider-info = { path = "../model-provider-info" }
 serde_json = "1"

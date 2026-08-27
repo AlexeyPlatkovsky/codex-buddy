@@ -15,6 +15,10 @@ path = "src/bin/config_schema.rs"
 [lints]
 workspace = true
 
+[features]
+default = ["audio-input"]
+audio-input = ["dep:codex-utils-audio"]
+
 [dependencies]
 anyhow = { workspace = true }
 arc-swap = { workspace = true }
@@ -74,7 +78,7 @@ codex-terminal-detection = { workspace = true }
 codex-thread-store = { workspace = true }
 codex-tools = { workspace = true }
 codex-utils-absolute-path = { workspace = true }
-codex-utils-audio = { workspace = true }
+codex-utils-audio = { workspace = true, optional = true }
 codex-utils-cache = { workspace = true }
 codex-utils-image = { workspace = true }
 codex-utils-home-dir = { workspace = true }

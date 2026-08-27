@@ -51,6 +51,7 @@ pub use session::turn_context::TurnContext;
 mod agent;
 mod agent_communication;
 mod attestation;
+mod audio_input;
 mod codex_delegate;
 mod command_canonicalization;
 pub mod config;

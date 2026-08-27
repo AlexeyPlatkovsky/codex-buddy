@@ -11,6 +11,7 @@ codex_rust_crate(
             "Cargo.toml",
         ],
     ),
+    crate_features = ["audio-input"],
     crate_name = "codex_core",
     extra_binaries = [
         "//codex-rs/bwrap:bwrap",

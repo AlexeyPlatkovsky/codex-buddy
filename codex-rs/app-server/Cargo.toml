@@ -26,7 +26,11 @@ workspace = true
 
 [features]
 default = ["full-runtime-extensions"]
-full-runtime-extensions = ["image-generation", "memories"]
+full-runtime-extensions = [
+    "codex-core/audio-input",
+    "image-generation",
+    "memories",
+]
 image-generation = ["dep:codex-image-generation-extension"]
 memories = ["dep:codex-memories-extension"]
 
