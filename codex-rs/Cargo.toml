@@ -88,6 +88,7 @@ members = [
     "prompts",
     "rollout",
     "rollout-trace",
+    "runtime-profile",
     "rmcp-client",
     "responses-api-proxy",
     "response-debug-context",
@@ -242,6 +243,7 @@ codex-response-debug-context = { path = "response-debug-context" }
 codex-rmcp-client = { path = "rmcp-client" }
 codex-rollout = { path = "rollout" }
 codex-rollout-trace = { path = "rollout-trace" }
+codex-runtime-profile = { path = "runtime-profile" }
 codex-sandboxing = { path = "sandboxing" }
 codex-secrets = { path = "secrets" }
 codex-shell-command = { path = "shell-command" }

@@ -2666,6 +2666,7 @@ dependencies = [
  "codex-model-provider-info",
  "codex-network-proxy",
  "codex-protocol",
+ "codex-runtime-profile",
  "codex-utils-absolute-path",
  "codex-utils-path",
  "codex-utils-path-uri",
@@ -2803,6 +2804,7 @@ dependencies = [
  "codex-rmcp-client",
  "codex-rollout",
  "codex-rollout-trace",
+ "codex-runtime-profile",
  "codex-sandboxing",
  "codex-shell-command",
  "codex-shell-escalation",
@@ -4137,6 +4139,13 @@ dependencies = [
  "tempfile",
  "tracing",
  "uuid",
+]
+
+[[package]]
+name = "codex-runtime-profile"
+version = "0.0.0"
+dependencies = [
+ "pretty_assertions",
 ]
 
 [[package]]
