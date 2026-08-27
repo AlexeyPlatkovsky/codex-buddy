@@ -1,0 +1,4 @@
+interface:
+  display_name: "Upstream Sync"
+  short_description: "Sync Codex Buddy with openai/codex safely"
+  default_prompt: "Inspect and perform an upstream sync, reporting conflicts and TaskPilot follow-ups."
