@@ -24,6 +24,12 @@ doctest = false
 [lints]
 workspace = true
 
+[features]
+default = ["full-runtime-extensions"]
+full-runtime-extensions = ["image-generation", "memories"]
+image-generation = ["dep:codex-image-generation-extension"]
+memories = ["dep:codex-memories-extension"]
+
 [dependencies]
 anyhow = { workspace = true }
 base64 = { workspace = true }
@@ -68,8 +74,8 @@ codex-backend-client = { workspace = true }
 codex-file-search = { workspace = true }
 codex-chatgpt = { workspace = true }
 codex-login = { workspace = true }
-codex-image-generation-extension = { workspace = true }
-codex-memories-extension = { workspace = true }
+codex-image-generation-extension = { workspace = true, optional = true }
+codex-memories-extension = { workspace = true, optional = true }
 codex-web-search-extension = { workspace = true }
 codex-memories-write = { workspace = true }
 codex-mcp = { workspace = true }

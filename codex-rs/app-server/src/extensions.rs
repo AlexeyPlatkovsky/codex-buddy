@@ -118,6 +118,7 @@ where
             thread_manager,
         );
     }
+    #[cfg(feature = "memories")]
     if composition.installs(ExtensionComponent::Memories) {
         codex_memories_extension::install(&mut builder, codex_otel::global());
     }
@@ -130,6 +131,7 @@ where
     if composition.installs(ExtensionComponent::WebSearch) {
         codex_web_search_extension::install(&mut builder, auth_manager.clone());
     }
+    #[cfg(feature = "image-generation")]
     if composition.installs(ExtensionComponent::ImageGeneration) {
         codex_image_generation_extension::install(&mut builder, auth_manager, |config: &Config| {
             Some(config.codex_home.clone())
