@@ -137,6 +137,7 @@ impl McpConnectionSet {
                     client,
                     startup_timeout: DEFAULT_STARTUP_TIMEOUT,
                     startup_trigger: None,
+                    lazy_until_catalog_demand: false,
                     _diagnostics_guard: LIVE_CONNECTIONS.track(),
                 }),
                 metadata: McpServerMetadata {
@@ -2562,6 +2563,69 @@ async fn capture_binding_exposes_cached_tools_before_startup() {
     );
 }
 
+#[tokio::test]
+async fn capture_binding_starts_lazy_catalog_server_once() {
+    let startup_attempts = Arc::new(AtomicUsize::new(0));
+    let startup_attempts_for_client = Arc::clone(&startup_attempts);
+    let startup_complete = Arc::new(AtomicBool::new(false));
+    let startup_complete_for_client = Arc::clone(&startup_complete);
+    let pending_client = async move {
+        startup_attempts_for_client.fetch_add(1, Ordering::SeqCst);
+        startup_complete_for_client.store(true, Ordering::Release);
+        Ok(create_test_managed_client(vec![create_test_tool("deferred", "search")]).await)
+    }
+    .boxed()
+    .shared();
+    let approval_policy = Constrained::allow_any(AskForApproval::OnRequest);
+    let permission_profile = Constrained::allow_any(PermissionProfile::default());
+    let mut manager = McpConnectionSet::new_uninitialized(
+        &approval_policy,
+        &permission_profile,
+        /*prefix_mcp_tool_names*/ true,
+    );
+    manager.insert_test_client(
+        "deferred",
+        AsyncManagedClient {
+            client: pending_client,
+            is_codex_apps_mcp_server: false,
+            cached_server_info: None,
+            codex_apps_tools_cache_context: None,
+            tool_catalog_cache_context: None,
+            startup_complete,
+            startup_reconnect: None,
+            cancel_token: CancellationToken::new(),
+        },
+    );
+    let connection = Arc::get_mut(
+        &mut manager
+            .servers
+            .get_mut("deferred")
+            .expect("deferred server exists")
+            .connection,
+    )
+    .expect("test owns the only connection reference");
+    let (startup_trigger, _startup_receiver) = tokio::sync::watch::channel(false);
+    connection.startup_trigger = Some(startup_trigger);
+    connection.lazy_until_catalog_demand = true;
+    let manager = Arc::new(manager);
+
+    assert_eq!(startup_attempts.load(Ordering::SeqCst), 0);
+    assert!(manager.servers["deferred"].connection.startup_is_dormant());
+
+    for _ in 0..2 {
+        let binding = capture_binding(&manager).await;
+        assert_eq!(
+            binding
+                .tools()
+                .iter()
+                .map(super::super::tools::ToolInfo::canonical_tool_name)
+                .collect::<Vec<_>>(),
+            vec![ToolName::namespaced("mcp__deferred", "search")]
+        );
+        assert_eq!(startup_attempts.load(Ordering::SeqCst), 1);
+    }
+}
+
 #[tokio::test(start_paused = true)]
 async fn capture_binding_skips_pending_optional_servers_after_one_shared_startup_grace() {
     let approval_policy = Constrained::allow_any(AskForApproval::OnRequest);
@@ -4393,6 +4457,7 @@ async fn manager_with_reusable_ready_server(
                     .startup_timeout_sec
                     .unwrap_or(DEFAULT_STARTUP_TIMEOUT),
                 startup_trigger: None,
+                lazy_until_catalog_demand: false,
                 _diagnostics_guard: LIVE_CONNECTIONS.track(),
             }),
             metadata: McpServerMetadata::from(&server),
@@ -4543,6 +4608,7 @@ async fn reconciliation_reuses_connection_without_relisting_regular_tools() -> a
                     .startup_timeout_sec
                     .unwrap_or(DEFAULT_STARTUP_TIMEOUT),
                 startup_trigger: None,
+                lazy_until_catalog_demand: false,
                 _diagnostics_guard: LIVE_CONNECTIONS.track(),
             }),
             metadata: McpServerMetadata::from(&server),
@@ -5095,6 +5161,7 @@ async fn reconciliation_replaces_closed_connections() -> anyhow::Result<()> {
             .startup_timeout_sec
             .unwrap_or(DEFAULT_STARTUP_TIMEOUT),
         startup_trigger: None,
+        lazy_until_catalog_demand: false,
         _diagnostics_guard: LIVE_CONNECTIONS.track(),
     });
 

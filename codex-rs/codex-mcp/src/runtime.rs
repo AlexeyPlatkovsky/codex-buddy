@@ -62,6 +62,8 @@ pub enum McpStartupPolicy {
     Eager,
     /// Start servers with cached tool definitions on first use.
     LazyWhenCached,
+    /// Keep every configured server dormant until a turn requests its tool catalog.
+    LazyUntilCatalogDemand,
 }
 
 /// Everything needed to materialize one exact MCP configuration.

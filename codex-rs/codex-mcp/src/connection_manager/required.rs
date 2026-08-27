@@ -23,7 +23,9 @@ impl McpConnectionSet {
                     });
                     continue;
                 };
-                if view.connection.startup_is_dormant() && view.connection.client.has_cached_tools()
+                if view.connection.startup_is_dormant()
+                    && (view.connection.lazy_until_catalog_demand
+                        || view.connection.client.has_cached_tools())
                 {
                     continue;
                 }

@@ -18,6 +18,8 @@ use codex_mcp::McpStartupPolicy;
 use codex_mcp::PreparedMcpCall;
 use codex_protocol::capabilities::SelectedCapabilityRoot;
 use codex_protocol::protocol::EnvironmentConfigState;
+use codex_runtime_profile::ExternalSource;
+use codex_runtime_profile::ExternalSourcePolicy;
 use std::collections::HashSet;
 
 pub(super) struct McpDesiredState {
@@ -358,12 +360,23 @@ impl Session {
                 })
                 .collect(),
         );
-        McpRuntimeInput {
-            startup_policy: if matches!(desired.session_source, SessionSource::SubAgent(_)) {
+        let startup_policy = match desired
+            .config
+            .runtime_profile
+            .external_source(ExternalSource::Mcp)
+        {
+            ExternalSourcePolicy::ExplicitOnly => McpStartupPolicy::LazyUntilCatalogDemand,
+            ExternalSourcePolicy::Automatic
+                if matches!(desired.session_source, SessionSource::SubAgent(_)) =>
+            {
                 McpStartupPolicy::LazyWhenCached
-            } else {
+            }
+            ExternalSourcePolicy::Automatic | ExternalSourcePolicy::Disabled => {
                 McpStartupPolicy::Eager
-            },
+            }
+        };
+        McpRuntimeInput {
+            startup_policy,
             config: mcp_config,
             plugins_available,
             ready_selected_capability_roots: ready_selected_capability_roots.to_vec(),

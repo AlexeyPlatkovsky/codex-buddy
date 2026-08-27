@@ -86,6 +86,7 @@ pub(crate) struct McpServerConnection {
     // Startup-only budget; changing it must not replace a ready connection.
     startup_timeout: Duration,
     startup_trigger: Option<watch::Sender<bool>>,
+    lazy_until_catalog_demand: bool,
     _diagnostics_guard: GaugeGuard,
 }
 
@@ -250,9 +251,11 @@ impl McpConnectionSet {
         required_servers.sort();
         let mut reused_ready = Vec::new();
         let mut join_set = JoinSet::new();
-        // Explicit reconnects have no previous set and must replace their clients eagerly.
-        let allow_deferred_startup =
+        // Explicit reconnects have no previous set and must replace cached clients eagerly. The
+        // Coding runtime remains dormant until catalog demand across refreshes and reconnects.
+        let allow_cached_deferred_startup =
             startup_policy == McpStartupPolicy::LazyWhenCached && previous.is_some();
+        let lazy_until_catalog_demand = startup_policy == McpStartupPolicy::LazyUntilCatalogDemand;
         let reusable_previous = previous.filter(|previous| {
             !previous.servers.is_empty()
                 && previous.elicitation_requests.update(
@@ -532,18 +535,19 @@ impl McpConnectionSet {
                 protocol_mode,
                 catalog_item_limit,
             );
-            let defer_startup = allow_deferred_startup
-                && !tool_plugin_provenance.is_selected_plugin_mcp_server(&server_name)
-                && async_managed_client
-                    .tool_catalog_cache_context
-                    .as_ref()
-                    .and_then(McpToolCatalogCacheContext::current_tools)
-                    .is_some_and(|tools| {
-                        tools.into_iter().any(|tool| {
-                            configured_tool_filter.allows(&tool.tool.name)
-                                && tool_is_model_visible(&tool)
-                        })
-                    });
+            let has_model_visible_cached_tools = async_managed_client
+                .tool_catalog_cache_context
+                .as_ref()
+                .and_then(McpToolCatalogCacheContext::current_tools)
+                .is_some_and(|tools| {
+                    tools.into_iter().any(|tool| {
+                        configured_tool_filter.allows(&tool.tool.name)
+                            && tool_is_model_visible(&tool)
+                    })
+                });
+            let defer_startup = !tool_plugin_provenance.is_selected_plugin_mcp_server(&server_name)
+                && (lazy_until_catalog_demand
+                    || (allow_cached_deferred_startup && has_model_visible_cached_tools));
             let (startup_trigger, startup_receiver) = if defer_startup {
                 let (trigger, receiver) = watch::channel(false);
                 (Some(trigger), Some(receiver))
@@ -558,6 +562,7 @@ impl McpConnectionSet {
                         client: async_managed_client.clone(),
                         startup_timeout,
                         startup_trigger,
+                        lazy_until_catalog_demand,
                         _diagnostics_guard: LIVE_CONNECTIONS.track(),
                     }),
                     metadata,
