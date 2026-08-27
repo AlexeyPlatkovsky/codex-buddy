@@ -142,7 +142,9 @@ impl ChatWidget {
     }
 
     pub(super) fn connectors_enabled(&self) -> bool {
-        self.config.features.enabled(Feature::Apps) && self.has_chatgpt_account
+        !self.is_coding_surface()
+            && self.config.features.enabled(Feature::Apps)
+            && self.has_chatgpt_account
     }
 
     /// Return only authorized installed apps, never entries from the discovery directory.

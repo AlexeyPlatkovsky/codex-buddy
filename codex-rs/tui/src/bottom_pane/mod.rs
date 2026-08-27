@@ -484,6 +484,11 @@ impl BottomPane {
         self.request_redraw();
     }
 
+    pub(crate) fn set_coding_surface(&mut self, coding_surface: bool) {
+        self.composer.set_coding_surface(coding_surface);
+        self.request_redraw();
+    }
+
     pub fn set_service_tier_commands_enabled(&mut self, enabled: bool) {
         self.composer.set_service_tier_commands_enabled(enabled);
         self.request_redraw();

@@ -7,6 +7,9 @@ pub(super) fn load_ambient_pet(
     config: &Config,
     frame_requester: FrameRequester,
 ) -> Option<crate::pets::AmbientPet> {
+    if config.runtime_profile.preset() == codex_runtime_profile::RuntimePreset::Coding {
+        return None;
+    }
     let selected_pet = config.tui_pet.as_deref()?;
     if selected_pet == crate::pets::DISABLED_PET_ID {
         return None;
@@ -28,6 +31,9 @@ pub(super) fn start_configured_pet_load_if_needed(
     app_event_tx: AppEventSender,
     pet_http_client: codex_http_client::RouteAwareClientPool,
 ) {
+    if config.runtime_profile.preset() == codex_runtime_profile::RuntimePreset::Coding {
+        return;
+    }
     let Some(pet_id) = config.tui_pet.clone() else {
         return;
     };

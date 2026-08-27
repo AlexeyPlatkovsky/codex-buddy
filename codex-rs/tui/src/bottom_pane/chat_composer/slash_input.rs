@@ -178,6 +178,7 @@ impl<'a> SlashInput<'a> {
                 service_tier_commands_enabled: self.command_flags.service_tier_commands_enabled,
                 goal_command_enabled: self.command_flags.goal_command_enabled,
                 personality_command_enabled: self.command_flags.personality_command_enabled,
+                coding_surface: self.command_flags.coding_surface,
                 windows_degraded_sandbox_active: self.command_flags.allow_elevate_sandbox,
                 side_conversation_active: self.command_flags.side_conversation_active,
             },
@@ -663,5 +664,15 @@ mod tests {
             InputResult::Command(SlashCommand::Review)
         );
         assert!(composer.draft.textarea.is_empty());
+    }
+
+    #[test]
+    fn coding_surface_reaches_composer_lookup_and_popup() {
+        let mut composer = test_composer();
+        composer.set_coding_surface(true);
+
+        assert_eq!(composer.slash_input().command("pets"), None);
+        let popup = composer.slash_input().command_popup("/pets");
+        assert_eq!(popup.selected_item(), None);
     }
 }

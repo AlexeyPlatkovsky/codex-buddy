@@ -282,18 +282,21 @@ impl ChatWidget {
     }
 
     pub(super) fn sync_personality_command_enabled(&mut self) {
-        self.bottom_pane
-            .set_personality_command_enabled(self.config.features.enabled(Feature::Personality));
+        self.bottom_pane.set_personality_command_enabled(
+            !self.is_coding_surface() && self.config.features.enabled(Feature::Personality),
+        );
     }
 
     pub(super) fn sync_plugins_command_enabled(&mut self) {
-        self.bottom_pane
-            .set_plugins_command_enabled(self.config.features.enabled(Feature::Plugins));
+        self.bottom_pane.set_plugins_command_enabled(
+            !self.is_coding_surface() && self.config.features.enabled(Feature::Plugins),
+        );
     }
 
     pub(super) fn sync_goal_command_enabled(&mut self) {
-        self.bottom_pane
-            .set_goal_command_enabled(self.config.features.enabled(Feature::Goals));
+        self.bottom_pane.set_goal_command_enabled(
+            !self.is_coding_surface() && self.config.features.enabled(Feature::Goals),
+        );
     }
 
     pub(super) fn sync_mentions_v2_enabled(&mut self) {

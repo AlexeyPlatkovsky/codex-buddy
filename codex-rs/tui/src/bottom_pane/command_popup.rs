@@ -48,6 +48,7 @@ pub(crate) struct CommandPopupFlags {
     pub(crate) service_tier_commands_enabled: bool,
     pub(crate) goal_command_enabled: bool,
     pub(crate) personality_command_enabled: bool,
+    pub(crate) coding_surface: bool,
     pub(crate) windows_degraded_sandbox_active: bool,
     pub(crate) side_conversation_active: bool,
 }
@@ -62,6 +63,7 @@ impl From<CommandPopupFlags> for BuiltinCommandFlags {
             service_tier_commands_enabled: value.service_tier_commands_enabled,
             goal_command_enabled: value.goal_command_enabled,
             personality_command_enabled: value.personality_command_enabled,
+            coding_surface: value.coding_surface,
             allow_elevate_sandbox: value.windows_degraded_sandbox_active,
             side_conversation_active: value.side_conversation_active,
         }
@@ -535,6 +537,7 @@ mod tests {
                 service_tier_commands_enabled: false,
                 goal_command_enabled: false,
                 personality_command_enabled: true,
+                coding_surface: false,
                 windows_degraded_sandbox_active: false,
                 side_conversation_active: false,
             },
@@ -562,6 +565,7 @@ mod tests {
                 service_tier_commands_enabled: false,
                 goal_command_enabled: false,
                 personality_command_enabled: false,
+                coding_surface: false,
                 windows_degraded_sandbox_active: false,
                 side_conversation_active: false,
             },
@@ -594,6 +598,7 @@ mod tests {
                 service_tier_commands_enabled: false,
                 goal_command_enabled: false,
                 personality_command_enabled: true,
+                coding_surface: false,
                 windows_degraded_sandbox_active: false,
                 side_conversation_active: false,
             },
@@ -608,6 +613,38 @@ mod tests {
             }
             other => panic!("expected personality to be selected for exact match, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn coding_surface_command_popup_snapshot() {
+        let mut popup = CommandPopup::new(
+            CommandPopupFlags {
+                collaboration_modes_enabled: true,
+                connectors_enabled: true,
+                plugins_command_enabled: true,
+                token_activity_command_enabled: true,
+                service_tier_commands_enabled: true,
+                goal_command_enabled: true,
+                personality_command_enabled: true,
+                coding_surface: true,
+                windows_degraded_sandbox_active: false,
+                side_conversation_active: false,
+            },
+            Vec::new(),
+        );
+        popup.on_composer_text_change("/p".to_string());
+
+        let width = 48;
+        let area = Rect::new(
+            /*x*/ 0,
+            /*y*/ 0,
+            width,
+            popup.calculate_required_height(width),
+        );
+        let mut buffer = Buffer::empty(area);
+        popup.render_ref(area, &mut buffer);
+
+        insta::assert_snapshot!("command_popup_coding_surface", format!("{buffer:?}"));
     }
 
     #[test]

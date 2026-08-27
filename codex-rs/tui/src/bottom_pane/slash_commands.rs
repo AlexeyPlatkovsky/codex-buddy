@@ -64,6 +64,8 @@ pub(crate) struct BuiltinCommandFlags {
     pub(crate) personality_command_enabled: bool,
     pub(crate) allow_elevate_sandbox: bool,
     pub(crate) side_conversation_active: bool,
+    /// Restrict product-specific affordances to the coding surface.
+    pub(crate) coding_surface: bool,
 }
 
 /// Return the built-ins that should be visible/usable for the current input.
@@ -77,6 +79,19 @@ pub(crate) fn builtins_for_input(flags: BuiltinCommandFlags) -> Vec<(&'static st
         .filter(|(_, cmd)| flags.token_activity_command_enabled || *cmd != SlashCommand::Usage)
         .filter(|(_, cmd)| flags.goal_command_enabled || *cmd != SlashCommand::Goal)
         .filter(|(_, cmd)| flags.personality_command_enabled || *cmd != SlashCommand::Personality)
+        .filter(|(_, cmd)| {
+            !flags.coding_surface
+                || !matches!(
+                    cmd,
+                    SlashCommand::App
+                        | SlashCommand::Apps
+                        | SlashCommand::Plugins
+                        | SlashCommand::Memories
+                        | SlashCommand::Goal
+                        | SlashCommand::Pets
+                        | SlashCommand::Personality
+                )
+        })
         .filter(|(_, cmd)| !flags.side_conversation_active || cmd.available_in_side_conversation())
         .collect()
 }
@@ -159,6 +174,7 @@ pub(crate) fn has_slash_command_prefix(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use insta::assert_snapshot;
     use pretty_assertions::assert_eq;
     use std::slice::from_ref;
 
@@ -171,6 +187,7 @@ mod tests {
             service_tier_commands_enabled: true,
             goal_command_enabled: true,
             personality_command_enabled: true,
+            coding_surface: false,
             allow_elevate_sandbox: true,
             side_conversation_active: false,
         }
@@ -265,6 +282,74 @@ mod tests {
         let mut flags = all_enabled_flags();
         flags.goal_command_enabled = false;
         assert_eq!(find_builtin_command("goal", flags), None);
+    }
+
+    #[test]
+    fn coding_surface_hides_non_coding_affordances() {
+        let mut flags = all_enabled_flags();
+        let full_commands = builtins_for_input(flags);
+        for command in [
+            SlashCommand::App,
+            SlashCommand::Apps,
+            SlashCommand::Plugins,
+            SlashCommand::Memories,
+            SlashCommand::Goal,
+            SlashCommand::Pets,
+            SlashCommand::Personality,
+        ] {
+            assert!(
+                full_commands
+                    .iter()
+                    .any(|(_, candidate)| *candidate == command)
+            );
+        }
+
+        flags.coding_surface = true;
+        let commands = builtins_for_input(flags);
+        for command in [
+            SlashCommand::App,
+            SlashCommand::Apps,
+            SlashCommand::Plugins,
+            SlashCommand::Memories,
+            SlashCommand::Goal,
+            SlashCommand::Pets,
+            SlashCommand::Personality,
+        ] {
+            assert!(!commands.iter().any(|(_, candidate)| *candidate == command));
+        }
+        assert!(
+            commands
+                .iter()
+                .any(|(_, command)| *command == SlashCommand::Ps)
+        );
+        assert!(
+            commands
+                .iter()
+                .any(|(_, command)| *command == SlashCommand::Stop)
+        );
+        let relevant_visible_commands = commands
+            .iter()
+            .filter(|(_, command)| {
+                matches!(
+                    command,
+                    SlashCommand::App
+                        | SlashCommand::Apps
+                        | SlashCommand::Plugins
+                        | SlashCommand::Memories
+                        | SlashCommand::Goal
+                        | SlashCommand::Pets
+                        | SlashCommand::Personality
+                        | SlashCommand::Ps
+                        | SlashCommand::Stop
+                )
+            })
+            .map(|(name, _)| *name)
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert_snapshot!(relevant_visible_commands, @r"
+ps
+stop
+");
     }
 
     #[test]

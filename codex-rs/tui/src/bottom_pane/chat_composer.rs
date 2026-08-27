@@ -519,6 +519,7 @@ pub(crate) struct ChatComposer {
     mentions_v2_enabled: bool,
     goal_command_enabled: bool,
     personality_command_enabled: bool,
+    coding_surface: bool,
     windows_degraded_sandbox_active: bool,
     side_conversation_active: bool,
     history_search: Option<HistorySearchSession>,
@@ -583,6 +584,7 @@ impl ChatComposer {
             service_tier_commands_enabled: self.service_tier_commands_enabled,
             goal_command_enabled: self.goal_command_enabled,
             personality_command_enabled: self.personality_command_enabled,
+            coding_surface: self.coding_surface,
             allow_elevate_sandbox: self.windows_degraded_sandbox_active,
             side_conversation_active: self.side_conversation_active,
         }
@@ -692,6 +694,7 @@ impl ChatComposer {
             mentions_v2_enabled: false,
             goal_command_enabled: false,
             personality_command_enabled: false,
+            coding_surface: false,
             windows_degraded_sandbox_active: false,
             side_conversation_active: false,
             history_search: None,
@@ -963,6 +966,10 @@ impl ChatComposer {
 
     pub fn set_personality_command_enabled(&mut self, enabled: bool) {
         self.personality_command_enabled = enabled;
+    }
+
+    pub(crate) fn set_coding_surface(&mut self, coding_surface: bool) {
+        self.coding_surface = coding_surface;
     }
 
     pub fn set_side_conversation_active(&mut self, active: bool) {

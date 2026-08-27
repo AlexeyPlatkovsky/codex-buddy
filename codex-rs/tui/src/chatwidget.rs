@@ -30,6 +30,7 @@
 //! Slash-command parsing lives in the bottom-pane composer, but slash-command acceptance lives
 //! here. That split lets the composer stage a recall entry before clearing input while this module
 //! records the attempted slash command after dispatch just like ordinary submitted text.
+use codex_runtime_profile::RuntimePreset;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -936,6 +937,9 @@ fn token_usage_info_from_app_server(token_usage: ThreadTokenUsage) -> TokenUsage
 }
 
 impl ChatWidget {
+    pub(crate) fn is_coding_surface(&self) -> bool {
+        self.config.runtime_profile.preset() == RuntimePreset::Coding
+    }
     /// Stores or overwrites the cached nickname and role for a collab agent thread.
     ///
     /// Called by `App::upsert_agent_picker_thread` and `App::replace_chat_widget` to keep the
@@ -1464,7 +1468,7 @@ impl ChatWidget {
     }
 
     fn plugins_for_mentions(&self) -> Option<&[PluginCapabilitySummary]> {
-        if !self.config.features.enabled(Feature::Plugins) {
+        if self.is_coding_surface() || !self.config.features.enabled(Feature::Plugins) {
             return None;
         }
 
@@ -1845,7 +1849,7 @@ impl ChatWidget {
     }
 
     pub(crate) fn refresh_plugin_mentions(&mut self) {
-        if !self.config.features.enabled(Feature::Plugins) {
+        if self.is_coding_surface() || !self.config.features.enabled(Feature::Plugins) {
             self.bottom_pane.set_plugin_mentions(/*plugins*/ None);
             return;
         }

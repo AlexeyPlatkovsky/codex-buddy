@@ -84,6 +84,10 @@ async fn hidden_shell_paste_queued_during_turn_submits_literal_prompt() {
     for key in [KeyCode::Tab, KeyCode::Enter] {
         let (mut chat, _rx, mut op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
         chat.thread_id = Some(ThreadId::new());
+        chat.chat_keymap.edit_queued_message = vec![crate::key_hint::alt(KeyCode::Up)];
+        chat.queued_message_edit_hint_binding = Some(crate::key_hint::alt(KeyCode::Up).into());
+        chat.bottom_pane
+            .set_queued_message_edit_binding(chat.queued_message_edit_hint_binding);
         handle_turn_started(&mut chat, "turn-1");
         let payload = paste_hidden_shell_payload(&mut chat);
 

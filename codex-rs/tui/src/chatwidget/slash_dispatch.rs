@@ -146,6 +146,28 @@ impl ChatWidget {
 
     pub(super) fn dispatch_command(&mut self, cmd: SlashCommand) {
         self.flush_completed_command_activity();
+        if self.is_coding_surface()
+            && matches!(
+                cmd,
+                SlashCommand::App
+                    | SlashCommand::Apps
+                    | SlashCommand::Plugins
+                    | SlashCommand::Memories
+                    | SlashCommand::Goal
+                    | SlashCommand::Pets
+                    | SlashCommand::Personality
+            )
+        {
+            self.add_info_message(
+                format!(
+                    "'/{0}' is unavailable in the coding runtime.",
+                    cmd.command()
+                ),
+                None,
+            );
+            self.bottom_pane.drain_pending_submission_state();
+            return;
+        }
         if !self.ensure_slash_command_allowed_in_side_conversation(cmd) {
             return;
         }
@@ -1114,6 +1136,7 @@ impl ChatWidget {
             personality_command_enabled: self.config.features.enabled(Feature::Personality),
             allow_elevate_sandbox,
             side_conversation_active: self.active_side_conversation,
+            coding_surface: self.is_coding_surface(),
         }
     }
 

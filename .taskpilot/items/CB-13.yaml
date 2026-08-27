@@ -3,9 +3,9 @@ id: CB-13
 title: Slim CLI and TUI product surface
 priority: high
 type: feature
-status: backlog
+status: done
 created_at: '2026-08-27T14:14:27Z'
-updated_at: '2026-08-27T14:14:27Z'
+updated_at: '2026-08-27T20:59:12Z'
 parent_id: CB-12
 tags:
 - cli
