@@ -1,0 +1,34 @@
+# Project-local Codex configuration for the Codex Buddy fork.
+
+[features]
+multi_agent = true
+apps = false
+plugins = false
+browser_use = false
+computer_use = false
+image_generation = false
+realtime_conversation = false
+memories = false
+personality = false
+goals = false
+plugin_sharing = false
+remote_plugin = false
+
+[mcp_servers.openaiDeveloperDocs]
+url = "https://developers.openai.com/mcp"
+
+[agents.architecture]
+description = "Maps upstream architecture and designs low-conflict boundaries for the maintainable coding-only fork."
+config_file = "agents/architecture.toml"
+
+[agents.runtime]
+description = "Owns tool, MCP, skill, instruction, extension, and runtime-profile composition work."
+config_file = "agents/runtime.toml"
+
+[agents.tui]
+description = "Owns the terminal UI, especially the event-driven subagent tree panel and snapshot coverage."
+config_file = "agents/tui.toml"
+
+[agents.compatibility]
+description = "Audits config, CLI, app-server protocol, rollout-resume, and upstream-merge compatibility."
+config_file = "agents/compatibility.toml"

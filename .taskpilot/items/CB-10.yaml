@@ -1,0 +1,14 @@
+schema_version: 1
+id: CB-10
+title: Require explicit skill and instruction sources
+priority: high
+type: task
+status: backlog
+created_at: '2026-08-27T14:14:25Z'
+updated_at: '2026-08-27T14:14:25Z'
+parent_id: CB-7
+tags:
+- skills
+- context
+description: Disable bundled, plugin, and orchestrator skill discovery in the coding profile. Retain bounded AGENTS.md and explicitly configured project, user, and global instructions plus mandatory safety context.
+created_by: codex

@@ -1,0 +1,14 @@
+schema_version: 1
+id: CB-9
+title: Make MCP connection lazy on first use
+priority: normal
+type: task
+status: backlog
+created_at: '2026-08-27T14:14:24Z'
+updated_at: '2026-08-27T14:14:24Z'
+parent_id: CB-7
+tags:
+- mcp
+- performance
+description: Replace unconditional eager root startup with policy-aware lazy connection while retaining configured server health and timeout behavior.
+created_by: codex
