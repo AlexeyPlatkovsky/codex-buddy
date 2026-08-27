@@ -128,6 +128,7 @@ members = [
     "utils/stream-parser",
     "utils/template",
     "codex-client",
+    "codex-buddy",
     "codex-api",
     "state",
     "terminal-detection",
@@ -172,6 +173,7 @@ codex-arg0 = { path = "arg0" }
 codex-async-utils = { path = "async-utils" }
 codex-backend-client = { path = "backend-client" }
 codex-chatgpt = { path = "chatgpt" }
+codex-cli = { path = "cli" }
 codex-client = { path = "codex-client" }
 codex-collaboration-mode-templates = { path = "collaboration-mode-templates" }
 codex-cloud-config = { path = "cloud-config" }

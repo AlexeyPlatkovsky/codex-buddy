@@ -24,3 +24,9 @@ test_suite(
     ],
     visibility = ["//visibility:public"],
 )
+
+alias(
+    name = "codex-buddy",
+    actual = "//codex-rs/codex-buddy:codex-buddy",
+    visibility = ["//visibility:public"],
+)

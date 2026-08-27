@@ -2341,6 +2341,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "codex-buddy"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "codex-arg0",
+ "codex-chatgpt",
+ "codex-cli",
+ "codex-config",
+ "codex-core",
+ "codex-exec",
+ "codex-runtime-profile",
+ "codex-tui",
+ "codex-utils-cli",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "codex-build-info"
 version = "0.0.0"
 dependencies = [
@@ -2991,6 +3010,7 @@ dependencies = [
  "codex-model-provider-info",
  "codex-otel",
  "codex-protocol",
+ "codex-runtime-profile",
  "codex-utils-absolute-path",
  "codex-utils-cargo-bin",
  "codex-utils-cli",
@@ -4450,6 +4470,7 @@ dependencies = [
  "codex-plugin",
  "codex-protocol",
  "codex-rollout",
+ "codex-runtime-profile",
  "codex-sandboxing",
  "codex-shell-command",
  "codex-state",
