@@ -607,8 +607,7 @@ impl App {
                     self.insert_history_cell_lines(
                         tui,
                         consolidated.as_ref(),
-                        self.chat_widget
-                            .history_wrap_width(tui.terminal.last_known_screen_size.width),
+                        self.history_wrap_width_for_screen(tui.terminal.last_known_screen_size),
                     );
 
                     self.maybe_finish_stream_reflow(tui)?;

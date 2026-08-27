@@ -28,9 +28,7 @@ impl App {
             tui.frame_requester().schedule_frame();
         }
         self.transcript_cells.push(cell.clone());
-        let width = self
-            .chat_widget
-            .history_wrap_width(tui.terminal.last_known_screen_size.width);
+        let width = self.history_wrap_width_for_screen(tui.terminal.last_known_screen_size);
         let lines =
             cell.display_hyperlink_lines_for_mode(width, self.chat_widget.history_render_mode());
         if cell.as_any().is::<history_cell::CompositeHistoryCell>()
@@ -109,9 +107,7 @@ impl App {
             return Ok(());
         };
 
-        let width = self
-            .chat_widget
-            .history_wrap_width(tui.terminal.last_known_screen_size.width);
+        let width = self.history_wrap_width_for_screen(tui.terminal.last_known_screen_size);
         let updated_lines = status_cell
             .display_hyperlink_lines_for_mode(width, self.chat_widget.history_render_mode());
         if updated_lines == status_history.lines {
@@ -257,9 +253,7 @@ impl App {
     }
 
     pub(super) fn queue_clear_ui_header(&mut self, tui: &mut tui::Tui) {
-        let width = self
-            .chat_widget
-            .history_wrap_width(tui.terminal.last_known_screen_size.width);
+        let width = self.history_wrap_width_for_screen(tui.terminal.last_known_screen_size);
         let header_lines = self.clear_ui_header_lines(width);
         if !header_lines.is_empty() {
             tui.insert_history_lines(header_lines);

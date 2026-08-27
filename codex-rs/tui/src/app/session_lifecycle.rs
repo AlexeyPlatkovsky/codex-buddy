@@ -566,7 +566,7 @@ impl App {
         self.chat_widget
             .set_task_mentions_enabled(app_server.task_tools_available(thread_id));
         self.chat_widget
-            .note_rendered_width(tui.terminal.last_known_screen_size.width);
+            .note_rendered_width(self.chat_width_for_screen(tui.terminal.last_known_screen_size));
         if blocks_direct_input {
             self.chat_widget.set_parent_owned_thread();
         }
@@ -838,7 +838,7 @@ impl App {
         self.chat_widget
             .set_task_mentions_enabled(started.task_tools_available);
         self.chat_widget
-            .note_rendered_width(tui.terminal.last_known_screen_size.width);
+            .note_rendered_width(self.chat_width_for_screen(tui.terminal.last_known_screen_size));
         if started.blocks_direct_input {
             self.mark_primary_thread_parent_owned(started.session.thread_id);
         }

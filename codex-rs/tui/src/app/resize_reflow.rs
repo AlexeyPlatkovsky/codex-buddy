@@ -171,9 +171,7 @@ impl App {
         }
 
         let mut retained_lines = buffer.retained_lines.into_iter().collect::<Vec<_>>();
-        let width = self
-            .chat_widget
-            .history_wrap_width(tui.terminal.last_known_screen_size.width);
+        let width = self.history_wrap_width_for_screen(tui.terminal.last_known_screen_size);
         self.prepend_scrollback_history_notice(&mut retained_lines, buffer.was_truncated, width);
         let retained_rows = retained_lines.len();
         tui.insert_history_hyperlink_lines_with_wrap_policy(
@@ -258,7 +256,7 @@ impl App {
     }
 
     pub(super) fn update_visible_history_rows(&mut self, screen_size: Size) {
-        let width = screen_size.width.max(/*other*/ 1);
+        let width = self.chat_width_for_screen(screen_size).max(/*other*/ 1);
         let viewport_height = self
             .with_chat_widget_frame(width, |desired_height, _| desired_height)
             .min(screen_size.height);
@@ -347,22 +345,26 @@ impl App {
         last_known_screen_size: ratatui::layout::Size,
         frame_requester: &tui::FrameRequester,
     ) -> bool {
-        if size != last_known_screen_size || self.transcript_reflow.visible_history_rows().is_none()
+        let chat_width = self.chat_width_for_screen(size);
+        let chat_width_changed = self.transcript_reflow.reflow_needed_for_width(chat_width);
+        if size != last_known_screen_size
+            || self.transcript_reflow.visible_history_rows().is_none()
+            || chat_width_changed
         {
             self.update_visible_history_rows(size);
         }
-        let width = self.transcript_reflow.note_width(size.width);
-        let reflow_needed = self.transcript_reflow.reflow_needed_for_width(size.width);
+        let width = self.transcript_reflow.note_width(chat_width);
+        let reflow_needed = self.transcript_reflow.reflow_needed_for_width(chat_width);
         let height_changed = size.height != last_known_screen_size.height;
         let should_rebuild_transcript = reflow_needed || height_changed;
         if width.changed || width.initialized {
-            self.chat_widget.on_terminal_resize(size.width);
+            self.chat_widget.on_terminal_resize(chat_width);
         }
         if should_rebuild_transcript {
             if reflow_needed && self.should_mark_reflow_as_stream_time() {
                 self.transcript_reflow.mark_resize_requested_during_stream();
             }
-            let target_width = reflow_needed.then_some(size.width);
+            let target_width = reflow_needed.then_some(chat_width);
             if self.schedule_resize_reflow(target_width) {
                 frame_requester.schedule_frame();
             } else {
@@ -463,12 +465,16 @@ impl App {
         tui: &mut tui::Tui,
         terminal_width: TerminalWidth,
     ) -> Result<TerminalWidth> {
-        let width = self.chat_widget.history_wrap_width(terminal_width.0);
+        let width =
+            self.history_wrap_width_for_screen(Size::new(terminal_width.0, /*height*/ 0));
         if self.transcript_cells.is_empty() {
             // Drop any queued pre-resize/pre-consolidation inserts before rebuilding from cells.
             tui.clear_pending_history_lines();
             self.reset_history_emission_state();
-            return Ok(terminal_width);
+            return Ok(TerminalWidth(self.chat_width_for_screen(Size::new(
+                terminal_width.0,
+                /*height*/ 0,
+            ))));
         }
 
         let reflow_result = self.render_transcript_lines_for_reflow(width);
@@ -507,7 +513,10 @@ impl App {
         }
         self.request_scrollback_history_top_up(reflowed_rows);
 
-        Ok(terminal_width)
+        Ok(TerminalWidth(self.chat_width_for_screen(Size::new(
+            terminal_width.0,
+            /*height*/ 0,
+        ))))
     }
 
     /// Return whether older paginated source can fill unused configured scrollback rows.
@@ -544,7 +553,8 @@ impl App {
         tui: &mut tui::Tui,
         terminal_width: TerminalWidth,
     ) -> Result<()> {
-        let width = self.chat_widget.history_wrap_width(terminal_width.0);
+        let width =
+            self.history_wrap_width_for_screen(Size::new(terminal_width.0, /*height*/ 0));
         let reflowed_lines = if self.transcript_cells.is_empty() {
             self.reset_history_emission_state();
             Vec::new()

@@ -206,7 +206,9 @@ mod agent_navigation;
 mod agent_picker;
 mod agent_status_feed;
 mod agent_tree;
+mod agent_tree_panel;
 mod agent_tree_status_state;
+mod agent_tree_viewport;
 mod agents_overview;
 mod agents_overview_view;
 pub(crate) use agents_overview::AGENTS_OVERVIEW_VIEW_ID;
@@ -609,6 +611,7 @@ pub(crate) struct App {
     temporary_structured_requests: HashMap<ThreadId, mpsc::UnboundedSender<ServerNotification>>,
     thread_event_listener_tasks: HashMap<ThreadId, JoinHandle<()>>,
     agent_navigation: AgentNavigationState,
+    agent_tree_viewport: agent_tree_viewport::AgentTreeViewport,
     agents_overview: agents_overview::AgentsOverviewState,
     side_threads: HashMap<ThreadId, SideThreadState>,
     abandoned_side_threads: HashSet<ThreadId>,
@@ -835,7 +838,7 @@ impl App {
                         tui.discard_pending_input_before_interactive_screen()?;
                         self.startup_pending_protected_request = false;
                     }
-                    if self.chat_widget.ambient_pet_image_enabled() {
+                    if self.should_render_ambient_pet(screen_size) {
                         let ambient_pet_area = Rect::new(
                             /*x*/ 0,
                             /*y*/ 0,
@@ -848,6 +851,10 @@ impl App {
                         ) {
                             self.handle_ambient_pet_image_render_error(tui, err)?;
                         }
+                    } else if self.chat_widget.ambient_pet_image_enabled()
+                        && let Err(error) = tui.clear_ambient_pet_image()
+                    {
+                        tracing::warn!(%error, "failed to clear ambient pet behind agent tree panel");
                     }
                     if let Some(request) = self.chat_widget.pet_picker_preview_draw() {
                         if let Err(err) = tui.draw_pet_picker_preview_image(Some(request)) {
@@ -893,25 +900,56 @@ impl App {
             self.schedule_immediate_resize_reflow(tui);
             self.maybe_run_resize_reflow(tui, screen_size)?;
         }
-        self.with_chat_widget_frame(screen_size.width, |desired_height, chat_widget| {
-            let desired_height = if dashboard_visible {
-                screen_size.height
-            } else {
-                desired_height
-            };
-            let mut rendered_area = Rect::default();
-            tui.draw_with_resize_reflow(desired_height, screen_size, |frame| {
-                let area = frame.area();
-                rendered_area = area;
-                chat_widget.render(area, frame.buffer);
-                self.chat_widget.note_rendered_width(area.width);
-                if let Some((x, y)) = chat_widget.cursor_pos(area) {
-                    frame.set_cursor_style(chat_widget.cursor_style(area));
-                    frame.set_cursor_position((x, y));
-                }
-            })?;
-            Ok(rendered_area)
-        })
+        let current_thread_id = self.current_displayed_thread_id();
+        let tree = self.agent_navigation.tree_snapshot(
+            self.primary_thread_id,
+            /*selected_thread_id*/ None,
+            current_thread_id,
+        );
+        let has_subagents = !dashboard_visible && self.has_subagents_for_panel();
+        let panel_layout = agent_tree_panel::layout_agent_tree_panel(
+            Rect::new(
+                /*x*/ 0,
+                /*y*/ 0,
+                screen_size.width,
+                screen_size.height,
+            ),
+            has_subagents,
+        );
+        let chat_widget_state = &self.chat_widget;
+        let chat_widget = chat_widget_state.as_renderable();
+        let desired_height = if dashboard_visible {
+            screen_size.height
+        } else {
+            chat_widget.desired_height(panel_layout.chat_area.width)
+        };
+        let viewport = &mut self.agent_tree_viewport;
+        let mut rendered_area = Rect::default();
+        tui.draw_with_resize_reflow(desired_height, screen_size, |frame| {
+            let area = frame.area();
+            let panel_layout = agent_tree_panel::layout_agent_tree_panel(area, has_subagents);
+            let chat_area = panel_layout.chat_area;
+            rendered_area = chat_area;
+            chat_widget.render(chat_area, frame.buffer);
+            chat_widget_state.note_rendered_width(chat_area.width);
+            if let Some((x, y)) = chat_widget.cursor_pos(chat_area) {
+                frame.set_cursor_style(chat_widget.cursor_style(chat_area));
+                frame.set_cursor_position((x, y));
+            }
+            if let Some(panel_area) = panel_layout.panel_area {
+                viewport.resize(panel_layout.panel_content_height(), &tree);
+                viewport.update(&tree, current_thread_id);
+                let selected_tree =
+                    tree.with_selection(viewport.selected_thread_id(), current_thread_id);
+                agent_tree_panel::render_agent_tree_panel(
+                    panel_area,
+                    &selected_tree,
+                    viewport,
+                    frame.buffer,
+                );
+            }
+        })?;
+        Ok(rendered_area)
     }
 
     fn with_chat_widget_frame<T>(
@@ -921,6 +959,47 @@ impl App {
     ) -> T {
         let chat_widget = self.chat_widget.as_renderable();
         render(chat_widget.desired_height(width), &chat_widget)
+    }
+
+    pub(super) fn agent_tree_panel_layout(
+        &self,
+        screen_size: Size,
+    ) -> agent_tree_panel::AgentTreePanelLayout {
+        let dashboard_visible = self
+            .chat_widget
+            .selected_index_for_present_view(AGENTS_OVERVIEW_VIEW_ID)
+            .is_some();
+        agent_tree_panel::layout_agent_tree_panel(
+            Rect::new(
+                /*x*/ 0,
+                /*y*/ 0,
+                screen_size.width,
+                screen_size.height,
+            ),
+            !dashboard_visible && self.has_subagents_for_panel(),
+        )
+    }
+
+    pub(super) fn chat_width_for_screen(&self, screen_size: Size) -> u16 {
+        self.agent_tree_panel_layout(screen_size).chat_area.width
+    }
+
+    pub(super) fn history_wrap_width_for_screen(&self, screen_size: Size) -> u16 {
+        self.chat_widget
+            .history_wrap_width(self.chat_width_for_screen(screen_size))
+    }
+
+    fn has_subagents_for_panel(&self) -> bool {
+        self.agent_navigation
+            .has_non_primary_thread(self.primary_thread_id)
+    }
+
+    fn should_render_ambient_pet(&self, screen_size: Size) -> bool {
+        self.chat_widget.ambient_pet_image_enabled()
+            && self
+                .agent_tree_panel_layout(screen_size)
+                .panel_area
+                .is_none()
     }
 }
 
@@ -932,6 +1011,9 @@ impl Drop for App {
     }
 }
 
+#[cfg(test)]
+#[path = "app/agent_tree_panel_app_tests.rs"]
+mod agent_tree_panel_app_tests;
 #[cfg(test)]
 pub(super) mod test_support;
 #[cfg(test)]

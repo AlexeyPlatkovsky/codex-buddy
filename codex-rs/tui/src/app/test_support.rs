@@ -63,6 +63,7 @@ pub(super) async fn make_test_app() -> App {
         temporary_structured_requests: HashMap::new(),
         thread_event_listener_tasks: HashMap::new(),
         agent_navigation: AgentNavigationState::default(),
+        agent_tree_viewport: crate::app::agent_tree_viewport::AgentTreeViewport::new(),
         agents_overview: Default::default(),
         side_threads: HashMap::new(),
         abandoned_side_threads: HashSet::new(),
