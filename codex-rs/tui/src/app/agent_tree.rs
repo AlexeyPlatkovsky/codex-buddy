@@ -57,11 +57,6 @@ impl AgentTreeInput {
         self.status = status;
         self
     }
-
-    /// Applies a lifecycle observation to cached metadata before it is projected into a row.
-    pub(crate) fn apply_status_event(&mut self, event: AgentTreeLifecycleEvent) {
-        self.status = self.status.transition(event);
-    }
 }
 
 /// One row in [`AgentTreeSnapshot`], ordered for preorder display.
@@ -133,8 +128,10 @@ impl AgentTreeSnapshot {
             });
 
         let mut parents = vec![None; nodes.len()];
+        let primary_index =
+            primary_thread_id.and_then(|thread_id| index_by_id.get(&thread_id).copied());
         for (index, node) in nodes.iter().enumerate() {
-            let path_parent = node
+            let path_parent_index = node
                 .agent_path
                 .as_deref()
                 .and_then(path_parent)
@@ -144,7 +141,14 @@ impl AgentTreeSnapshot {
                 .parent_thread_id
                 .and_then(|parent| index_by_id.get(&parent).copied())
                 .filter(|parent_index| *parent_index != index);
-            parents[index] = path_parent.or(id_parent);
+            let root_child_parent = node
+                .agent_path
+                .as_deref()
+                .and_then(path_parent)
+                .filter(|parent_path| *parent_path == "root")
+                .and(primary_index)
+                .filter(|parent_index| *parent_index != index);
+            parents[index] = path_parent_index.or(id_parent).or(root_child_parent);
         }
 
         // Parent IDs come from external state and may be stale or cyclic. Promote every member
@@ -217,6 +221,20 @@ impl AgentTreeSnapshot {
             .collect();
 
         Self { rows, truncated }
+    }
+
+    /// Marks the row being watched without repeating structural tree projection.
+    pub(crate) fn with_selection(
+        &self,
+        selected_thread_id: Option<ThreadId>,
+        current_thread_id: Option<ThreadId>,
+    ) -> Self {
+        let mut snapshot = self.clone();
+        for row in &mut snapshot.rows {
+            row.is_selected = selected_thread_id == Some(row.thread_id);
+            row.is_current = current_thread_id == Some(row.thread_id);
+        }
+        snapshot
     }
 }
 

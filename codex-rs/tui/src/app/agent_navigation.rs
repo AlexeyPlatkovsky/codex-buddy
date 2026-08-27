@@ -19,7 +19,9 @@
 //! order. Once a thread id is observed it keeps its place in the cycle even if the entry is later
 //! updated or marked closed.
 
+use super::agent_tree::AgentTreeInput;
 use super::agent_tree::AgentTreeLifecycleEvent;
+use super::agent_tree::AgentTreeSnapshot;
 use super::agent_tree::AgentTreeStatus;
 use super::agent_tree_status_state::AgentTreeStatusState;
 use crate::multi_agents::AgentPickerThreadEntry;
@@ -337,6 +339,33 @@ impl AgentNavigationState {
             .collect()
     }
 
+    /// Projects the picker cache into the stable tree shown beside the transcript.
+    ///
+    /// Parent paths are already cached by picker refreshes and activity notifications, so this
+    /// remains a purely local projection: rendering the panel never issues a server request.
+    pub(crate) fn tree_snapshot(
+        &self,
+        primary_thread_id: Option<ThreadId>,
+        selected_thread_id: Option<ThreadId>,
+        current_thread_id: Option<ThreadId>,
+    ) -> AgentTreeSnapshot {
+        AgentTreeSnapshot::from_inputs(
+            self.ordered_threads()
+                .into_iter()
+                .map(|(thread_id, entry)| {
+                    AgentTreeInput::from_picker_entry(
+                        thread_id, entry, /*parent_thread_id*/ None,
+                    )
+                    .with_status(self.tree_status(&thread_id).unwrap_or_else(
+                        || AgentTreeStatus::from_picker_metadata(entry.is_running, entry.is_closed),
+                    ))
+                }),
+            primary_thread_id,
+            selected_thread_id,
+            current_thread_id,
+        )
+    }
+
     /// Returns tracked thread ids in the same stable order used by the picker.
     pub(crate) fn tracked_thread_ids(&self) -> Vec<ThreadId> {
         self.ordered_threads()
@@ -590,6 +619,49 @@ mod tests {
         assert_eq!(
             state.tree_status(&first_agent_id),
             Some(AgentTreeStatus::Completed)
+        );
+    }
+
+    #[test]
+    fn tree_selection_follows_existing_next_agent_navigation() {
+        let (state, main_thread_id, first_agent_id, second_agent_id) = populated_state();
+        let next_thread_id = state
+            .adjacent_thread_id(Some(first_agent_id), AgentNavigationDirection::Next)
+            .expect("next agent");
+        assert_eq!(next_thread_id, second_agent_id);
+
+        let tree = state.tree_snapshot(
+            Some(main_thread_id),
+            Some(next_thread_id),
+            Some(next_thread_id),
+        );
+        let selected = tree
+            .rows
+            .iter()
+            .find(|row| row.thread_id == next_thread_id)
+            .expect("selected agent tree row");
+
+        assert!(selected.is_selected);
+        assert!(selected.is_current);
+    }
+
+    #[test]
+    fn production_root_paths_attach_first_level_agents_to_primary() {
+        let (mut state, main_thread_id, first_agent_id, second_agent_id) = populated_state();
+        state.set_agent_path(first_agent_id, Some("root/planner".to_string()));
+        state.set_agent_path(second_agent_id, Some("root/planner/worker".to_string()));
+
+        let tree = state.tree_snapshot(Some(main_thread_id), None, None);
+        assert_eq!(
+            tree.rows
+                .iter()
+                .map(|row| (row.thread_id, row.parent_thread_id, row.depth))
+                .collect::<Vec<_>>(),
+            vec![
+                (main_thread_id, None, 0),
+                (first_agent_id, Some(main_thread_id), 1),
+                (second_agent_id, Some(first_agent_id), 2),
+            ]
         );
     }
 }
