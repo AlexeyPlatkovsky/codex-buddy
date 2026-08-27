@@ -169,6 +169,12 @@ impl<'a> CatalogContext<'a> {
     }
 
     async fn discover_executor_catalog(&self, query: SkillListQuery) -> CatalogContribution {
+        if !self.config.executor_skills_enabled {
+            return CatalogContribution {
+                catalog: SkillCatalog::default(),
+                status: CatalogStatus::Disabled,
+            };
+        }
         let mut catalog = self
             .thread_state
             .executor_catalog_snapshot(self.providers, query)

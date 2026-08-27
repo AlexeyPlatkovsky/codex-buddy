@@ -87,10 +87,20 @@ impl MessageProcessor {
             skill_providers,
             codex_otel::global(),
             |config: &Config| codex_skills_extension::SkillsExtensionConfig {
-                include_instructions: config.include_skill_instructions,
+                include_instructions: config.include_skill_instructions
+                    && config
+                        .runtime_profile
+                        .external_source(codex_runtime_profile::ExternalSource::Skills)
+                        != codex_runtime_profile::ExternalSourcePolicy::Disabled,
                 max_context_tokens: config.skill_max_context_tokens,
-                bundled_skills_enabled: config.bundled_skills_enabled(),
-                orchestrator_skills_enabled: config.orchestrator_skills_enabled,
+                bundled_skills_enabled: config.bundled_skills_enabled()
+                    && config.runtime_profile.preset()
+                        == codex_runtime_profile::RuntimePreset::Full,
+                orchestrator_skills_enabled: config.orchestrator_skills_enabled
+                    && config.runtime_profile.preset()
+                        == codex_runtime_profile::RuntimePreset::Full,
+                executor_skills_enabled: config.runtime_profile.preset()
+                    == codex_runtime_profile::RuntimePreset::Full,
                 shadow_selection_enabled: config
                     .features
                     .enabled(codex_features::Feature::SkillSearch),

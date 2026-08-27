@@ -32,6 +32,8 @@ use codex_protocol::protocol::EventMsg;
 use codex_queue_extension::QueuedItemService;
 use codex_rollout::state_db::StateDbHandle;
 
+use crate::extension_composition::ExtensionComponent;
+use crate::extension_composition::ExtensionComposition;
 use crate::outgoing_message::OutgoingMessageSender;
 use crate::outgoing_message::ThreadScopedOutgoingMessageSender;
 use crate::thread_state::ThreadListenerCommand;
@@ -43,13 +45,14 @@ pub(crate) struct ThreadExtensionDependencies {
     pub(crate) state_db: Option<StateDbHandle>,
     pub(crate) analytics_events_client: AnalyticsEventsClient,
     pub(crate) thread_manager: Weak<ThreadManager>,
-    pub(crate) goal_service: Arc<GoalService>,
+    pub(crate) goal_service: Option<Arc<GoalService>>,
     pub(crate) environment_manager: Arc<EnvironmentManager>,
-    pub(crate) executor_skill_provider: Arc<dyn codex_skills_extension::SkillProvider>,
+    pub(crate) executor_skill_provider: Option<Arc<dyn codex_skills_extension::SkillProvider>>,
     pub(crate) git_attribution_base_url: String,
     pub(crate) http_client_factory: HttpClientFactory,
     /// Process-scoped queue shared by idle dispatch and app-server requests.
     pub(crate) queue_service: Option<Arc<QueuedItemService>>,
+    pub(crate) composition: ExtensionComposition,
 }
 
 pub(crate) fn thread_extensions<S>(
@@ -71,13 +74,20 @@ where
         git_attribution_base_url,
         http_client_factory,
         queue_service,
+        composition,
     } = dependencies;
     let mut builder = ExtensionRegistryBuilder::<Config>::with_event_sink(Arc::clone(&event_sink));
-    if let Some(queue_service) = queue_service {
+    if composition.installs(ExtensionComponent::Queue)
+        && let Some(queue_service) = queue_service
+    {
         codex_queue_extension::install(&mut builder, queue_service);
     }
-    codex_history_notes_extension::install(&mut builder, auth_manager.clone());
-    if let Some(state_db) = state_db {
+    if composition.installs(ExtensionComponent::HistoryNotes) {
+        codex_history_notes_extension::install(&mut builder, auth_manager.clone());
+    }
+    if composition.installs(ExtensionComponent::Goals)
+        && let (Some(state_db), Some(goal_service)) = (state_db, goal_service)
+    {
         codex_goal_extension::install_with_backend(
             &mut builder,
             state_db,
@@ -91,46 +101,77 @@ where
             },
         );
     }
-    codex_git_attribution::install(
-        &mut builder,
-        auth_manager.clone(),
-        git_attribution_base_url,
-        http_client_factory,
-    );
-    codex_guardian_v2::install(
-        &mut builder,
-        guardian_agent_spawner,
-        internal_session_spawner(thread_manager.clone()),
-        auth_manager.clone(),
-        thread_manager,
-    );
-    codex_memories_extension::install(&mut builder, codex_otel::global());
-    codex_mcp_extension::install(&mut builder);
-    codex_mcp_extension::install_executor_plugins(&mut builder, environment_manager);
-    codex_web_search_extension::install(&mut builder, auth_manager.clone());
-    codex_image_generation_extension::install(&mut builder, auth_manager, |config: &Config| {
-        Some(config.codex_home.clone())
-    });
-    let skill_providers = codex_skills_extension::SkillProviders::new()
-        .with_executor_provider(executor_skill_provider)
-        .with_orchestrator_provider(Arc::new(
-            codex_skills_extension::OrchestratorSkillProvider::new(),
-        ))
-        .with_host_provider(Arc::new(codex_skills_extension::HostSkillProvider::new()));
-    codex_skills_extension::install_with_providers_and_metrics(
-        &mut builder,
-        skill_providers,
-        codex_otel::global(),
-        |config: &Config| codex_skills_extension::SkillsExtensionConfig {
-            include_instructions: config.include_skill_instructions,
-            max_context_tokens: config.skill_max_context_tokens,
-            bundled_skills_enabled: config.bundled_skills_enabled(),
-            orchestrator_skills_enabled: config.orchestrator_skills_enabled,
-            shadow_selection_enabled: config
-                .features
-                .enabled(codex_features::Feature::SkillSearch),
-        },
-    );
+    if composition.installs(ExtensionComponent::GitAttribution) {
+        codex_git_attribution::install(
+            &mut builder,
+            auth_manager.clone(),
+            git_attribution_base_url,
+            http_client_factory,
+        );
+    }
+    if composition.installs(ExtensionComponent::Guardian) {
+        codex_guardian_v2::install(
+            &mut builder,
+            guardian_agent_spawner,
+            internal_session_spawner(thread_manager.clone()),
+            auth_manager.clone(),
+            thread_manager,
+        );
+    }
+    if composition.installs(ExtensionComponent::Memories) {
+        codex_memories_extension::install(&mut builder, codex_otel::global());
+    }
+    if composition.installs(ExtensionComponent::Mcp) {
+        codex_mcp_extension::install(&mut builder);
+    }
+    if composition.installs(ExtensionComponent::ExecutorPlugins) {
+        codex_mcp_extension::install_executor_plugins(&mut builder, environment_manager);
+    }
+    if composition.installs(ExtensionComponent::WebSearch) {
+        codex_web_search_extension::install(&mut builder, auth_manager.clone());
+    }
+    if composition.installs(ExtensionComponent::ImageGeneration) {
+        codex_image_generation_extension::install(&mut builder, auth_manager, |config: &Config| {
+            Some(config.codex_home.clone())
+        });
+    }
+    if composition.installs(ExtensionComponent::Skills) {
+        let executor_skills_enabled = composition.uses_executor_skill_provider();
+        let orchestrator_skills_enabled = composition.uses_orchestrator_skill_provider();
+        let mut skill_providers = codex_skills_extension::SkillProviders::new();
+        if let Some(executor_skill_provider) = executor_skill_provider {
+            skill_providers = skill_providers.with_executor_provider(executor_skill_provider);
+        }
+        if orchestrator_skills_enabled {
+            skill_providers = skill_providers.with_orchestrator_provider(Arc::new(
+                codex_skills_extension::OrchestratorSkillProvider::new(),
+            ));
+        }
+        skill_providers = skill_providers
+            .with_host_provider(Arc::new(codex_skills_extension::HostSkillProvider::new()));
+        codex_skills_extension::install_with_providers_and_metrics(
+            &mut builder,
+            skill_providers,
+            codex_otel::global(),
+            move |config: &Config| codex_skills_extension::SkillsExtensionConfig {
+                include_instructions: config.include_skill_instructions
+                    && config
+                        .runtime_profile
+                        .external_source(codex_runtime_profile::ExternalSource::Skills)
+                        != codex_runtime_profile::ExternalSourcePolicy::Disabled,
+                max_context_tokens: config.skill_max_context_tokens,
+                bundled_skills_enabled: config.bundled_skills_enabled()
+                    && config.runtime_profile.preset()
+                        == codex_runtime_profile::RuntimePreset::Full,
+                orchestrator_skills_enabled: config.orchestrator_skills_enabled
+                    && orchestrator_skills_enabled,
+                executor_skills_enabled,
+                shadow_selection_enabled: config
+                    .features
+                    .enabled(codex_features::Feature::SkillSearch),
+            },
+        );
+    }
     Arc::new(builder.build())
 }
 

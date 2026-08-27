@@ -11,6 +11,8 @@ use crate::current_time::app_server_time_provider;
 use crate::error_code::internal_error;
 use crate::error_code::invalid_params;
 use crate::error_code::invalid_request;
+use crate::extension_composition::ExtensionComponent;
+use crate::extension_composition::ExtensionComposition;
 use crate::extensions::ThreadExtensionDependencies;
 use crate::extensions::app_server_extension_event_sink;
 use crate::extensions::guardian_agent_spawner;
@@ -138,7 +140,7 @@ pub(crate) struct MessageProcessor {
     turn_cost_worker: Option<TurnCostWorker>,
     skills_watcher: Arc<SkillsWatcher>,
     account_processor: AccountRequestProcessor,
-    apps_processor: AppsRequestProcessor,
+    apps_processor: Option<AppsRequestProcessor>,
     catalog_processor: CatalogRequestProcessor,
     command_exec_processor: CommandExecRequestProcessor,
     process_exec_processor: ProcessExecRequestProcessor,
@@ -149,9 +151,9 @@ pub(crate) struct MessageProcessor {
     fs_processor: FsRequestProcessor,
     git_processor: GitRequestProcessor,
     initialize_processor: InitializeRequestProcessor,
-    marketplace_processor: MarketplaceRequestProcessor,
+    marketplace_processor: Option<MarketplaceRequestProcessor>,
     mcp_processor: McpRequestProcessor,
-    plugin_processor: PluginRequestProcessor,
+    plugin_processor: Option<PluginRequestProcessor>,
     project_processor: ProjectRequestProcessor,
     remote_control_processor: RemoteControlRequestProcessor,
     search_processor: SearchRequestProcessor,
@@ -289,24 +291,37 @@ impl MessageProcessor {
         // affect per-thread behavior, but they must not move newly started,
         // resumed, or forked threads to a different persistence backend/root.
         let thread_store = codex_core::thread_store_from_config(config.as_ref(), state_db.clone());
+        let extension_composition = ExtensionComposition::from_profile(&config.runtime_profile);
         // Queue persistence requires SQLite, so in-memory thread stores and
         // app servers without a state database do not have a queue backend.
-        let queue_store: Option<Arc<dyn QueueStore>> = match &config.experimental_thread_store {
-            ThreadStoreConfig::Local => state_db.as_ref().map(|state_db| {
-                Arc::new(LocalQueueStore::new(Arc::clone(state_db))) as Arc<dyn QueueStore>
-            }),
-            ThreadStoreConfig::InMemory { .. } => None,
-        };
+        let queue_store: Option<Arc<dyn QueueStore>> =
+            if extension_composition.installs(ExtensionComponent::Queue) {
+                match &config.experimental_thread_store {
+                    ThreadStoreConfig::Local => state_db.as_ref().map(|state_db| {
+                        Arc::new(LocalQueueStore::new(Arc::clone(state_db))) as Arc<dyn QueueStore>
+                    }),
+                    ThreadStoreConfig::InMemory { .. } => None,
+                }
+            } else {
+                None
+            };
         let environment_manager_for_requests = Arc::clone(&environment_manager);
         let environment_manager_for_extensions = Arc::clone(&environment_manager);
         let restriction_product = session_source.restriction_product();
-        let executor_skill_provider: Arc<dyn codex_skills_extension::SkillProvider> = Arc::new(
-            codex_skills_extension::ExecutorSkillProvider::new_with_restriction_product(
-                Arc::clone(&environment_manager_for_extensions),
-                restriction_product,
-            ),
-        );
-        let goal_service = Arc::new(GoalService::new());
+        let executor_skill_provider: Option<Arc<dyn codex_skills_extension::SkillProvider>> =
+            extension_composition
+                .uses_executor_skill_provider()
+                .then(|| {
+                    Arc::new(
+                        codex_skills_extension::ExecutorSkillProvider::new_with_restriction_product(
+                            Arc::clone(&environment_manager_for_extensions),
+                            restriction_product,
+                        ),
+                    ) as Arc<dyn codex_skills_extension::SkillProvider>
+                });
+        let goal_service = extension_composition
+            .installs(ExtensionComponent::Goals)
+            .then(|| Arc::new(GoalService::new()));
         let extension_event_sink =
             app_server_extension_event_sink(outgoing.clone(), thread_state_manager.clone());
         let mut queue_service = None;
@@ -333,12 +348,13 @@ impl MessageProcessor {
                         state_db: state_db.clone(),
                         analytics_events_client: analytics_events_client.clone(),
                         thread_manager: thread_manager.clone(),
-                        goal_service: Arc::clone(&goal_service),
+                        goal_service: goal_service.clone(),
                         environment_manager: Arc::clone(&environment_manager_for_extensions),
-                        executor_skill_provider: Arc::clone(&executor_skill_provider),
+                        executor_skill_provider: executor_skill_provider.clone(),
                         git_attribution_base_url: config.chatgpt_base_url.clone(),
                         http_client_factory: config.http_client_factory(),
                         queue_service: queue_service.clone(),
+                        composition: extension_composition.clone(),
                     },
                 ),
                 Arc::new(CodexHomeUserInstructionsProvider::new(
@@ -367,9 +383,11 @@ impl MessageProcessor {
             crate::models_refresh_worker::spawn(&models_manager, config.http_client_factory());
         let turn_cost_worker =
             TurnCostWorker::spawn(Arc::clone(&config), Arc::clone(&auth_manager));
-        thread_manager
-            .plugins_manager()
-            .set_analytics_events_client(analytics_events_client.clone());
+        if extension_composition.starts_plugin_tasks() {
+            thread_manager
+                .plugins_manager()
+                .set_analytics_events_client(analytics_events_client.clone());
+        }
         let skills_watcher = SkillsWatcher::new(
             thread_manager.skills_service(),
             &config.codex_home,
@@ -388,14 +406,6 @@ impl MessageProcessor {
             thread_manager.clone(),
             analytics_events_client.clone(),
         );
-        let on_effective_plugins_changed =
-            crate::effective_plugin_change::effective_plugins_changed_callback(
-                auth_manager.clone(),
-                Arc::clone(&thread_manager),
-                config_manager.clone(),
-                config_processor.clone(),
-                request_serialization_queues.clone(),
-            );
         let account_processor = AccountRequestProcessor::new(
             auth_manager.clone(),
             Arc::clone(&thread_manager),
@@ -403,13 +413,15 @@ impl MessageProcessor {
             Arc::clone(&config),
             config_manager.clone(),
         );
-        let apps_processor = AppsRequestProcessor::new(
-            auth_manager.clone(),
-            Arc::clone(&thread_manager),
-            outgoing.clone(),
-            config_manager.clone(),
-            app_list_shutdown_token,
-        );
+        let apps_processor = extension_composition.constructs_apps_service().then(|| {
+            AppsRequestProcessor::new(
+                auth_manager.clone(),
+                Arc::clone(&thread_manager),
+                outgoing.clone(),
+                config_manager.clone(),
+                app_list_shutdown_token,
+            )
+        });
         let catalog_processor = CatalogRequestProcessor::new(
             outgoing.clone(),
             Arc::clone(&skills_watcher),
@@ -444,11 +456,13 @@ impl MessageProcessor {
             config_warnings.clone(),
             rpc_transport,
         );
-        let marketplace_processor = MarketplaceRequestProcessor::new(
-            Arc::clone(&config),
-            config_manager.clone(),
-            Arc::clone(&thread_manager),
-        );
+        let marketplace_processor = extension_composition.starts_plugin_tasks().then(|| {
+            MarketplaceRequestProcessor::new(
+                Arc::clone(&config),
+                config_manager.clone(),
+                Arc::clone(&thread_manager),
+            )
+        });
         let mcp_processor = McpRequestProcessor::new(
             auth_manager.clone(),
             Arc::clone(&thread_manager),
@@ -456,14 +470,24 @@ impl MessageProcessor {
             outgoing.clone(),
             config_manager.clone(),
         );
-        let plugin_processor = PluginRequestProcessor::new(
-            auth_manager.clone(),
-            Arc::clone(&thread_manager),
-            outgoing.clone(),
-            analytics_events_client.clone(),
-            config_manager.clone(),
-            on_effective_plugins_changed,
-        );
+        let plugin_processor = extension_composition.starts_plugin_tasks().then(|| {
+            let on_effective_plugins_changed =
+                crate::effective_plugin_change::effective_plugins_changed_callback(
+                    auth_manager.clone(),
+                    Arc::clone(&thread_manager),
+                    config_manager.clone(),
+                    config_processor.clone(),
+                    request_serialization_queues.clone(),
+                );
+            PluginRequestProcessor::new(
+                auth_manager.clone(),
+                Arc::clone(&thread_manager),
+                outgoing.clone(),
+                analytics_events_client.clone(),
+                config_manager.clone(),
+                on_effective_plugins_changed,
+            )
+        });
         let remote_control_processor = RemoteControlRequestProcessor::new(remote_control_handle);
         let search_processor = SearchRequestProcessor::new(outgoing.clone());
         let thread_goal_processor = ThreadGoalRequestProcessor::new(
@@ -472,7 +496,7 @@ impl MessageProcessor {
             Arc::clone(&config),
             thread_state_manager.clone(),
             state_db.clone(),
-            Arc::clone(&goal_service),
+            goal_service,
         );
         let thread_queue_processor = ThreadQueueRequestProcessor::new(
             Arc::clone(&thread_manager),
@@ -519,7 +543,9 @@ impl MessageProcessor {
             Arc::clone(&skills_watcher),
             turn_cost_worker.as_ref().map(TurnCostWorker::handle),
         );
-        if matches!(plugin_startup_tasks, crate::PluginStartupTasks::Start) {
+        if matches!(plugin_startup_tasks, crate::PluginStartupTasks::Start)
+            && let Some(plugin_processor) = plugin_processor.as_ref()
+        {
             // Keep plugin startup warmups aligned at app-server startup.
             let on_effective_plugins_changed =
                 plugin_processor.effective_plugins_changed_callback();
@@ -588,9 +614,29 @@ impl MessageProcessor {
 
     pub(crate) fn clear_runtime_references(&self) {
         self.account_processor.clear_external_auth();
-        self.apps_processor.shutdown();
+        if let Some(apps_processor) = &self.apps_processor {
+            apps_processor.shutdown();
+        }
         self.models_refresh_worker.shutdown();
         self.skills_watcher.shutdown();
+    }
+
+    fn apps_processor(&self) -> Result<&AppsRequestProcessor, JSONRPCErrorError> {
+        self.apps_processor
+            .as_ref()
+            .ok_or_else(|| invalid_request("apps are unavailable in this runtime profile"))
+    }
+
+    fn marketplace_processor(&self) -> Result<&MarketplaceRequestProcessor, JSONRPCErrorError> {
+        self.marketplace_processor.as_ref().ok_or_else(|| {
+            invalid_request("plugin marketplaces are unavailable in this runtime profile")
+        })
+    }
+
+    fn plugin_processor(&self) -> Result<&PluginRequestProcessor, JSONRPCErrorError> {
+        self.plugin_processor
+            .as_ref()
+            .ok_or_else(|| invalid_request("plugins are unavailable in this runtime profile"))
     }
 
     pub(crate) async fn process_request(
@@ -1360,52 +1406,58 @@ impl MessageProcessor {
                 self.catalog_processor.hooks_list(params).await
             }
             ClientRequest::MarketplaceAdd { params, .. } => {
-                self.marketplace_processor.marketplace_add(params).await
+                self.marketplace_processor()?.marketplace_add(params).await
             }
             ClientRequest::MarketplaceRemove { params, .. } => {
-                self.marketplace_processor.marketplace_remove(params).await
+                self.marketplace_processor()?
+                    .marketplace_remove(params)
+                    .await
             }
             ClientRequest::MarketplaceUpgrade { params, .. } => {
-                self.marketplace_processor.marketplace_upgrade(params).await
+                self.marketplace_processor()?
+                    .marketplace_upgrade(params)
+                    .await
             }
             ClientRequest::PluginList { params, .. } => {
-                self.plugin_processor.plugin_list(params).await
+                self.plugin_processor()?.plugin_list(params).await
             }
             ClientRequest::PluginSearch { params, .. } => {
-                self.plugin_processor.plugin_search(params).await
+                self.plugin_processor()?.plugin_search(params).await
             }
             ClientRequest::PluginInstalled { params, .. } => {
-                self.plugin_processor.plugin_installed(params).await
+                self.plugin_processor()?.plugin_installed(params).await
             }
             ClientRequest::PluginRead { params, .. } => {
-                self.plugin_processor.plugin_read(params).await
+                self.plugin_processor()?.plugin_read(params).await
             }
             ClientRequest::PluginSkillRead { params, .. } => {
-                self.plugin_processor.plugin_skill_read(params).await
+                self.plugin_processor()?.plugin_skill_read(params).await
             }
             ClientRequest::PluginShareSave { params, .. } => {
-                self.plugin_processor.plugin_share_save(params).await
+                self.plugin_processor()?.plugin_share_save(params).await
             }
             ClientRequest::PluginShareUpdateTargets { params, .. } => {
-                self.plugin_processor
+                self.plugin_processor()?
                     .plugin_share_update_targets(params)
                     .await
             }
             ClientRequest::PluginShareList { params, .. } => {
-                self.plugin_processor.plugin_share_list(params).await
+                self.plugin_processor()?.plugin_share_list(params).await
             }
             ClientRequest::PluginShareCheckout { params, .. } => {
-                self.plugin_processor.plugin_share_checkout(params).await
+                self.plugin_processor()?.plugin_share_checkout(params).await
             }
             ClientRequest::PluginShareDelete { params, .. } => {
-                self.plugin_processor.plugin_share_delete(params).await
+                self.plugin_processor()?.plugin_share_delete(params).await
             }
-            ClientRequest::AppsRead { params, .. } => self.apps_processor.apps_read(params).await,
+            ClientRequest::AppsRead { params, .. } => {
+                self.apps_processor()?.apps_read(params).await
+            }
             ClientRequest::AppsList { params, .. } => {
-                self.apps_processor.apps_list(&request_id, params).await
+                self.apps_processor()?.apps_list(&request_id, params).await
             }
             ClientRequest::AppsInstalled { params, .. } => self
-                .apps_processor
+                .apps_processor()?
                 .apps_installed(params)
                 .await
                 .map(|response| Some(response.into())),
@@ -1413,10 +1465,10 @@ impl MessageProcessor {
                 self.catalog_processor.skills_config_write(params).await
             }
             ClientRequest::PluginInstall { params, .. } => {
-                self.plugin_processor.plugin_install(params).await
+                self.plugin_processor()?.plugin_install(params).await
             }
             ClientRequest::PluginUninstall { params, .. } => {
-                self.plugin_processor.plugin_uninstall(params).await
+                self.plugin_processor()?.plugin_uninstall(params).await
             }
             ClientRequest::ModelList { params, .. } => {
                 self.catalog_processor.model_list(params).await

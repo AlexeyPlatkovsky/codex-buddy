@@ -444,7 +444,8 @@ impl ThreadManager {
         let (thread_created_tx, _) = broadcast::channel(THREAD_CREATED_CHANNEL_CAPACITY);
         let skills_service = Arc::new(HostSkillsService::new_with_restriction_product(
             codex_home.clone(),
-            config.bundled_skills_enabled(),
+            config.bundled_skills_enabled()
+                && config.runtime_profile.preset() == codex_runtime_profile::RuntimePreset::Full,
             restriction_product,
         ));
         let plugins_manager = Arc::new(PluginsManager::new_with_options(

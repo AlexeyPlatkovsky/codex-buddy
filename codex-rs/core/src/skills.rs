@@ -10,6 +10,7 @@ use codex_extension_api::SkillInvocationInput;
 use codex_extension_api::SkillInvocationKind;
 use codex_otel::sanitize_metric_tag_value;
 use codex_protocol::protocol::SkillScope;
+use codex_runtime_profile::ExternalSource;
 use codex_skills::SkillMetadata;
 use codex_skills_extension::HostSkillsLoadInput;
 use codex_skills_extension::InjectedHostSkillPrompts;
@@ -32,6 +33,11 @@ pub(crate) fn skills_load_input_from_config(
         config.cwd.clone(),
         effective_skill_roots,
         config.config_layer_stack.clone(),
+    )
+    .with_runtime_profile_policy(
+        config
+            .runtime_profile
+            .external_source(ExternalSource::Skills),
     )
 }
 

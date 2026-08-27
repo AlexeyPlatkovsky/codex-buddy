@@ -292,26 +292,32 @@ where
         thread_store: &ExtensionData,
         step_store: &ExtensionData,
     ) -> Vec<Arc<dyn for<'call> ToolExecutor<ToolCall<'call>>>> {
+        let executor_skills_enabled = thread_store
+            .get::<SkillsThreadState>()
+            .is_none_or(|state| state.config().executor_skills_enabled);
         let resolved_executor_roots = step_store
             .get::<Vec<ResolvedSelectedCapabilityRoot>>()
             .map(|roots| roots.as_slice().to_vec())
             .unwrap_or_default();
-        let executor_query = (!resolved_executor_roots.is_empty()).then(|| SkillListQuery {
-            turn_id: step_store.level_id().to_string(),
-            executor_roots: resolved_executor_roots
-                .iter()
-                .map(|root| root.selected_root().clone())
-                .collect(),
-            resolved_executor_roots,
-            host_snapshot: None,
-            include_host_skills: false,
-            include_bundled_skills: false,
-            include_orchestrator_skills: false,
-            mcp_resources: None,
-            executor_capability_discovery: step_store
-                .get::<ExecutorCapabilityDiscoverySnapshot>()
-                .map(|discovery| discovery.as_ref().clone()),
-        });
+        let executor_query =
+            (executor_skills_enabled && !resolved_executor_roots.is_empty()).then(|| {
+                SkillListQuery {
+                    turn_id: step_store.level_id().to_string(),
+                    executor_roots: resolved_executor_roots
+                        .iter()
+                        .map(|root| root.selected_root().clone())
+                        .collect(),
+                    resolved_executor_roots,
+                    host_snapshot: None,
+                    include_host_skills: false,
+                    include_bundled_skills: false,
+                    include_orchestrator_skills: false,
+                    mcp_resources: None,
+                    executor_capability_discovery: step_store
+                        .get::<ExecutorCapabilityDiscoverySnapshot>()
+                        .map(|discovery| discovery.as_ref().clone()),
+                }
+            });
         self.build_skill_tools(
             session_store,
             thread_store,

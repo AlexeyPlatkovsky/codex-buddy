@@ -32,6 +32,11 @@ use codex_protocol::models::PermissionProfile;
 use codex_protocol::protocol::EnvironmentConfig;
 use codex_protocol::protocol::EnvironmentConfigState;
 use codex_protocol::protocol::TurnEnvironmentSelection;
+use codex_runtime_profile::ExternalSource;
+use codex_runtime_profile::ExternalSourcePolicy;
+use codex_runtime_profile::ResolvedRuntimeProfile;
+use codex_runtime_profile::RuntimeCompileCeiling;
+use codex_runtime_profile::RuntimePolicyPatch;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use codex_utils_path_uri::PathUri;
 use core_test_support::PathBufExt;
@@ -1345,6 +1350,20 @@ async fn keeps_existing_instructions_when_doc_missing() {
         get_user_instructions(&make_config(&tmp, /*limit*/ 4096, Some(INSTRUCTIONS)).await).await;
 
     assert_eq!(res, Some(INSTRUCTIONS.to_string()));
+}
+
+#[tokio::test]
+async fn disabled_instruction_source_omits_user_and_project_instructions() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    fs::write(tmp.path().join("AGENTS.md"), "project instructions").unwrap();
+    let mut config = make_config(&tmp, /*limit*/ 4096, Some("user instructions")).await;
+    config.runtime_profile = ResolvedRuntimeProfile::coding(
+        &RuntimeCompileCeiling::full(),
+        &RuntimePolicyPatch::default()
+            .restrict_external_source(ExternalSource::Instructions, ExternalSourcePolicy::Disabled),
+    );
+
+    assert!(load_agents_md(&config).await.is_none());
 }
 
 /// When both the repository root and the working directory contain

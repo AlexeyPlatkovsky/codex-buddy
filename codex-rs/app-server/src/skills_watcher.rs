@@ -14,6 +14,9 @@ use codex_file_watcher::ThrottledWatchReceiver;
 use codex_file_watcher::WatchPath;
 use codex_file_watcher::WatchRegistration;
 use codex_protocol::protocol::TurnEnvironmentSelection;
+use codex_runtime_profile::CapabilityDecision;
+use codex_runtime_profile::ExternalSource;
+use codex_runtime_profile::RuntimeService;
 use codex_skills::system_cache_root_dir;
 use codex_skills_extension::HostSkillsLoadInput;
 use codex_skills_extension::HostSkillsService;
@@ -109,13 +112,27 @@ impl SkillsWatcher {
             return WatchRegistration::default();
         }
 
-        let plugins_input = config.plugins_config_input();
-        let plugins_manager = thread_manager.plugins_manager();
-        let plugin_outcome = plugins_manager.plugins_for_config(&plugins_input).await;
+        let plugin_skill_roots = if config.runtime_profile.service(RuntimeService::Plugins)
+            == CapabilityDecision::Enabled
+        {
+            let plugins_input = config.plugins_config_input();
+            thread_manager
+                .plugins_manager()
+                .plugins_for_config(&plugins_input)
+                .await
+                .effective_plugin_skill_roots()
+        } else {
+            Vec::new()
+        };
         let skills_input = HostSkillsLoadInput::new(
             config.cwd.clone(),
-            plugin_outcome.effective_plugin_skill_roots(),
+            plugin_skill_roots,
             config.config_layer_stack.clone(),
+        )
+        .with_runtime_profile_policy(
+            config
+                .runtime_profile
+                .external_source(ExternalSource::Skills),
         );
         let roots = thread_manager
             .skills_service()

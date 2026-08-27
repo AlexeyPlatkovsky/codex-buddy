@@ -217,6 +217,7 @@ fn new_config(model: Option<String>, arg0_paths: Arg0DispatchPaths) -> anyhow::R
         include_skill_instructions: false,
         skill_max_context_tokens: None,
         orchestrator_skills_enabled: false,
+        executor_skills_enabled: true,
         orchestrator_mcp_enabled: false,
         include_environment_context: false,
         compact_prompt: None,

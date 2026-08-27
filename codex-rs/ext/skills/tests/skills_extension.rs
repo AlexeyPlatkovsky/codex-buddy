@@ -2613,6 +2613,7 @@ struct TestConfig {
     include_instructions: bool,
     bundled_skills_enabled: bool,
     orchestrator_skills_enabled: bool,
+    executor_skills_enabled: bool,
     shadow_selection_enabled: bool,
 }
 
@@ -2621,6 +2622,7 @@ fn default_config() -> TestConfig {
         include_instructions: true,
         bundled_skills_enabled: true,
         orchestrator_skills_enabled: true,
+        executor_skills_enabled: true,
         shadow_selection_enabled: false,
     }
 }
@@ -2631,6 +2633,7 @@ fn skills_extension_config(config: &TestConfig) -> SkillsExtensionConfig {
         max_context_tokens: None,
         bundled_skills_enabled: config.bundled_skills_enabled,
         orchestrator_skills_enabled: config.orchestrator_skills_enabled,
+        executor_skills_enabled: config.executor_skills_enabled,
         shadow_selection_enabled: config.shadow_selection_enabled,
     }
 }

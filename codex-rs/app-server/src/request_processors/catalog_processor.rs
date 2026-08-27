@@ -514,15 +514,29 @@ impl CatalogRequestProcessor {
                             );
                         }
                     };
-                    let plugins_input = config.plugins_config_input();
-                    let plugins = plugins_manager.plugins_for_config(&plugins_input).await;
-                    let plugin_skill_snapshots =
-                        plugins_manager.plugin_skill_snapshots_for_config(&plugins_input);
+                    let (plugin_skill_roots, plugin_skill_snapshots) = if config
+                        .runtime_profile
+                        .service(codex_runtime_profile::RuntimeService::Plugins)
+                        == codex_runtime_profile::CapabilityDecision::Enabled
+                    {
+                        let plugins_input = config.plugins_config_input();
+                        let plugins = plugins_manager.plugins_for_config(&plugins_input).await;
+                        (
+                            plugins.effective_plugin_skill_roots(),
+                            plugins_manager.plugin_skill_snapshots_for_config(&plugins_input),
+                        )
+                    } else {
+                        (Vec::new(), None)
+                    };
+                    let skills_source_policy = config
+                        .runtime_profile
+                        .external_source(codex_runtime_profile::ExternalSource::Skills);
                     let skills_input = codex_skills_extension::HostSkillsLoadInput::new(
                         config.cwd.clone(),
-                        plugins.effective_plugin_skill_roots(),
+                        plugin_skill_roots,
                         config.config_layer_stack,
                     )
+                    .with_runtime_profile_policy(skills_source_policy)
                     .with_plugin_skill_snapshots(plugin_skill_snapshots);
                     let snapshot = skills_request
                         .snapshot_for_cwd(&skills_input, force_reload, fs)

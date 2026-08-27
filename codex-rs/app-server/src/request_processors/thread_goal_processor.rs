@@ -25,7 +25,7 @@ pub(crate) struct ThreadGoalRequestProcessor {
     config: Arc<Config>,
     thread_state_manager: ThreadStateManager,
     state_db: Option<StateDbHandle>,
-    goal_service: Arc<GoalService>,
+    goal_service: Option<Arc<GoalService>>,
 }
 
 impl ThreadGoalRequestProcessor {
@@ -35,7 +35,7 @@ impl ThreadGoalRequestProcessor {
         config: Arc<Config>,
         thread_state_manager: ThreadStateManager,
         state_db: Option<StateDbHandle>,
-        goal_service: Arc<GoalService>,
+        goal_service: Option<Arc<GoalService>>,
     ) -> Self {
         Self {
             thread_manager,
@@ -77,7 +77,7 @@ impl ThreadGoalRequestProcessor {
     }
 
     pub(crate) async fn emit_resume_goal_snapshot(&self, thread_id: ThreadId) {
-        if !self.config.features.enabled(Feature::Goals) {
+        if !self.goals_enabled() {
             return;
         }
         self.emit_thread_goal_snapshot(thread_id).await;
@@ -87,7 +87,7 @@ impl ThreadGoalRequestProcessor {
         &self,
         thread: &CodexThread,
     ) -> (bool, Option<StateDbHandle>) {
-        let emit_thread_goal_update = self.config.features.enabled(Feature::Goals);
+        let emit_thread_goal_update = self.goals_enabled();
         let thread_goal_state_db = if emit_thread_goal_update {
             if let Some(state_db) = thread.state_db() {
                 Some(state_db)
@@ -101,8 +101,10 @@ impl ThreadGoalRequestProcessor {
     }
 
     pub(crate) async fn restore_inherited_goal_runtime(&self, thread_id: ThreadId) {
-        if let Err(err) = self
-            .goal_service
+        let Some(goal_service) = self.goal_service.as_ref() else {
+            return;
+        };
+        if let Err(err) = goal_service
             .restore_thread_runtime_after_resume(thread_id)
             .await
         {
@@ -114,10 +116,13 @@ impl ThreadGoalRequestProcessor {
         &self,
         thread_id: ThreadId,
     ) -> Result<(), String> {
-        self.goal_service
-            .flush_thread_goal_progress_for_fork(thread_id)
-            .await
-            .map_err(|err| err.to_string())
+        match self.goal_service.as_ref() {
+            Some(goal_service) => goal_service
+                .flush_thread_goal_progress_for_fork(thread_id)
+                .await
+                .map_err(|err| err.to_string()),
+            None => Ok(()),
+        }
     }
 
     async fn thread_goal_set_inner(
@@ -125,9 +130,7 @@ impl ThreadGoalRequestProcessor {
         request_id: ConnectionRequestId,
         params: ThreadGoalSetParams,
     ) -> Result<(), JSONRPCErrorError> {
-        if !self.config.features.enabled(Feature::Goals) {
-            return Err(invalid_request("goals feature is disabled"));
-        }
+        let goal_service = self.goal_service()?;
 
         let thread_id = parse_thread_id_for_request(params.thread_id.as_str())?;
         let state_db = self
@@ -148,8 +151,7 @@ impl ThreadGoalRequestProcessor {
         let status = params.status.map(ThreadGoalStatus::to_core);
         let objective = params.objective.as_deref();
 
-        let outcome = self
-            .goal_service
+        let outcome = goal_service
             .set_thread_goal(
                 &state_db,
                 GoalSetRequest {
@@ -216,7 +218,7 @@ impl ThreadGoalRequestProcessor {
             .await;
         self.emit_thread_goal_updated_ordered(thread_id, goal, listener_command_tx)
             .await;
-        outcome.apply_runtime_effects(&self.goal_service).await;
+        outcome.apply_runtime_effects(goal_service).await;
         Ok(())
     }
 
@@ -224,16 +226,13 @@ impl ThreadGoalRequestProcessor {
         &self,
         params: ThreadGoalGetParams,
     ) -> Result<ThreadGoalGetResponse, JSONRPCErrorError> {
-        if !self.config.features.enabled(Feature::Goals) {
-            return Err(invalid_request("goals feature is disabled"));
-        }
+        let goal_service = self.goal_service()?;
 
         let thread_id = parse_thread_id_for_request(params.thread_id.as_str())?;
         let state_db = self
             .state_db_for_materialized_thread(thread_id, GoalAccess::Read)
             .await?;
-        let goal = self
-            .goal_service
+        let goal = goal_service
             .get_thread_goal(&state_db, thread_id)
             .await
             .map_err(goal_service_error)?
@@ -246,9 +245,7 @@ impl ThreadGoalRequestProcessor {
         request_id: ConnectionRequestId,
         params: ThreadGoalClearParams,
     ) -> Result<(), JSONRPCErrorError> {
-        if !self.config.features.enabled(Feature::Goals) {
-            return Err(invalid_request("goals feature is disabled"));
-        }
+        let goal_service = self.goal_service()?;
 
         let thread_id = parse_thread_id_for_request(params.thread_id.as_str())?;
         let state_db = self
@@ -262,8 +259,7 @@ impl ThreadGoalRequestProcessor {
             let thread_state = thread_state.lock().await;
             thread_state.listener_command_tx()
         };
-        let cleared = self
-            .goal_service
+        let cleared = goal_service
             .clear_thread_goal(&state_db, thread_id)
             .await
             .map_err(goal_service_error)?;
@@ -276,6 +272,19 @@ impl ThreadGoalRequestProcessor {
                 .await;
         }
         Ok(())
+    }
+
+    fn goals_enabled(&self) -> bool {
+        self.config.features.enabled(Feature::Goals) && self.goal_service.is_some()
+    }
+
+    fn goal_service(&self) -> Result<&Arc<GoalService>, JSONRPCErrorError> {
+        if !self.config.features.enabled(Feature::Goals) {
+            return Err(invalid_request("goals feature is disabled"));
+        }
+        self.goal_service
+            .as_ref()
+            .ok_or_else(|| invalid_request("goals are unavailable in this runtime profile"))
     }
 
     async fn state_db_for_materialized_thread(

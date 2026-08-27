@@ -318,6 +318,10 @@ enabled = false
                 SessionSource::Exec.restriction_product(),
             ),
         );
+        let extension_composition =
+            crate::extension_composition::ExtensionComposition::from_profile(
+                &good_config.runtime_profile,
+            );
         let thread_manager = Arc::new_cyclic(|thread_manager| {
             ThreadManager::new(
                 &good_config,
@@ -334,12 +338,13 @@ enabled = false
                         state_db: Some(state_db.clone()),
                         analytics_events_client: codex_analytics::AnalyticsEventsClient::disabled(),
                         thread_manager: thread_manager.clone(),
-                        goal_service: Arc::new(codex_goal_extension::GoalService::new()),
+                        goal_service: Some(Arc::new(codex_goal_extension::GoalService::new())),
                         environment_manager: Arc::clone(&environment_manager),
-                        executor_skill_provider: Arc::clone(&executor_skill_provider),
+                        executor_skill_provider: Some(Arc::clone(&executor_skill_provider)),
                         git_attribution_base_url: good_config.chatgpt_base_url.clone(),
                         http_client_factory: good_config.http_client_factory(),
                         queue_service: None,
+                        composition: extension_composition.clone(),
                     },
                 ),
                 Arc::new(CodexHomeUserInstructionsProvider::new(

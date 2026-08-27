@@ -814,6 +814,74 @@ async fn skills_for_config_excludes_bundled_skills_when_disabled_in_config() {
 }
 
 #[tokio::test]
+async fn explicit_only_skills_keep_trusted_host_roots_and_reject_plugins() {
+    let codex_home = tempfile::tempdir().expect("tempdir");
+    let cwd = tempfile::tempdir().expect("tempdir");
+    write_user_skill(&codex_home, "user", "user-skill", "trusted user skill");
+    let plugin_skill_path = write_plugin_skill(
+        &codex_home,
+        "test",
+        "sample",
+        "plugin",
+        "plugin-skill",
+        "plugin skill",
+    );
+    let plugin_skill_root =
+        plugin_skill_root_for_skill_path(&plugin_skill_path, "sample@test", "sample");
+    let config_layer_stack = config_stack(&codex_home, "");
+    let input = HostSkillsLoadInput::new(
+        cwd.path().abs(),
+        vec![plugin_skill_root],
+        config_layer_stack,
+    )
+    .with_runtime_profile_policy(ExternalSourcePolicy::ExplicitOnly);
+    let skills_service = HostSkillsService::new(
+        codex_home.path().abs(),
+        /*bundled_skills_enabled*/ true,
+    );
+
+    let snapshot = skills_service
+        .snapshot_for_config(&input, Some(Arc::clone(&LOCAL_FS)))
+        .await;
+    let outcome = snapshot.outcome();
+
+    assert!(
+        outcome
+            .skills
+            .iter()
+            .any(|skill| skill.name == "user-skill")
+    );
+    assert!(outcome.skills.iter().all(|skill| skill.plugin_id.is_none()));
+    assert!(
+        outcome
+            .skills
+            .iter()
+            .all(|skill| skill.scope != SkillScope::System)
+    );
+}
+
+#[tokio::test]
+async fn disabled_skill_source_skips_all_host_skill_discovery() {
+    let codex_home = tempfile::tempdir().expect("tempdir");
+    let cwd = tempfile::tempdir().expect("tempdir");
+    write_user_skill(&codex_home, "user", "user-skill", "disabled skill");
+    let config_layer_stack = config_stack(&codex_home, "");
+    let input = HostSkillsLoadInput::new(cwd.path().abs(), Vec::new(), config_layer_stack)
+        .with_runtime_profile_policy(ExternalSourcePolicy::Disabled);
+    let skills_service = HostSkillsService::new(
+        codex_home.path().abs(),
+        /*bundled_skills_enabled*/ true,
+    );
+
+    let snapshot = skills_service
+        .snapshot_for_config(&input, Some(Arc::clone(&LOCAL_FS)))
+        .await;
+    let outcome = snapshot.outcome();
+
+    assert!(outcome.skills.is_empty());
+}
+
+#[tokio::test]
 async fn skills_for_cwd_uses_cached_result_until_force_reload() {
     let codex_home = tempfile::tempdir().expect("tempdir");
     let cwd = tempfile::tempdir().expect("tempdir");

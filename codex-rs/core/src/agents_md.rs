@@ -29,6 +29,8 @@ use codex_extension_api::Instructions;
 use codex_file_system::FileSystemSandboxContext;
 use codex_file_system::FindUpErrorPolicy;
 use codex_file_system::find_nearest_ancestor_with_markers;
+use codex_runtime_profile::ExternalSource;
+use codex_runtime_profile::ExternalSourcePolicy;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use codex_utils_path_uri::PathUri;
 use futures::StreamExt;
@@ -57,6 +59,13 @@ pub(crate) async fn load_project_instructions(
     user_instructions: Option<Instructions>,
     environments: &TurnEnvironmentSnapshot,
 ) -> io::Result<Option<LoadedAgentsMd>> {
+    if config
+        .runtime_profile
+        .external_source(ExternalSource::Instructions)
+        == ExternalSourcePolicy::Disabled
+    {
+        return Ok(None);
+    }
     let mut loaded = LoadedAgentsMd::from_user_instructions(user_instructions);
     if config.active_project.is_untrusted() {
         return Ok((!loaded.is_empty()).then_some(loaded));

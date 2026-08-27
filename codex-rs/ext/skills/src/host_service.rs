@@ -13,6 +13,7 @@ use codex_exec_server::ExecutorFileSystem;
 use codex_exec_server::LOCAL_FS;
 use codex_protocol::protocol::Product;
 use codex_protocol::protocol::SkillScope;
+use codex_runtime_profile::ExternalSourcePolicy;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use codex_utils_plugins::PluginIdentity;
 use codex_utils_plugins::PluginSkillRoot;
@@ -43,6 +44,7 @@ pub struct HostSkillsLoadInput {
     effective_skill_roots: Vec<PluginSkillRoot>,
     config_layer_stack: ConfigLayerStack,
     plugin_skill_snapshots: Option<SkillRootSnapshots<PluginSkillRoot>>,
+    skills_source_policy: ExternalSourcePolicy,
 }
 
 impl HostSkillsLoadInput {
@@ -56,6 +58,7 @@ impl HostSkillsLoadInput {
             effective_skill_roots,
             config_layer_stack,
             plugin_skill_snapshots: None,
+            skills_source_policy: ExternalSourcePolicy::Automatic,
         }
     }
 
@@ -65,6 +68,15 @@ impl HostSkillsLoadInput {
         plugin_skill_snapshots: Option<SkillRootSnapshots<PluginSkillRoot>>,
     ) -> Self {
         self.plugin_skill_snapshots = plugin_skill_snapshots;
+        self
+    }
+
+    /// Applies the resolved runtime policy before host-skill discovery starts.
+    pub fn with_runtime_profile_policy(
+        mut self,
+        skills_source_policy: ExternalSourcePolicy,
+    ) -> Self {
+        self.skills_source_policy = skills_source_policy;
         self
     }
 }
@@ -215,18 +227,31 @@ impl HostSkillsService {
         input: &HostSkillsLoadInput,
         fs: Option<Arc<dyn ExecutorFileSystem>>,
     ) -> Vec<HostSkillRoot> {
-        let bundled_skills_enabled = bundled_skills_enabled_from_stack(&input.config_layer_stack);
+        if input.skills_source_policy == ExternalSourcePolicy::Disabled {
+            return Vec::new();
+        }
+        let bundled_skills_enabled = input.skills_source_policy == ExternalSourcePolicy::Automatic
+            && bundled_skills_enabled_from_stack(&input.config_layer_stack);
         if bundled_skills_enabled {
             self.ensure_system_skills_installed();
         }
+        let effective_skill_roots = match input.skills_source_policy {
+            ExternalSourcePolicy::Automatic => input.effective_skill_roots.clone(),
+            ExternalSourcePolicy::ExplicitOnly | ExternalSourcePolicy::Disabled => Vec::new(),
+        };
         let mut roots = resolve_skill_roots(
             fs,
             &input.config_layer_stack,
             &input.cwd,
-            input.effective_skill_roots.clone(),
+            effective_skill_roots,
             self.extra_roots(),
         )
         .await;
+        retain_roots_allowed_by_policy(
+            &mut roots,
+            input.skills_source_policy,
+            &input.config_layer_stack,
+        );
         if !bundled_skills_enabled {
             roots.retain(|root| root.scope != SkillScope::System);
         }
@@ -240,12 +265,18 @@ impl HostSkillsService {
         fs: Option<Arc<dyn ExecutorFileSystem>>,
         request_root_snapshots: Option<&RequestSkillRootSnapshots>,
     ) -> HostSkillsSnapshot {
-        let bundled_skills_enabled = bundled_skills_enabled_from_stack(&input.config_layer_stack);
+        if input.skills_source_policy == ExternalSourcePolicy::Disabled {
+            return HostSkillsSnapshot::new(Arc::new(SkillLoadOutcome::default()));
+        }
+        let bundled_skills_enabled = input.skills_source_policy == ExternalSourcePolicy::Automatic
+            && bundled_skills_enabled_from_stack(&input.config_layer_stack);
         if bundled_skills_enabled {
             self.ensure_system_skills_installed();
         }
         let use_cwd_cache = fs.is_some();
-        let cache_snapshot_by_cwd = use_cwd_cache && input.effective_skill_roots.is_empty();
+        let cache_snapshot_by_cwd = use_cwd_cache
+            && input.effective_skill_roots.is_empty()
+            && input.skills_source_policy == ExternalSourcePolicy::Automatic;
         if cache_snapshot_by_cwd
             && !force_reload
             && let Some(snapshot) = self.cached_snapshot_for_cwd(&input.cwd)
@@ -253,14 +284,23 @@ impl HostSkillsService {
             return snapshot;
         }
 
+        let effective_skill_roots = match input.skills_source_policy {
+            ExternalSourcePolicy::Automatic => input.effective_skill_roots.clone(),
+            ExternalSourcePolicy::ExplicitOnly | ExternalSourcePolicy::Disabled => Vec::new(),
+        };
         let mut roots = resolve_skill_roots(
             fs.clone(),
             &input.config_layer_stack,
             &input.cwd,
-            input.effective_skill_roots.clone(),
+            effective_skill_roots,
             self.extra_roots(),
         )
         .await;
+        retain_roots_allowed_by_policy(
+            &mut roots,
+            input.skills_source_policy,
+            &input.config_layer_stack,
+        );
         if !bundled_skills_enabled {
             roots.retain(|root| root.scope != SkillScope::System);
         }
@@ -422,6 +462,40 @@ impl HostSkillsService {
         if let Err(err) = install_system_skills(&self.codex_home) {
             tracing::error!("failed to install system skills: {err}");
         }
+    }
+}
+
+fn retain_roots_allowed_by_policy(
+    roots: &mut Vec<HostSkillRoot>,
+    source_policy: ExternalSourcePolicy,
+    config_layer_stack: &ConfigLayerStack,
+) {
+    match source_policy {
+        ExternalSourcePolicy::Automatic => {}
+        ExternalSourcePolicy::Disabled => roots.clear(),
+        ExternalSourcePolicy::ExplicitOnly => roots.retain(|root| {
+            if root.plugin_identity().is_some() || root.scope == SkillScope::System {
+                return false;
+            }
+            if root.scope != SkillScope::Repo {
+                return true;
+            }
+            let enabled_project_skill_roots = config_layer_stack
+                .layers_low_to_high()
+                .filter(|layer| !layer.is_disabled())
+                .filter_map(|layer| match &layer.name {
+                    codex_config::ConfigLayerSource::Project { dot_codex_folder } => {
+                        Some(dot_codex_folder.join("skills"))
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            // Ancestor `.agents/skills` roots are discovered independently of config files. They
+            // are trusted only when the enabled stack contains a trusted project layer. Explicit
+            // `.codex/skills` roots must belong to an enabled project layer themselves.
+            (!enabled_project_skill_roots.is_empty() && root.path.ends_with(".agents/skills"))
+                || enabled_project_skill_roots.contains(&root.path)
+        }),
     }
 }
 
