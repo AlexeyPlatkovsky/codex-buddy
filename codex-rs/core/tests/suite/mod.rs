@@ -143,6 +143,7 @@ mod review;
 mod rmcp_client;
 mod rollout_budget;
 mod rollout_list_find;
+mod runtime_profile;
 mod safety_buffering;
 mod safety_check_downgrade;
 mod search_tool;

@@ -122,6 +122,8 @@ use codex_protocol::permissions::ReadDenyMatcher;
 use codex_protocol::protocol::AskForApproval;
 use codex_protocol::protocol::MultiAgentVersion;
 use codex_protocol::protocol::SandboxPolicy;
+use codex_runtime_profile::ExternalSource;
+use codex_runtime_profile::ExternalSourcePolicy;
 use codex_runtime_profile::ResolvedRuntimeProfile;
 use codex_runtime_profile::RuntimeCompileCeiling;
 use codex_runtime_profile::RuntimePolicyPatch;
@@ -1692,8 +1694,15 @@ impl Config {
         plugins_manager: &codex_core_plugins::PluginsManager,
         additional_plugin_registrations: impl IntoIterator<Item = McpServerRegistration>,
     ) -> McpConfig {
-        let plugins_input = self.plugins_config_input();
-        let loaded_plugins = plugins_manager.plugins_for_config(&plugins_input).await;
+        let loaded_plugins = if self.runtime_profile.external_source(ExternalSource::Mcp)
+            == ExternalSourcePolicy::Automatic
+        {
+            plugins_manager
+                .plugins_for_config(&self.plugins_config_input())
+                .await
+        } else {
+            PluginLoadOutcome::default()
+        };
         self.to_mcp_config_with_loaded_plugins(&loaded_plugins, additional_plugin_registrations)
     }
 
@@ -1702,40 +1711,52 @@ impl Config {
         loaded_plugins: &PluginLoadOutcome,
         additional_plugin_registrations: impl IntoIterator<Item = McpServerRegistration>,
     ) -> McpConfig {
+        let mcp_source_policy = self.runtime_profile.external_source(ExternalSource::Mcp);
         let mut catalog = ResolvedMcpCatalog::builder();
-        for (plugin_order, plugin) in loaded_plugins
-            .plugins()
-            .iter()
-            .filter(|plugin| plugin.is_active())
-            .enumerate()
-        {
-            let mut plugin_mcp_servers = plugin.mcp_servers.clone();
-            self.apply_plugin_mcp_server_requirements(&plugin.config_name, &mut plugin_mcp_servers);
-            let attribution = if plugin.is_agent_plugin() {
-                McpPluginAttribution::agent_plugin(
-                    plugin.config_name.clone(),
-                    plugin.display_name().to_string(),
-                )
-            } else {
-                McpPluginAttribution::new(
-                    plugin.config_name.clone(),
-                    plugin.display_name().to_string(),
-                )
+        if mcp_source_policy == ExternalSourcePolicy::Automatic {
+            for (plugin_order, plugin) in loaded_plugins
+                .plugins()
+                .iter()
+                .filter(|plugin| plugin.is_active())
+                .enumerate()
+            {
+                let mut plugin_mcp_servers = plugin.mcp_servers.clone();
+                self.apply_plugin_mcp_server_requirements(
+                    &plugin.config_name,
+                    &mut plugin_mcp_servers,
+                );
+                let attribution = if plugin.is_agent_plugin() {
+                    McpPluginAttribution::agent_plugin(
+                        plugin.config_name.clone(),
+                        plugin.display_name().to_string(),
+                    )
+                } else {
+                    McpPluginAttribution::new(
+                        plugin.config_name.clone(),
+                        plugin.display_name().to_string(),
+                    )
+                }
+                .with_host_root(PathUri::from_abs_path(&plugin.root));
+                for (name, plugin_server) in plugin_mcp_servers {
+                    catalog.register(McpServerRegistration::from_plugin(
+                        name,
+                        attribution.clone(),
+                        plugin_order,
+                        plugin_server,
+                    ));
+                }
             }
-            .with_host_root(PathUri::from_abs_path(&plugin.root));
-            for (name, plugin_server) in plugin_mcp_servers {
-                catalog.register(McpServerRegistration::from_plugin(
-                    name,
-                    attribution.clone(),
-                    plugin_order,
-                    plugin_server,
-                ));
+            for registration in additional_plugin_registrations {
+                catalog.register(registration);
             }
         }
-        for registration in additional_plugin_registrations {
-            catalog.register(registration);
-        }
-        for (name, server) in self.mcp_servers.get() {
+        for (name, server) in self.mcp_servers.get().iter().filter(|(name, _)| {
+            mcp_source_policy == ExternalSourcePolicy::Automatic
+                || (mcp_source_policy == ExternalSourcePolicy::ExplicitOnly
+                    && self
+                        .runtime_profile_policy
+                        .mcp_server_is_explicitly_configured(name))
+        }) {
             catalog.register(McpServerRegistration::from_config(
                 name.clone(),
                 server.clone(),
@@ -1761,7 +1782,8 @@ impl Config {
             server_permission_profiles: HashMap::new(),
             codex_linux_sandbox_exe: self.codex_linux_sandbox_exe.clone(),
             use_legacy_landlock: self.features.use_legacy_landlock(),
-            apps_enabled: self.features.enabled(Feature::Apps),
+            apps_enabled: mcp_source_policy == ExternalSourcePolicy::Automatic
+                && self.features.enabled(Feature::Apps),
             prefix_mcp_tool_names: self.prefix_mcp_tool_names(),
             non_prefixed_mcp_tool_servers: if self
                 .features
@@ -1784,10 +1806,13 @@ impl Config {
                 ElicitationCapability::default()
             },
             mcp_server_catalog: catalog.build(),
-            connector_snapshot:
+            connector_snapshot: if mcp_source_policy == ExternalSourcePolicy::Automatic {
                 codex_connectors::ConnectorSnapshot::from_plugin_capability_summaries(
                     loaded_plugins.capability_summaries(),
-                ),
+                )
+            } else {
+                codex_connectors::ConnectorSnapshot::default()
+            },
         }
     }
 

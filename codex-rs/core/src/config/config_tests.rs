@@ -103,6 +103,8 @@ use codex_protocol::protocol::NetworkAccess;
 use codex_protocol::protocol::RealtimeVoice;
 use codex_protocol::protocol::SandboxPolicy;
 use codex_runtime_profile::CapabilityDecision;
+use codex_runtime_profile::ExternalSource;
+use codex_runtime_profile::ExternalSourcePolicy;
 use codex_runtime_profile::RuntimePreset;
 use codex_runtime_profile::ToolCapability;
 use codex_utils_path_uri::LegacyAppPathString;
@@ -12832,6 +12834,259 @@ async fn config_builder_defaults_full_and_resolves_selected_runtime_preset() -> 
             CapabilityDecision::ExcludedByPreset,
         )
     );
+    Ok(())
+}
+
+async fn load_coding_config_from_layers(
+    codex_home: &TempDir,
+    config_layer_stack: ConfigLayerStack,
+) -> std::io::Result<Config> {
+    load_config_from_layers(codex_home, config_layer_stack, RuntimePreset::Coding).await
+}
+
+async fn load_config_from_layers(
+    codex_home: &TempDir,
+    config_layer_stack: ConfigLayerStack,
+    runtime_preset: RuntimePreset,
+) -> std::io::Result<Config> {
+    let config_toml = config_layer_stack
+        .effective_config()
+        .try_into()
+        .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidData, err))?;
+    Config::load_config_with_layer_stack_and_runtime_preset(
+        LOCAL_FS.as_ref(),
+        config_toml,
+        ConfigOverrides {
+            cwd: Some(codex_home.path().to_path_buf()),
+            ..Default::default()
+        },
+        codex_home.abs(),
+        config_layer_stack,
+        runtime_preset,
+    )
+    .await
+}
+
+#[tokio::test]
+async fn coding_runtime_profile_resolves_trusted_external_source_grants_and_admin_denial()
+-> anyhow::Result<()> {
+    let codex_home = tempdir()?;
+    let empty = load_coding_config_from_layers(
+        &codex_home,
+        ConfigLayerStack::new(Vec::new(), Default::default(), Default::default())?,
+    )
+    .await?;
+
+    assert_eq!(
+        (
+            empty.runtime_profile.external_source(ExternalSource::Mcp),
+            empty
+                .runtime_profile
+                .external_source(ExternalSource::Skills),
+            empty
+                .runtime_profile
+                .external_source(ExternalSource::Instructions),
+            empty
+                .runtime_profile
+                .external_source(ExternalSource::ClientTools),
+            empty
+                .runtime_profile_policy
+                .source_is_explicitly_configured(ExternalSource::Mcp),
+        ),
+        (
+            ExternalSourcePolicy::ExplicitOnly,
+            ExternalSourcePolicy::ExplicitOnly,
+            ExternalSourcePolicy::ExplicitOnly,
+            ExternalSourcePolicy::ExplicitOnly,
+            false,
+        )
+    );
+
+    let explicit_sources = vec![
+        ConfigLayerSource::System {
+            file: codex_home.path().join("system.toml").abs(),
+        },
+        ConfigLayerSource::User {
+            file: codex_home.path().join("config.toml").abs(),
+            profile: None,
+        },
+        ConfigLayerSource::Project {
+            dot_codex_folder: codex_home.path().join("project/.codex").abs(),
+        },
+        ConfigLayerSource::SessionFlags,
+    ];
+    for source in explicit_sources {
+        let config_layer_stack = ConfigLayerStack::new(
+            vec![ConfigLayerEntry::new(
+                source,
+                toml::toml! {
+                    [mcp_servers.explicit]
+                    command = "explicit-mcp"
+                }
+                .into(),
+            )],
+            Default::default(),
+            Default::default(),
+        )?;
+        let config = load_coding_config_from_layers(&codex_home, config_layer_stack).await?;
+
+        assert_eq!(
+            (
+                config.runtime_profile.external_source(ExternalSource::Mcp),
+                config
+                    .runtime_profile_policy
+                    .source_is_explicitly_configured(ExternalSource::Mcp),
+                config
+                    .runtime_profile_policy
+                    .config_path_is_explicitly_configured("mcp_servers.explicit"),
+            ),
+            (ExternalSourcePolicy::ExplicitOnly, true, true)
+        );
+    }
+
+    let managed_config_layer_stack = ConfigLayerStack::new(
+        vec![
+            ConfigLayerEntry::new(
+                ConfigLayerSource::System {
+                    file: codex_home.path().join("system.toml").abs(),
+                },
+                toml::toml! {
+                    [runtime.sources]
+                    mcp = "disabled"
+                }
+                .into(),
+            ),
+            ConfigLayerEntry::new(
+                ConfigLayerSource::User {
+                    file: codex_home.path().join("config.toml").abs(),
+                    profile: None,
+                },
+                toml::toml! {
+                    [runtime.sources]
+                    mcp = "inherit"
+                }
+                .into(),
+            ),
+            ConfigLayerEntry::new(
+                ConfigLayerSource::SessionFlags,
+                toml::toml! {
+                    [mcp_servers.session]
+                    command = "session-mcp"
+                }
+                .into(),
+            ),
+        ],
+        Default::default(),
+        Default::default(),
+    )?;
+    let managed = load_coding_config_from_layers(&codex_home, managed_config_layer_stack).await?;
+
+    assert_eq!(
+        (
+            managed.runtime_profile.external_source(ExternalSource::Mcp),
+            managed
+                .runtime_profile_policy
+                .source_is_explicitly_configured(ExternalSource::Mcp),
+            managed
+                .runtime_profile_policy
+                .config_path_is_explicitly_configured("mcp_servers.session"),
+        ),
+        (ExternalSourcePolicy::Disabled, true, true)
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn mcp_projection_follows_runtime_source_policy_and_exact_server_provenance()
+-> anyhow::Result<()> {
+    let codex_home = tempdir()?;
+    let packaged_layer = ConfigLayerEntry::new(
+        ConfigLayerSource::PackagedDefaults {
+            file: codex_home.path().join("defaults.toml").abs(),
+        },
+        toml::from_str(
+            r#"
+[mcp_servers.packaged]
+command = "packaged-mcp"
+
+[mcp_servers.foo]
+command = "packaged-prefix-mcp"
+"#,
+        )?,
+    );
+    let user_layer = ConfigLayerEntry::new(
+        ConfigLayerSource::User {
+            file: codex_home.path().join("config.toml").abs(),
+            profile: None,
+        },
+        toml::from_str(
+            r#"
+[mcp_servers.user]
+command = "user-mcp"
+
+[mcp_servers."foo.bar"]
+command = "user-dotted-mcp"
+"#,
+        )?,
+    );
+    let packaged_only_stack = ConfigLayerStack::new(
+        vec![packaged_layer.clone()],
+        Default::default(),
+        Default::default(),
+    )?;
+    let mixed_stack = ConfigLayerStack::new(
+        vec![packaged_layer, user_layer],
+        Default::default(),
+        Default::default(),
+    )?;
+    let packaged_only =
+        load_config_from_layers(&codex_home, packaged_only_stack, RuntimePreset::Coding).await?;
+    let coding =
+        load_config_from_layers(&codex_home, mixed_stack.clone(), RuntimePreset::Coding).await?;
+    let full = load_config_from_layers(&codex_home, mixed_stack, RuntimePreset::Full).await?;
+
+    let packaged_only_mcp = packaged_only
+        .to_mcp_config(&plugins_manager_for_config(
+            &packaged_only,
+            auth_manager_from_optional_auth(/*auth*/ None),
+        ))
+        .await;
+    let coding_mcp = coding
+        .to_mcp_config(&plugins_manager_for_config(
+            &coding,
+            auth_manager_from_optional_auth(/*auth*/ None),
+        ))
+        .await;
+    let full_mcp = full
+        .to_mcp_config(&plugins_manager_for_config(
+            &full,
+            auth_manager_from_optional_auth(/*auth*/ None),
+        ))
+        .await;
+
+    assert_eq!(
+        packaged_only_mcp.mcp_server_catalog.configured_servers(),
+        HashMap::new()
+    );
+    assert!(!coding_mcp.apps_enabled);
+    assert_eq!(
+        coding_mcp.mcp_server_catalog.configured_servers(),
+        HashMap::from([
+            ("foo.bar".to_string(), stdio_mcp("user-dotted-mcp")),
+            ("user".to_string(), stdio_mcp("user-mcp")),
+        ])
+    );
+    assert_eq!(
+        full_mcp.mcp_server_catalog.configured_servers(),
+        HashMap::from([
+            ("foo".to_string(), stdio_mcp("packaged-prefix-mcp")),
+            ("foo.bar".to_string(), stdio_mcp("user-dotted-mcp")),
+            ("packaged".to_string(), stdio_mcp("packaged-mcp")),
+            ("user".to_string(), stdio_mcp("user-mcp")),
+        ])
+    );
+
     Ok(())
 }
 

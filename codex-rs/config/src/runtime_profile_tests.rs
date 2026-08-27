@@ -118,6 +118,43 @@ command = "packaged-mcp"
 }
 
 #[test]
+fn explicit_mcp_server_names_use_exact_table_keys() {
+    let temp_dir = TempDir::new().expect("tempdir");
+    let policy = runtime_profile_policy_from_stack(
+        &stack(vec![
+            layer(
+                ConfigLayerSource::PackagedDefaults {
+                    file: absolute_path(&temp_dir, "defaults.toml"),
+                },
+                r#"
+[mcp_servers.foo]
+command = "packaged-mcp"
+"#,
+            ),
+            layer(
+                ConfigLayerSource::User {
+                    file: absolute_path(&temp_dir, "config.toml"),
+                    profile: None,
+                },
+                r#"
+[mcp_servers."foo.bar"]
+command = "user-mcp"
+"#,
+            ),
+        ]),
+        RuntimePolicyPatch::default(),
+    );
+
+    assert_eq!(
+        (
+            policy.mcp_server_is_explicitly_configured("foo"),
+            policy.mcp_server_is_explicitly_configured("foo.bar"),
+        ),
+        (false, true)
+    );
+}
+
+#[test]
 fn managed_restrictions_cannot_be_widened_by_config_layers() {
     let temp_dir = TempDir::new().expect("tempdir");
     let policy = runtime_profile_policy_from_stack(

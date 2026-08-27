@@ -79,6 +79,7 @@ pub struct RuntimeProfilePolicy {
     restrictions: RuntimePolicyPatch,
     explicitly_configured_paths: BTreeSet<String>,
     explicitly_configured_sources: BTreeSet<ExternalSource>,
+    explicitly_configured_mcp_servers: BTreeSet<String>,
 }
 
 impl RuntimeProfilePolicy {
@@ -95,9 +96,9 @@ impl RuntimeProfilePolicy {
 
     /// Returns whether an explicit trusted layer configured this TOML path.
     ///
-    /// A parent path matches any explicit child. For example, an MCP loader
-    /// can query `mcp_servers.docs` to distinguish a user-configured server
-    /// from a server contributed by packaged defaults.
+    /// A parent path matches any explicit child. Keyed maps whose keys may
+    /// contain dots should expose an exact-key API instead; MCP server callers
+    /// use [`Self::mcp_server_is_explicitly_configured`].
     pub fn config_path_is_explicitly_configured(&self, config_path: &str) -> bool {
         self.explicitly_configured_paths
             .iter()
@@ -107,6 +108,14 @@ impl RuntimeProfilePolicy {
                         .strip_prefix(config_path)
                         .is_some_and(|suffix| suffix.starts_with('.'))
             })
+    }
+
+    /// Returns whether an enabled trusted layer explicitly configured this MCP server entry.
+    ///
+    /// Server names are compared as exact TOML table keys so dotted names cannot
+    /// accidentally grant a different prefix-named server.
+    pub fn mcp_server_is_explicitly_configured(&self, server_name: &str) -> bool {
+        self.explicitly_configured_mcp_servers.contains(server_name)
     }
 }
 
@@ -146,11 +155,18 @@ pub fn runtime_profile_policy_from_stack(
                 .any(|path| runtime_source_config_path_matches(*source, path))
         })
         .collect();
+    let explicitly_configured_mcp_servers = config_layer_stack
+        .layers_low_to_high()
+        .filter(|layer| runtime_source_layer_is_explicit(layer))
+        .filter_map(|layer| layer.config.get("mcp_servers")?.as_table())
+        .flat_map(|servers| servers.keys().cloned())
+        .collect();
 
     RuntimeProfilePolicy {
         restrictions: restrictions.restricted_by(managed_restrictions),
         explicitly_configured_paths,
         explicitly_configured_sources,
+        explicitly_configured_mcp_servers,
     }
 }
 
