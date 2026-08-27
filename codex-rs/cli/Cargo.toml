@@ -9,10 +9,12 @@ default-run = "codex"
 [[bin]]
 name = "codex"
 path = "src/main.rs"
+required-features = ["full-cli"]
 
 [[bin]]
 name = "logs_client"
 path = "src/bin/logs_client.rs"
+required-features = ["full-cli"]
 
 [lib]
 name = "codex_cli"
@@ -22,68 +24,117 @@ doctest = false
 [lints]
 workspace = true
 
+[features]
+default = ["full-cli"]
+full-cli = [
+    "dep:chrono",
+    "dep:clap_complete",
+    "dep:codex-app-server",
+    "dep:codex-app-server-daemon",
+    "dep:codex-app-server-protocol",
+    "dep:codex-app-server-test-client",
+    "dep:codex-api",
+    "dep:codex-arg0",
+    "dep:codex-chatgpt",
+    "dep:codex-cloud-tasks",
+    "dep:codex-core-plugins",
+    "dep:codex-exec",
+    "dep:codex-execpolicy",
+    "dep:codex-extension-api",
+    "dep:codex-features",
+    "dep:codex-git-attribution",
+    "dep:codex-git-utils",
+    "dep:codex-history",
+    "dep:codex-home",
+    "dep:codex-http-client",
+    "dep:codex-install-context",
+    "dep:codex-mcp-server",
+    "dep:codex-memories-write",
+    "dep:codex-model-provider",
+    "dep:codex-models-manager",
+    "dep:codex-plugin",
+    "dep:codex-responses-api-proxy",
+    "dep:codex-rollout",
+    "dep:codex-rollout-trace",
+    "dep:codex-skills-extension",
+    "dep:codex-state",
+    "dep:codex-stdio-to-uds",
+    "dep:codex-terminal-detection",
+    "dep:codex-thread-store",
+    "dep:codex-tui",
+    "dep:codex-utils-path",
+    "dep:crossterm",
+    "dep:os_info",
+    "dep:owo-colors",
+    "dep:supports-color",
+    "dep:sys-locale",
+    "dep:tempfile",
+    "dep:unicode-segmentation",
+    "dep:which",
+]
+
 [dependencies]
 anyhow = { workspace = true }
-chrono = { workspace = true }
+chrono = { workspace = true, optional = true }
 clap = { workspace = true, features = ["derive", "env"] }
-clap_complete = { workspace = true }
-codex-app-server = { workspace = true }
-codex-app-server-daemon = { workspace = true }
-codex-app-server-protocol = { workspace = true }
-codex-app-server-test-client = { workspace = true }
-codex-arg0 = { workspace = true }
-codex-api = { workspace = true }
-codex-chatgpt = { workspace = true }
+clap_complete = { workspace = true, optional = true }
+codex-app-server = { workspace = true, optional = true }
+codex-app-server-daemon = { workspace = true, optional = true }
+codex-app-server-protocol = { workspace = true, optional = true }
+codex-app-server-test-client = { workspace = true, optional = true }
+codex-arg0 = { workspace = true, optional = true }
+codex-api = { workspace = true, optional = true }
+codex-chatgpt = { workspace = true, optional = true }
 codex-cloud-config = { workspace = true }
-codex-cloud-tasks = { path = "../cloud-tasks" }
+codex-cloud-tasks = { path = "../cloud-tasks", optional = true }
 codex-utils-cli = { workspace = true }
 codex-config = { workspace = true }
 codex-core = { workspace = true }
-codex-core-plugins = { workspace = true }
-codex-history = { workspace = true }
-codex-home = { workspace = true }
-codex-http-client = { workspace = true }
-codex-exec = { workspace = true }
+codex-core-plugins = { workspace = true, optional = true }
+codex-history = { workspace = true, optional = true }
+codex-home = { workspace = true, optional = true }
+codex-http-client = { workspace = true, optional = true }
+codex-exec = { workspace = true, optional = true }
 codex-exec-server = { workspace = true }
-codex-execpolicy = { workspace = true }
-codex-extension-api = { workspace = true }
-codex-features = { workspace = true }
-codex-git-attribution = { workspace = true }
-codex-git-utils = { workspace = true }
-codex-install-context = { workspace = true }
+codex-execpolicy = { workspace = true, optional = true }
+codex-extension-api = { workspace = true, optional = true }
+codex-features = { workspace = true, optional = true }
+codex-git-attribution = { workspace = true, optional = true }
+codex-git-utils = { workspace = true, optional = true }
+codex-install-context = { workspace = true, optional = true }
 codex-login = { workspace = true }
-codex-memories-write = { workspace = true }
+codex-memories-write = { workspace = true, optional = true }
 codex-mcp = { workspace = true }
-codex-mcp-server = { workspace = true }
-codex-model-provider = { workspace = true }
-codex-models-manager = { workspace = true }
-codex-plugin = { workspace = true }
+codex-mcp-server = { workspace = true, optional = true }
+codex-model-provider = { workspace = true, optional = true }
+codex-models-manager = { workspace = true, optional = true }
+codex-plugin = { workspace = true, optional = true }
 codex-protocol = { workspace = true }
 codex-runtime-profile = { workspace = true }
-codex-responses-api-proxy = { workspace = true }
+codex-responses-api-proxy = { workspace = true, optional = true }
 codex-rmcp-client = { workspace = true }
-codex-rollout = { workspace = true }
-codex-rollout-trace = { workspace = true }
+codex-rollout = { workspace = true, optional = true }
+codex-rollout-trace = { workspace = true, optional = true }
 codex-sandboxing = { workspace = true }
-codex-skills-extension = { workspace = true }
-codex-state = { workspace = true }
-codex-stdio-to-uds = { workspace = true }
-codex-terminal-detection = { workspace = true }
-codex-thread-store = { workspace = true }
-codex-tui = { workspace = true }
+codex-skills-extension = { workspace = true, optional = true }
+codex-state = { workspace = true, optional = true }
+codex-stdio-to-uds = { workspace = true, optional = true }
+codex-terminal-detection = { workspace = true, optional = true }
+codex-thread-store = { workspace = true, optional = true }
+codex-tui = { workspace = true, optional = true }
 codex-utils-absolute-path = { workspace = true }
-codex-utils-path = { workspace = true }
-crossterm = { workspace = true }
+codex-utils-path = { workspace = true, optional = true }
+crossterm = { workspace = true, optional = true }
 http = { workspace = true }
 libc = { workspace = true }
-os_info = { workspace = true }
-owo-colors = { workspace = true }
+os_info = { workspace = true, optional = true }
+owo-colors = { workspace = true, optional = true }
 regex-lite = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-supports-color = { workspace = true }
-sys-locale = { workspace = true }
-tempfile = { workspace = true }
+supports-color = { workspace = true, optional = true }
+sys-locale = { workspace = true, optional = true }
+tempfile = { workspace = true, optional = true }
 tokio = { workspace = true, features = [
     "io-std",
     "macros",
@@ -97,9 +148,9 @@ toml = { workspace = true }
 tracing = { workspace = true }
 tracing-appender = { workspace = true }
 tracing-subscriber = { workspace = true }
-unicode-segmentation = { workspace = true }
+unicode-segmentation = { workspace = true, optional = true }
 url = { workspace = true }
-which = { workspace = true }
+which = { workspace = true, optional = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 codex_windows_sandbox = { package = "codex-windows-sandbox", path = "../windows-sandbox-rs" }
@@ -123,6 +174,7 @@ sqlx = { workspace = true }
 tokio-tungstenite = { workspace = true }
 wiremock = { workspace = true }
 zstd = { workspace = true }
+tempfile = { workspace = true }
 
 [package.metadata.cargo-shear]
 # These Rust sources are intentionally Bazel-only macrobenchmarks rather than

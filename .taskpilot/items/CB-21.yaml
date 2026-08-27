@@ -3,9 +3,9 @@ id: CB-21
 title: Measure startup, binary size, and dependency deltas
 priority: normal
 type: task
-status: backlog
+status: in_progress
 created_at: '2026-08-27T14:14:34Z'
-updated_at: '2026-08-27T14:14:34Z'
+updated_at: '2026-08-27T21:06:31Z'
 parent_id: CB-18
 tags:
 - performance
