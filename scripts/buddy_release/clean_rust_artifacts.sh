@@ -37,9 +37,18 @@ fi
 active_builds=""
 for process_name in cargo cargo-nextest rustc just bazel bazelisk; do
   process_ids="$(pgrep -x "${process_name}" || true)"
-  if [[ -n "${process_ids}" ]]; then
-    active_builds="${active_builds}${process_name}: ${process_ids}"$'\n'
-  fi
+  for process_id in ${process_ids}; do
+    if [[ "${process_name}" == "cargo" ]]; then
+      command_line="$(ps -p "${process_id}" -o command= 2>/dev/null || true)"
+      case "${command_line}" in
+        cargo\ tree\ *|*/cargo\ tree\ *)
+          echo "allowing read-only Cargo tree process ${process_id} during artifact cleanup" >&2
+          continue
+          ;;
+      esac
+    fi
+    active_builds="${active_builds}${process_name}: ${process_id}"$'\n'
+  done
 done
 
 if [[ -n "${active_builds}" ]]; then

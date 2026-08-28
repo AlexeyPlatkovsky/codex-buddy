@@ -427,9 +427,10 @@ App-server must remain for now, but its unconditional extension dependencies sho
   deletion guard. Filesystem free space increased from about 350 GiB to 550 GiB; nothing was moved
   to Trash.
 - `scripts/buddy_release/clean_rust_artifacts.sh` now limits cleanup to that exact generated tree,
-  refuses symlinks and active Rust/Just/Bazel processes, supports a dry run, and delegates permanent
-  removal to the existing workspace guard. The guard uses bounded retries when macOS metadata is
-  recreated during directory removal; this race is covered by its unit tests.
+  refuses symlinks and artifact-writing Rust/Just/Bazel processes, supports a dry run, and delegates
+  permanent removal to the existing workspace guard. An exact `cargo tree` invocation is treated as
+  read-only; every other Cargo subcommand remains blocking. The guard uses bounded retries when
+  macOS metadata is recreated during directory removal; this race is covered by its unit tests.
 - Repository instructions now require `CARGO_INCREMENTAL=0` for broad migration matrices and
   post-validation cleanup at 20 GiB or on user request. Cleanup happens only after tests, lint fixes,
   and formatting are complete.
