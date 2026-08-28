@@ -82,6 +82,7 @@ where
     {
         codex_queue_extension::install(&mut builder, queue_service);
     }
+    #[cfg(feature = "history-notes")]
     if composition.installs(ExtensionComponent::HistoryNotes) {
         codex_history_notes_extension::install(&mut builder, auth_manager.clone());
     }
