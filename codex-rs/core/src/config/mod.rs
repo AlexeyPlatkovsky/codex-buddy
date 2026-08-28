@@ -3986,13 +3986,23 @@ impl Config {
                             auto_review.policy.as_deref(),
                         ))
                 });
-        let personality = personality
-            .or(cfg.personality)
-            .or_else(|| {
+        let runtime_profile_policy = codex_config::runtime_profile_policy_from_stack(
+            &config_layer_stack,
+            RuntimePolicyPatch::default(),
+        );
+        let runtime_profile = ResolvedRuntimeProfile::resolve(
+            runtime_preset,
+            &RuntimeCompileCeiling::full(),
+            runtime_profile_policy.restrictions(),
+        );
+        let personality = match runtime_profile.preset() {
+            RuntimePreset::Full => personality.or(cfg.personality).or_else(|| {
                 features
                     .enabled(Feature::Personality)
                     .then_some(Personality::Pragmatic)
-            });
+            }),
+            RuntimePreset::Coding => Some(Personality::None),
+        };
 
         let experimental_compact_prompt_path = cfg.experimental_compact_prompt_file.as_ref();
         let file_compact_prompt = Self::try_read_non_empty_file(
@@ -4195,15 +4205,6 @@ impl Config {
         )
         .map_err(std::io::Error::from)?;
         let otel = otel::resolve_config(cfg.otel.unwrap_or_default(), &mut startup_warnings);
-        let runtime_profile_policy = codex_config::runtime_profile_policy_from_stack(
-            &config_layer_stack,
-            RuntimePolicyPatch::default(),
-        );
-        let runtime_profile = ResolvedRuntimeProfile::resolve(
-            runtime_preset,
-            &RuntimeCompileCeiling::full(),
-            runtime_profile_policy.restrictions(),
-        );
         let config = Self {
             runtime_profile,
             runtime_profile_policy,

@@ -12830,12 +12830,18 @@ async fn absent_allow_login_shell_does_not_report_an_override() -> std::io::Resu
 #[tokio::test]
 async fn config_builder_defaults_full_and_resolves_selected_runtime_preset() -> anyhow::Result<()> {
     let codex_home = TempDir::new()?;
+    let configured_personality = ConfigOverrides {
+        personality: Some(Personality::Friendly),
+        ..Default::default()
+    };
     let full = ConfigBuilder::without_managed_config_for_tests()
         .codex_home(codex_home.path().to_path_buf())
+        .harness_overrides(configured_personality.clone())
         .build()
         .await?;
     let coding = ConfigBuilder::without_managed_config_for_tests()
         .codex_home(codex_home.path().to_path_buf())
+        .harness_overrides(configured_personality)
         .runtime_preset(RuntimePreset::Coding)
         .build()
         .await?;
@@ -12844,14 +12850,18 @@ async fn config_builder_defaults_full_and_resolves_selected_runtime_preset() -> 
         (
             full.runtime_profile.preset(),
             full.runtime_profile.tool(ToolCapability::ComputerUse),
+            full.personality,
             coding.runtime_profile.preset(),
             coding.runtime_profile.tool(ToolCapability::ComputerUse),
+            coding.personality,
         ),
         (
             RuntimePreset::Full,
             CapabilityDecision::Enabled,
+            Some(Personality::Friendly),
             RuntimePreset::Coding,
             CapabilityDecision::ExcludedByPreset,
+            Some(Personality::None),
         )
     );
     Ok(())
