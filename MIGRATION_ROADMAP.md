@@ -18,7 +18,7 @@ Repository and branch:
 | Fork remote | `origin` → `AlexeyPlatkovsky/codex-buddy` |
 | Upstream remote | `upstream` → `openai/codex` |
 | Planning source | `.taskpilot/` |
-| Primary pruning task | `CB-19` |
+| Next pruning task | `CB-20` |
 | Non-coding runtime task | `CB-20` |
 | Measurement task | `CB-21` |
 | Cross-platform task | `CB-22` |
@@ -35,13 +35,12 @@ taskpilot --json item show CB-20
 taskpilot validate
 ```
 
-Expected starting state at this checkpoint:
+Expected state after the Stage 1 checkpoint:
 
-- The latest implementation commit before this roadmap is `a110593338 Extract neutral plugin runtime types`.
+- The Stage 1 implementation commit is `77e483d3dd Gate plugin runtime behind core feature`.
 - The worktree is clean.
-- `CB-18`, `CB-19`, `CB-20`, `CB-21`, and `CB-35` are still in progress.
+- `CB-19` is done. Continue with `CB-20`; `CB-21`, `CB-22`, and `CB-35` remain follow-up work.
 - `CB-1` (explicit config-driven runtime) and `CB-23` (right-side subagent tree) are done.
-- Do not mark `CB-19` done until Buddy excludes both `codex-plugin` and `codex-core-plugins` from its normal dependency graph.
 
 ## Product boundary
 
@@ -79,6 +78,7 @@ The following milestones are already implemented. Do not redo them.
 | `cc78653261` | `codex-core/connectors` became optional and non-default; Buddy now excludes `codex-connectors`. |
 | `3884ce56dd` | Connector provenance moved into `codex-mcp`; MCP no longer depends on `codex-plugin`. |
 | `a110593338` | Neutral `codex-plugin-types` crate added; analytics and hooks no longer depend on the full plugin crate. |
+| `77e483d3dd` | `codex-core/plugins` became optional and non-default; Buddy now excludes `codex-plugin` and `codex-core-plugins`. |
 
 Completed TaskPilot product features:
 
@@ -100,10 +100,10 @@ At this checkpoint:
 | MCP normal graph contains `codex-plugin` | No |
 | Analytics normal graph contains `codex-plugin` | No |
 | Hooks normal graph contains `codex-plugin` | No |
-| Buddy normal graph contains `codex-plugin` | Yes, still through core/core-plugins |
-| Buddy normal graph contains `codex-core-plugins` | Yes, still through core |
+| Buddy normal graph contains `codex-plugin` | No |
+| Buddy normal graph contains `codex-core-plugins` | No |
 | Buddy normal graph contains `codex-app-server` | Yes, intentionally for now |
-| Approximate unique normal graph nodes | 1,304; remeasure after every major pruning stage |
+| Approximate unique normal graph nodes | 1,289 after Stage 1, down from the 1,304 baseline |
 
 Useful graph commands:
 
@@ -116,7 +116,7 @@ cargo tree -p codex-buddy -e normal -i codex-app-server --prefix none
 cargo tree -p codex-mcp -e normal --prefix none
 ```
 
-The remaining full-plugin roots should currently reduce to `codex-core` and `codex-core-plugins`. If analytics, hooks, MCP, or connectors appear again as full-plugin roots, treat that as a regression.
+The Buddy graph must keep both full plugin crates absent. Full CLI/app-server compositions intentionally retain them through explicit features. If analytics, hooks, MCP, or connectors reintroduce `codex-plugin` into Buddy, treat that as a regression.
 
 ## Architecture decisions already made
 
@@ -138,7 +138,7 @@ Do not reopen these decisions without new evidence:
 
 | Order | Stage | TaskPilot | Exit condition |
 |---:|---|---|---|
-| 1 | Gate the core plugin runtime | `CB-19` | Buddy graph excludes `codex-plugin` and `codex-core-plugins`; Full builds retain plugin behavior. |
+| 1 | Gate the core plugin runtime | `CB-19` (done) | Buddy graph excludes `codex-plugin` and `codex-core-plugins`; Full builds retain plugin behavior. |
 | 2 | Prune app-server extensions | `CB-20` | Buddy app-server composition includes only coding-required extensions. |
 | 3 | Remove heavy non-coding core/TUI runtimes | `CB-20` | Audio, memories, image generation, realtime, cloud, decorative, and V8/code-mode paths are absent where not required. |
 | 4 | Measure real savings | `CB-21` | Reproducible dependency, binary-size, and startup report distinguishes graph/runtime/linker savings. |
@@ -148,7 +148,34 @@ Do not reopen these decisions without new evidence:
 
 ## Stage 1: gate the core plugin runtime
 
-This is the next implementation stage.
+Status: completed in `77e483d3dd`; TaskPilot `CB-19` is done.
+
+### Completion record
+
+- Added non-default `codex-core/plugins`; `connectors` implies it.
+- Made `codex-core-plugins` and `codex-plugin` optional while keeping neutral `codex-plugin-types` available to Slim.
+- Added one compile-time plugin runtime facade. Full reexports the existing implementation; Slim supplies empty plugin discovery, skills, hooks, attribution, telemetry, and marketplace behavior without spreading optional manager fields through Core.
+- Removed plugin install/suggestion handlers and specs from Slim at compile time.
+- Propagated Full behavior through CLI, app-server-client, app-server, ChatGPT, external-agent-migration, and Bazel. Buddy disables CLI defaults so Cargo feature unification cannot reintroduce plugins.
+- Added CI checks for Slim Core, the standalone Full migration consumer, optional dependency metadata, and the negative Buddy graph.
+- Preserved configured MCP environment-policy coverage in Slim and plugin MCP/hook coverage in Full. Added a Slim regression that resumes historical rollout events containing `plugin_id` and `script_path`, retains the attribution, and completes the next turn.
+
+Measured result:
+
+| Assertion | Result |
+|---|---|
+| Buddy contains `codex-plugin` | No |
+| Buddy contains `codex-core-plugins` | No |
+| Full CLI contains both plugin crates | Yes |
+| Unique Buddy normal graph nodes | 1,289; 15 fewer than the 1,304 baseline |
+
+Validation completed:
+
+- Slim and Full `cargo check` matrices passed for Core, Buddy, CLI, app-server, app-server-client, ChatGPT, and the standalone external-agent migration crate.
+- `cargo check --tests -p codex-core --features connectors` passed; the reviewer also confirmed no-default test compilation.
+- Focused `just test` coverage passed for Slim plugin-tool absence, configured MCP projection/policy, historical plugin-attributed rollout resume, Full plugin install specs, Full plugin MCP policy, and Full plugin hooks.
+- `just bazel-lock-update`, Slim/Full scoped `just fix`, `just fmt`, dependency graph assertions, and `git diff --check` passed.
+- A broad `just test -p codex-core` was attempted but is not green on this host. Package-scoped execution cannot locate first-party binaries such as `codex`, `test_stdio_server`, and `codex-code-mode-host`, and existing timing/PTY/MCP tests also fail. Migration-specific failures found by that run were corrected and pass in focused coverage. Do not report the broad suite as green.
 
 ### Goal
 
@@ -447,14 +474,4 @@ Use `CB-20` for non-coding runtime removals, `CB-21` for measurements, `CB-22` f
 
 ## Next-session recommended first action
 
-Start with Stage 1 and do not begin by deleting plugin modules. First prove the feature composition:
-
-1. Add `codex-core/plugins` and make only the two full plugin dependencies optional.
-2. Propagate Full features through CLI, app-server-client, app-server, ChatGPT, and Bazel.
-3. Run feature-off `cargo check -p codex-core --no-default-features`.
-4. Use resulting compiler errors as the authoritative list of plugin runtime call sites.
-5. Introduce one neutral/no-op plugin service boundary.
-6. Add focused slim/full behavior tests.
-7. Prove the Buddy graph excludes both plugin crates before adding the CI assertion.
-
-Commit the manifest/feature composition separately from large behavioral gating if the combined diff approaches 500 logical lines.
+Continue with Stage 2 / TaskPilot `CB-20`: prune app-server runtime extensions that are outside the coding profile. Start by measuring Buddy’s current extension feature graph, then identify the smallest coherent composition cut that keeps TUI/Exec lifecycle, configured MCP, web search, image viewing, and subagents intact. Do not remove the in-process app-server itself; that remains a separate architecture decision.
