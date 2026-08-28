@@ -71,8 +71,10 @@ In the codex-rs folder where the rust code lives:
   `scripts/buddy_release/dependency_preflight.sh` or a targeted inverse query such as
   `cargo tree -e features -i <package>` instead.
 - After debug-heavy validation, check `du -sh codex-rs/target`. If it is at least 20 GiB, or the
-  user asks for cleanup, wait for all Cargo, rustc, nextest, Just, and Bazel build/test processes to
-  finish and run `scripts/buddy_release/clean_rust_artifacts.sh --confirm` from the repository root.
+  user asks for cleanup, wait for all processes that can write build artifacts (Cargo build/test,
+  rustc, nextest, Just, and Bazel) to finish and run
+  `scripts/buddy_release/clean_rust_artifacts.sh --confirm` from the repository root. The script may
+  allow an exact read-only `cargo tree` process; it still blocks every other Cargo subcommand.
 - The cleanup permanently deletes only the verified `codex-rs/target` directory through the
   workspace deletion guard; it never moves artifacts to Trash. Report the size removed and the
   resulting free space. Do not clean before the required test/fix/fmt sequence is complete.
