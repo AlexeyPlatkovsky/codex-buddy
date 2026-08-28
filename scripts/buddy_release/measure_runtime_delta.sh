@@ -9,6 +9,7 @@ current_revision="326747461d"
 target_triple=""
 measurement_root=""
 cargo_version="deferred until the active-build guard passes"
+disk_free_before_bytes=""
 
 usage() {
   echo "usage: $0 [--baseline REV] [--current REV] [--target TRIPLE] [--dry-run]" >&2
@@ -98,19 +99,26 @@ require_no_active_builds() {
   fi
 }
 
-cleanup() {
-  local status="$?"
-  trap - EXIT INT TERM
+cleanup_measurement_artifacts() {
   if [[ -n "${measurement_root}" && -d "${measurement_root}" && ! -L "${measurement_root}" ]]; then
     if [[ "${measurement_root}" != "${repo_root}"/.buddy_runtime_measurement.* ]]; then
       echo "refusing cleanup outside the measurement root: ${measurement_root}" >&2
-      status=1
-    elif ! python3 "${delete_guard}" --delete -- "${measurement_root}" >&2; then
-      echo "failed to permanently clean measurement artifacts: ${measurement_root}" >&2
-      status=1
-    else
-      git -C "${repo_root}" worktree prune
+      return 1
     fi
+    if ! python3 "${delete_guard}" --delete -- "${measurement_root}" >&2; then
+      echo "failed to permanently clean measurement artifacts: ${measurement_root}" >&2
+      return 1
+    fi
+    git -C "${repo_root}" worktree prune
+    measurement_root=""
+  fi
+}
+
+cleanup() {
+  local status="$?"
+  trap - EXIT INT TERM
+  if ! cleanup_measurement_artifacts; then
+    status=1
   fi
   exit "${status}"
 }
@@ -130,6 +138,43 @@ if [[ ! -d "${measurement_root}" || -L "${measurement_root}" ]]; then
   echo "refusing unsafe measurement root: ${measurement_root}" >&2
   exit 2
 fi
+
+disk_free_bytes() {
+  df -Pk "${repo_root}" | awk 'NR == 2 { printf "%.0f\n", $4 * 1024 }'
+}
+
+directory_size_bytes() {
+  du -sk "$1" | awk '{ printf "%.0f\n", $1 * 1024 }'
+}
+
+release_profile_json() {
+  local manifest="$1"
+  python3 - "${manifest}" <<'PY'
+import json
+import sys
+import tomllib
+
+with open(sys.argv[1], "rb") as manifest_file:
+    configured = tomllib.load(manifest_file).get("profile", {}).get("release", {})
+
+print(
+    json.dumps(
+        {
+            "opt-level": configured.get("opt-level", 3),
+            "lto": configured.get("lto", False),
+            "codegen-units": configured.get("codegen-units", 16),
+            "debug": configured.get("debug", False),
+            "split-debuginfo": configured.get("split-debuginfo"),
+            "strip": configured.get("strip", False),
+            "panic": configured.get("panic", "unwind"),
+        },
+        sort_keys=True,
+    )
+)
+PY
+}
+
+disk_free_before_bytes="$(disk_free_bytes)"
 
 graph_forbidden_json() {
   local worktree="$1"
@@ -174,7 +219,7 @@ measure_revision() {
   local target_dir="${measurement_root}/${label}-target"
   local graph_json="${measurement_root}/${label}-graph.json"
   local probe_json="${measurement_root}/${label}-probe.json"
-  local binary binary_copy stripped_bytes strip_status graph
+  local binary binary_copy stripped_bytes strip_status graph profile
 
   git -C "${repo_root}" worktree add --detach "${worktree}" "${revision}" >/dev/null
   if [[ ! -d "${worktree}" || -L "${worktree}" || ! -d "${target_dir}" && -e "${target_dir}" ]]; then
@@ -211,18 +256,28 @@ measure_revision() {
   fi
   python3 "${probe}" --binary "${binary}" >"${probe_json}"
   graph="$(cat "${graph_json}")"
+  profile="$(release_profile_json "${worktree}/codex-rs/Cargo.toml")"
   jq -n \
     --arg revision "$(git -C "${repo_root}" rev-parse "${revision}^{commit}")" \
     --arg binary "${binary}" \
     --arg strip_status "${strip_status}" \
     --argjson graph "${graph}" \
+    --argjson profile "${profile}" \
     --argjson probe "$(cat "${probe_json}")" \
     --argjson binary_bytes "$(file_size_bytes "${binary}")" \
     --arg stripped_bytes "${stripped_bytes}" \
-    '{revision: $revision, graph: $graph, binary: {release_bytes: $binary_bytes, strip_command: $strip_status, stripped_bytes: (if $stripped_bytes == "" then null else ($stripped_bytes | tonumber) end)}, process_and_tui: $probe}'
+    '{revision: $revision, graph: $graph, release_profile: $profile, binary: {release_bytes: $binary_bytes, strip_command: $strip_status, stripped_bytes: (if $stripped_bytes == "" then null else ($stripped_bytes | tonumber) end)}, process_and_tui: $probe}'
 }
 
 baseline_json="$(measure_revision baseline "${baseline_revision}")"
 current_json="$(measure_revision current "${current_revision}")"
+measurement_tree_bytes="$(directory_size_bytes "${measurement_root}")"
+disk_free_before_cleanup_bytes="$(disk_free_bytes)"
+cleanup_measurement_artifacts
+disk_free_after_cleanup_bytes="$(disk_free_bytes)"
 metadata_json | jq --argjson baseline "${baseline_json}" --argjson current "${current_json}" \
-  '. + {mode: "measurement", baseline_measurement: $baseline, current_measurement: $current}'
+  --argjson disk_free_before "${disk_free_before_bytes}" \
+  --argjson disk_free_before_cleanup "${disk_free_before_cleanup_bytes}" \
+  --argjson disk_free_after_cleanup "${disk_free_after_cleanup_bytes}" \
+  --argjson measurement_tree_bytes "${measurement_tree_bytes}" \
+  '. + {mode: "measurement", baseline_measurement: $baseline, current_measurement: $current, disk: {free_before_bytes: $disk_free_before, free_before_cleanup_bytes: $disk_free_before_cleanup, free_after_cleanup_bytes: $disk_free_after_cleanup, measurement_tree_bytes_before_cleanup: $measurement_tree_bytes, reclaimed_free_bytes: ($disk_free_after_cleanup - $disk_free_before_cleanup), net_free_delta_bytes: ($disk_free_after_cleanup - $disk_free_before), cleanup: "permanent workspace-local deletion completed before this report was emitted"}}'
