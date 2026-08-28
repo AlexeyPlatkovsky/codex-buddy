@@ -50,7 +50,7 @@ const MAX_MCP_NAMESPACE_DESCRIPTION_BYTES: usize = 512 * 1024;
 pub struct McpHandler {
     tool_info: ToolInfo,
     spec: Arc<ToolSpec>,
-    code_mode_tool_definitions: OnceLock<Vec<codex_code_mode::ToolDefinition>>,
+    code_mode_tool_definitions: OnceLock<Vec<codex_code_mode_types::ToolDefinition>>,
 }
 
 impl McpHandler {
@@ -247,7 +247,7 @@ impl CoreToolRuntime for McpHandler {
         Some(&self.spec)
     }
 
-    fn cached_code_mode_definitions(&self) -> Option<&[codex_code_mode::ToolDefinition]> {
+    fn cached_code_mode_definitions(&self) -> Option<&[codex_code_mode_types::ToolDefinition]> {
         Some(
             self.code_mode_tool_definitions
                 .get_or_init(|| {

@@ -124,7 +124,7 @@ fn tool_spec_to_code_mode_tool_definition_returns_augmented_nested_tools() {
 
     assert_eq!(
         tool_spec_to_code_mode_tool_definition(&spec),
-        Some(codex_code_mode::ToolDefinition {
+        Some(codex_code_mode_types::ToolDefinition {
             name: "apply_patch".to_string(),
             tool_name: ToolName::plain("apply_patch"),
             description: r#"Apply a patch
@@ -134,7 +134,7 @@ exec tool declaration:
 declare const tools: { apply_patch(input: string): Promise<unknown>; };
 ```"#
                 .to_string(),
-            kind: codex_code_mode::CodeModeToolKind::Freeform,
+            kind: codex_code_mode_types::CodeModeToolKind::Freeform,
             input_schema: None,
             output_schema: None,
         })
@@ -160,7 +160,7 @@ fn tool_spec_to_code_mode_tool_definition_supports_namespaced_custom_tools() {
 
     assert_eq!(
         tool_spec_to_code_mode_tool_definition(&spec),
-        Some(codex_code_mode::ToolDefinition {
+        Some(codex_code_mode_types::ToolDefinition {
             name: "editor__apply_patch".to_string(),
             tool_name: ToolName::namespaced("editor", "apply_patch"),
             description: r#"Apply a patch
@@ -170,7 +170,7 @@ exec tool declaration:
 declare const tools: { editor__apply_patch(input: string): Promise<unknown>; };
 ```"#
                 .to_string(),
-            kind: codex_code_mode::CodeModeToolKind::Freeform,
+            kind: codex_code_mode_types::CodeModeToolKind::Freeform,
             input_schema: None,
             output_schema: None,
         })

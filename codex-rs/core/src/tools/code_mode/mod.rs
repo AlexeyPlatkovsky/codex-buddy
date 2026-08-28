@@ -11,12 +11,12 @@ use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 
-use codex_code_mode::CellId;
-use codex_code_mode::CodeModeNestedToolCall;
-use codex_code_mode::CodeModeSession;
-use codex_code_mode::CodeModeSessionProvider;
-use codex_code_mode::CodeModeToolKind;
-use codex_code_mode::RuntimeResponse;
+use codex_code_mode_types::CellId;
+use codex_code_mode_types::CodeModeNestedToolCall;
+use codex_code_mode_types::CodeModeSession;
+use codex_code_mode_types::CodeModeSessionProvider;
+use codex_code_mode_types::CodeModeToolKind;
+use codex_code_mode_types::RuntimeResponse;
 use codex_protocol::models::FunctionCallOutputContentItem;
 use futures::future::join_all;
 use serde_json::Value as JsonValue;
@@ -51,9 +51,10 @@ pub(crate) use execute_handler::CodeModeExecuteHandler;
 use response_adapter::into_function_call_output_content_items;
 pub(crate) use wait_handler::CodeModeWaitHandler;
 
-pub(crate) const PUBLIC_TOOL_NAME: &str = codex_code_mode::PUBLIC_TOOL_NAME;
-pub(crate) const WAIT_TOOL_NAME: &str = codex_code_mode::WAIT_TOOL_NAME;
-pub(crate) const DEFAULT_WAIT_YIELD_TIME_MS: u64 = codex_code_mode::DEFAULT_WAIT_YIELD_TIME_MS;
+pub(crate) const PUBLIC_TOOL_NAME: &str = codex_code_mode_types::PUBLIC_TOOL_NAME;
+pub(crate) const WAIT_TOOL_NAME: &str = codex_code_mode_types::WAIT_TOOL_NAME;
+pub(crate) const DEFAULT_WAIT_YIELD_TIME_MS: u64 =
+    codex_code_mode_types::DEFAULT_WAIT_YIELD_TIME_MS;
 
 /// Returns true for the code-mode `exec` tool in the default namespace.
 pub(crate) fn is_exec_tool_name(tool_name: &ToolName) -> bool {
@@ -121,8 +122,8 @@ impl CodeModeService {
 
     pub(crate) async fn execute(
         &self,
-        mut request: codex_code_mode::ExecuteRequest,
-    ) -> Result<codex_code_mode::StartedCell, String> {
+        mut request: codex_code_mode_types::ExecuteRequest,
+    ) -> Result<codex_code_mode_types::StartedCell, String> {
         request
             .yield_time_ms
             .get_or_insert(self.default_exec_yield_time_ms);
@@ -131,15 +132,15 @@ impl CodeModeService {
 
     pub(crate) async fn wait(
         &self,
-        request: codex_code_mode::WaitRequest,
-    ) -> Result<codex_code_mode::WaitOutcome, String> {
+        request: codex_code_mode_types::WaitRequest,
+    ) -> Result<codex_code_mode_types::WaitOutcome, String> {
         self.session().await?.wait(request).await
     }
 
     pub(crate) async fn terminate(
         &self,
         cell_id: CellId,
-    ) -> Result<codex_code_mode::WaitOutcome, String> {
+    ) -> Result<codex_code_mode_types::WaitOutcome, String> {
         self.session().await?.terminate(cell_id).await
     }
 
@@ -179,7 +180,7 @@ impl CodeModeService {
 
     pub(crate) fn mark_cell_ready_for_dispatch(
         &self,
-        cell_id: &codex_code_mode::CellId,
+        cell_id: &codex_code_mode_types::CellId,
         originating_item_id: Option<codex_protocol::ResponseItemId>,
     ) {
         self.dispatch_broker
@@ -188,7 +189,7 @@ impl CodeModeService {
 
     pub(crate) fn cell_originating_item_id(
         &self,
-        cell_id: &codex_code_mode::CellId,
+        cell_id: &codex_code_mode_types::CellId,
     ) -> Option<codex_protocol::ResponseItemId> {
         self.dispatch_broker.cell_originating_item_id(cell_id)
     }
@@ -451,7 +452,7 @@ mod tests {
     use crate::tools::registry::ToolRegistry;
     use crate::tools::router::ToolRouter;
     use crate::turn_diff_tracker::TurnDiffTracker;
-    use codex_code_mode::CodeModeToolKind;
+    use codex_code_mode_types::CodeModeToolKind;
     use codex_protocol::models::FunctionCallOutputContentItem;
     use codex_protocol::openai_models::ToolMode;
     use codex_tools::ToolName;

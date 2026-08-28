@@ -2,11 +2,11 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use codex_code_mode::CellId;
-use codex_code_mode::CodeModeNestedToolCall;
-use codex_code_mode::CodeModeSessionDelegate;
-use codex_code_mode::NotificationFuture;
-use codex_code_mode::ToolInvocationFuture;
+use codex_code_mode_types::CellId;
+use codex_code_mode_types::CodeModeNestedToolCall;
+use codex_code_mode_types::CodeModeSessionDelegate;
+use codex_code_mode_types::NotificationFuture;
+use codex_code_mode_types::ToolInvocationFuture;
 use codex_protocol::ResponseItemId;
 use codex_protocol::models::FunctionCallOutputPayload;
 use codex_protocol::models::ResponseItem;

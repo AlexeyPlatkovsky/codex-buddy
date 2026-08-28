@@ -2640,6 +2640,7 @@ dependencies = [
 name = "codex-code-mode-protocol"
 version = "0.0.0"
 dependencies = [
+ "codex-code-mode-types",
  "codex-protocol",
  "glob",
  "pretty_assertions",
@@ -2668,6 +2669,18 @@ dependencies = [
  "tokio-util",
  "tracing",
  "v8",
+]
+
+[[package]]
+name = "codex-code-mode-types"
+version = "0.0.0"
+dependencies = [
+ "codex-protocol",
+ "pretty_assertions",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-util",
 ]
 
 [[package]]
@@ -2786,6 +2799,7 @@ dependencies = [
  "codex-async-utils",
  "codex-client",
  "codex-code-mode",
+ "codex-code-mode-types",
  "codex-config",
  "codex-connectors",
  "codex-context-fragments",
@@ -4159,7 +4173,7 @@ name = "codex-rollout-trace"
 version = "0.0.0"
 dependencies = [
  "anyhow",
- "codex-code-mode",
+ "codex-code-mode-types",
  "codex-protocol",
  "http 1.4.0",
  "pretty_assertions",
@@ -4422,6 +4436,7 @@ version = "0.0.0"
 dependencies = [
  "bitflags 2.13.1",
  "codex-code-mode",
+ "codex-code-mode-types",
  "codex-extension-items",
  "codex-features",
  "codex-file-system",

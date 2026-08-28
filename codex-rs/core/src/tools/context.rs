@@ -76,7 +76,7 @@ impl ToolInvocation {
                 .session
                 .services
                 .code_mode_service
-                .cell_originating_item_id(&codex_code_mode::CellId::new(cell_id.clone()));
+                .cell_originating_item_id(&codex_code_mode_types::CellId::new(cell_id.clone()));
         }
 
         self.session
