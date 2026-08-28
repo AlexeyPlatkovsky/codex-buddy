@@ -341,6 +341,19 @@ App-server must remain for now, but its unconditional extension dependencies sho
 - A small always-compiled layout facade reserves zero pet columns in Coding, while typed `/pets` and `/memories` commands keep the existing unavailable response.
 - Coding and Full TUI checks, the Coding hidden-affordance test, five focused Full pet/memory snapshot tests, and pending-snapshot review passed. Scoped fix and final formatting passed afterward. The broad Coding TUI run reached 334 passes before unrelated existing plugin/reset-memory failures and lifecycle timeouts; no CB-49-focused test failed.
 
+### Build artifact cleanup guard
+
+- On 2026-08-28, migration validation was paused until the active Bazel build finished, then the
+  verified `codex-rs/target` tree (about 202 GiB) was permanently deleted through the workspace
+  deletion guard. Filesystem free space increased from about 350 GiB to 550 GiB; nothing was moved
+  to Trash.
+- `scripts/buddy_release/clean_rust_artifacts.sh` now limits cleanup to that exact generated tree,
+  refuses symlinks and active Rust/Just/Bazel processes, supports a dry run, and delegates permanent
+  removal to the existing workspace guard.
+- Repository instructions now require `CARGO_INCREMENTAL=0` for broad migration matrices and
+  post-validation cleanup at 20 GiB or on user request. Cleanup happens only after tests, lint fixes,
+  and formatting are complete.
+
 Current unconditional or broadly included candidates include:
 
 - `codex-agent-extension`
