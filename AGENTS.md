@@ -66,6 +66,10 @@ In the codex-rs folder where the rust code lives:
 - Repeated broad debug builds can make `codex-rs/target/debug` extremely large. Set
   `CARGO_INCREMENTAL=0` for broad validation matrices unless incremental compilation itself is
   under test, and avoid duplicate broad builds against the same target directory.
+- Do not run a package-wide `cargo tree -e features --no-dedupe`: repeated feature paths can expand
+  for hours even when the output is piped through `head`. Use the deduplicated graph in
+  `scripts/buddy_release/dependency_preflight.sh` or a targeted inverse query such as
+  `cargo tree -e features -i <package>` instead.
 - After debug-heavy validation, check `du -sh codex-rs/target`. If it is at least 20 GiB, or the
   user asks for cleanup, wait for all Cargo, rustc, nextest, Just, and Bazel build/test processes to
   finish and run `scripts/buddy_release/clean_rust_artifacts.sh --confirm` from the repository root.
