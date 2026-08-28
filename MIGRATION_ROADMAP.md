@@ -533,11 +533,18 @@ Add targeted macOS and Windows build/smoke coverage for the coding configuration
 
 Before starting a new migration slice:
 
-1. Fetch `upstream`.
+1. From a clean `main` equal to `origin/main`, run
+   `scripts/buddy_release/upstream_sync_preflight.sh --fetch`. Omit `--fetch` when
+   intentionally rehearsing the already-fetched refs.
 2. Inspect the incoming range and current dirty state.
 3. Use an ordinary sync-only merge commit; do not rebase, force-push, repeat the historical `ours` bridge, or mix conflict resolution with a feature refactor.
 4. Run checks proportional to conflicts.
 5. Record recurring conflict patterns in TaskPilot.
+
+The preflight validates the fork/upstream remote roles, reports divergence and
+overlapping paths, and performs a bounded `git merge-tree` rehearsal without
+mutating the index or worktree. A non-clean main, local/origin drift, or a
+rehearsed conflict is a blocking result, not an automatic resolution request.
 
 High-conflict files currently include:
 
