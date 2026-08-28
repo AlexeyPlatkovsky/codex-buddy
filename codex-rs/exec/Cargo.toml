@@ -23,7 +23,11 @@ workspace = true
 
 [features]
 default = ["full-runtime-extensions"]
-full-runtime-extensions = ["codex-app-server-client/full-runtime-extensions"]
+coding-runtime-extensions = ["codex-app-server-client/coding-runtime-extensions"]
+full-runtime-extensions = [
+    "coding-runtime-extensions",
+    "codex-app-server-client/full-runtime-extensions",
+]
 
 [dependencies]
 anyhow = { workspace = true }
