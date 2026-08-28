@@ -43,6 +43,7 @@ connectors = [
     "dep:codex-plugin",
     "codex-chatgpt/connectors",
     "codex-core/connectors",
+    "codex-core/plugins",
     "codex-mcp-extension/plugin-runtime",
 ]
 goals = ["dep:codex-goal-extension"]

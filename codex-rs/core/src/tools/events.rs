@@ -1,4 +1,6 @@
 use crate::function_tool::FunctionCallError;
+use crate::plugins::runtime::PluginCommandAttribution;
+use crate::plugins::runtime::recognize_artifact_operation;
 use crate::session::session::Session;
 use crate::session::turn_context::TurnContext;
 use crate::tools::context::SharedTurnDiffTracker;
@@ -7,8 +9,6 @@ use codex_analytics::ArtifactOperation;
 use codex_analytics::ArtifactOperationLifecycle;
 use codex_analytics::build_track_events_context;
 use codex_apply_patch::AppliedPatchDelta;
-use codex_core_plugins::PluginCommandAttribution;
-use codex_core_plugins::recognize_artifact_operation;
 use codex_otel::ARTIFACT_OPERATION_EXPECTED_OUTPUT_COUNT_METRIC;
 use codex_otel::ARTIFACT_OPERATION_STARTED_METRIC;
 use codex_protocol::error::CodexErrorDetails;

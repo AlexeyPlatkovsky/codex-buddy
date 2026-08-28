@@ -2377,6 +2377,7 @@ async fn tool_search_cache_rebuilds_when_deferred_world_state_changes() {
     }
 }
 
+#[cfg(feature = "plugins")]
 #[tokio::test]
 async fn request_plugin_install_requires_all_discovery_features() {
     for disabled_feature in [Feature::ToolSuggest, Feature::Apps, Feature::Plugins] {
@@ -2445,6 +2446,34 @@ async fn request_plugin_install_requires_all_discovery_features() {
     ]);
 }
 
+#[cfg(not(feature = "plugins"))]
+#[tokio::test]
+async fn request_plugin_install_is_absent_without_plugin_runtime() {
+    let plan = probe_with(
+        |turn| {
+            set_features(
+                turn,
+                &[Feature::ToolSuggest, Feature::Apps, Feature::Plugins],
+            );
+        },
+        ToolPlanInputs {
+            tool_suggest_candidates: Some(plugin_candidates(ToolSuggestPresentation::ListTool)),
+            ..ToolPlanInputs::default()
+        },
+    )
+    .await;
+
+    plan.assert_visible_lacks(&[
+        "list_available_plugins_to_install",
+        "request_plugin_install",
+    ]);
+    plan.assert_registered_lacks(&[
+        "list_available_plugins_to_install",
+        "request_plugin_install",
+    ]);
+}
+
+#[cfg(feature = "plugins")]
 #[tokio::test]
 async fn request_plugin_install_stays_visible_without_tool_search() {
     let plan = probe_with(
@@ -2471,6 +2500,7 @@ async fn request_plugin_install_stays_visible_without_tool_search() {
     plan.assert_visible_lacks(&["tool_search"]);
 }
 
+#[cfg(feature = "plugins")]
 #[tokio::test]
 async fn request_plugin_install_description_requires_exhausting_tool_search() {
     let plan = probe_with(

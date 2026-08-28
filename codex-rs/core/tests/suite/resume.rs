@@ -1,11 +1,25 @@
 use anyhow::Result;
 use codex_core::TurnInputRequest;
+#[cfg(not(feature = "plugins"))]
+use codex_history::RolloutItem;
+#[cfg(not(feature = "plugins"))]
+use codex_history::RolloutLine;
 use codex_protocol::config_types::WindowsSandboxLevel;
+#[cfg(not(feature = "plugins"))]
+use codex_protocol::parse_command::ParsedCommand;
 use codex_protocol::protocol::EventMsg;
+#[cfg(not(feature = "plugins"))]
+use codex_protocol::protocol::ExecCommandEndEvent;
+#[cfg(not(feature = "plugins"))]
+use codex_protocol::protocol::ExecCommandSource;
+#[cfg(not(feature = "plugins"))]
+use codex_protocol::protocol::ExecCommandStatus;
 use codex_protocol::protocol::ThreadSettingsOverrides;
 use codex_protocol::user_input::ByteRange;
 use codex_protocol::user_input::TextElement;
 use codex_protocol::user_input::UserInput;
+#[cfg(not(feature = "plugins"))]
+use codex_utils_path_uri::PathUri;
 use core_test_support::responses::ev_assistant_message;
 use core_test_support::responses::ev_completed;
 use core_test_support::responses::ev_reasoning_item;
@@ -18,7 +32,11 @@ use core_test_support::skip_if_no_network;
 use core_test_support::test_codex::test_codex;
 use core_test_support::wait_for_event;
 use pretty_assertions::assert_eq;
+#[cfg(not(feature = "plugins"))]
+use std::fs;
 use std::sync::Arc;
+#[cfg(not(feature = "plugins"))]
+use std::time::Duration;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn resume_restores_windows_sandbox_override() -> Result<()> {
@@ -105,6 +123,92 @@ async fn resume_includes_initial_messages_from_rollout_events() -> Result<()> {
         }
         other => panic!("unexpected initial messages after resume: {other:#?}"),
     }
+
+    Ok(())
+}
+
+#[cfg(not(feature = "plugins"))]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn slim_resume_accepts_historical_plugin_command_attribution() -> Result<()> {
+    skip_if_no_network!(Ok(()));
+
+    let server = start_mock_server().await;
+    let mut builder = test_codex();
+    let initial = builder.build(&server).await?;
+    initial.codex.ensure_rollout_materialized().await;
+    let rollout_path = initial
+        .codex
+        .rollout_path()
+        .expect("rollout path")
+        .to_path_buf();
+    initial.codex.shutdown_and_wait().await?;
+
+    let historical_event = EventMsg::ExecCommandEnd(ExecCommandEndEvent {
+        call_id: "historical-plugin-command".to_string(),
+        plugin_id: Some("sample@openai-curated".to_string()),
+        script_path: Some("scripts/run.py".to_string()),
+        process_id: None,
+        turn_id: "historical-turn".to_string(),
+        completed_at_ms: 20,
+        command: vec!["python3".to_string(), "scripts/run.py".to_string()],
+        cwd: PathUri::from_abs_path(&initial.config.cwd),
+        parsed_cmd: vec![ParsedCommand::Unknown {
+            cmd: "python3 scripts/run.py".to_string(),
+        }],
+        source: ExecCommandSource::Agent,
+        interaction_input: None,
+        stdout: "done\n".to_string(),
+        stderr: String::new(),
+        aggregated_output: "done\n".to_string(),
+        exit_code: 0,
+        duration: Duration::from_millis(5),
+        formatted_output: "done\n".to_string(),
+        status: ExecCommandStatus::Completed,
+    });
+    let historical_line = RolloutLine {
+        timestamp: "2026-08-28T00:00:00Z".to_string(),
+        ordinal: None,
+        item: RolloutItem::EventMsg(historical_event),
+    };
+    let mut rollout = fs::read_to_string(&rollout_path)?;
+    if !rollout.ends_with('\n') {
+        rollout.push('\n');
+    }
+    rollout.push_str(&serde_json::to_string(&historical_line)?);
+    rollout.push('\n');
+    fs::write(&rollout_path, rollout)?;
+
+    let resumed = builder
+        .resume(&server, Arc::clone(&initial.home), rollout_path)
+        .await?;
+    assert!(
+        resumed
+            .session_configured
+            .initial_messages
+            .as_deref()
+            .unwrap_or_default()
+            .iter()
+            .any(|event| matches!(
+                event,
+                EventMsg::ExecCommandEnd(ExecCommandEndEvent {
+                    plugin_id: Some(plugin_id),
+                    script_path: Some(script_path),
+                    ..
+                }) if plugin_id == "sample@openai-curated" && script_path == "scripts/run.py"
+            )),
+        "resumed history should retain historical plugin attribution"
+    );
+
+    mount_sse_once(
+        &server,
+        sse(vec![
+            ev_response_created("resp-resumed"),
+            ev_assistant_message("msg-resumed", "Resumed successfully"),
+            ev_completed("resp-resumed"),
+        ]),
+    )
+    .await;
+    resumed.submit_text_turn("continue after resume").await?;
 
     Ok(())
 }

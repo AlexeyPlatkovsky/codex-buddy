@@ -62,6 +62,7 @@ mod context_annotations;
 mod current_time_reminder;
 mod cyber_access_program;
 mod cyber_exec_policy;
+#[cfg(feature = "plugins")]
 mod daybreak_access;
 mod deprecation_notice;
 mod exec;
@@ -118,6 +119,7 @@ mod override_updates;
 mod pending_input;
 mod permissions_messages;
 mod personality;
+#[cfg(feature = "plugins")]
 mod plugins;
 mod prompt_cache_key;
 mod prompt_caching;
@@ -132,6 +134,7 @@ mod request_compression;
 mod request_permissions;
 #[cfg(not(target_os = "windows"))]
 mod request_permissions_tool;
+#[cfg(feature = "plugins")]
 mod request_plugin_install;
 mod request_user_input;
 mod responses_api_proxy_headers;

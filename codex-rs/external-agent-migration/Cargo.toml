@@ -20,7 +20,7 @@ memories = ["dep:codex-memories-write"]
 chrono = { workspace = true }
 codex-analytics = { workspace = true }
 codex-config = { workspace = true }
-codex-core = { workspace = true }
+codex-core = { workspace = true, features = ["plugins"] }
 codex-core-plugins = { workspace = true }
 codex-hooks = { workspace = true }
 codex-login = { workspace = true }

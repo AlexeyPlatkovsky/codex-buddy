@@ -25,6 +25,7 @@ use codex_protocol::mcp::CallToolResult;
 use codex_protocol::models::ContentItem;
 use codex_protocol::protocol::EventMsg;
 use codex_protocol::user_input::UserInput;
+#[cfg(feature = "plugins")]
 use codex_utils_path_uri::PathUri;
 use core_test_support::apps_test_server::AppsTestServer;
 use core_test_support::apps_test_server::SEARCH_CALENDAR_LIST_TOOL;
@@ -489,6 +490,7 @@ async fn mcp_result_processing_precedes_completion(
     Ok(())
 }
 
+#[cfg(feature = "plugins")]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn tool_start_receives_frozen_host_plugin_root() -> Result<()> {
     skip_if_no_network!(Ok(()));

@@ -3,10 +3,10 @@ use std::sync::Arc;
 
 use crate::config::Config;
 use crate::environment_selection::ThreadEnvironments;
+use crate::plugins::runtime::PluginLoadOutcome;
+use crate::plugins::runtime::PluginsManager;
 use codex_config::DEFAULT_MCP_SERVER_ENVIRONMENT_ID;
 use codex_config::McpServerConfig;
-use codex_core_plugins::PluginLoadOutcome;
-use codex_core_plugins::PluginsManager;
 use codex_exec_server::ExecutorCapabilityDiscoverySnapshot;
 use codex_extension_api::ExtensionData;
 use codex_extension_api::ExtensionDataInit;

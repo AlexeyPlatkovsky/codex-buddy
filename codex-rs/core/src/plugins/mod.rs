@@ -4,19 +4,20 @@ mod injection;
 mod mentions;
 pub(crate) mod metrics;
 mod render;
-#[cfg(test)]
+pub(crate) mod runtime;
+#[cfg(all(test, feature = "plugins"))]
 #[path = "skill_snapshot_tests.rs"]
 mod skill_snapshot_tests;
-#[cfg(test)]
+#[cfg(all(test, feature = "plugins"))]
 pub(crate) mod test_support;
 
 use crate::config::Config;
-use codex_core_plugins::PluginsManager;
 use codex_login::AuthManager;
 use codex_skills_extension::HostSkillsService;
 use std::sync::Arc;
 
-pub(crate) use codex_plugin::PluginCapabilitySummary;
+pub(crate) use codex_plugin_types::PluginCapabilitySummary;
+pub use runtime::PluginsManager;
 
 #[cfg(feature = "connectors")]
 pub(crate) use discoverable::list_tool_suggest_discoverable_plugins;

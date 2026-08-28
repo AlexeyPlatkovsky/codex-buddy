@@ -9,7 +9,12 @@ workspace = true
 
 [features]
 default = ["connectors"]
-connectors = ["dep:codex-connectors", "dep:codex-plugin", "codex-core/connectors"]
+connectors = [
+    "dep:codex-connectors",
+    "dep:codex-plugin",
+    "codex-core/connectors",
+    "codex-core/plugins",
+]
 
 [dependencies]
 anyhow = { workspace = true }

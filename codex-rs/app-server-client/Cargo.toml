@@ -14,7 +14,10 @@ workspace = true
 
 [features]
 default = ["full-runtime-extensions"]
-full-runtime-extensions = ["codex-app-server/full-runtime-extensions"]
+full-runtime-extensions = [
+    "codex-app-server/full-runtime-extensions",
+    "codex-core/plugins",
+]
 
 [dependencies]
 codex-app-server = { path = "../app-server", default-features = false }

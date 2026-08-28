@@ -1994,6 +1994,7 @@ respect_system_proxy = true
             .outbound_proxy_policy(),
         codex_http_client::OutboundProxyPolicy::RespectSystemProxy
     );
+    #[cfg(feature = "plugins")]
     assert_eq!(
         config.plugins_config_input().remote_plugin_service_config(),
         codex_core_plugins::remote::RemotePluginServiceConfig::new(

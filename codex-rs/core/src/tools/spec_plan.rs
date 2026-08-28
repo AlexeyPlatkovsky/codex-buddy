@@ -15,6 +15,7 @@ use crate::tools::handlers::DynamicToolHandler;
 use crate::tools::handlers::ExecCommandHandler;
 use crate::tools::handlers::ExecCommandHandlerOptions;
 use crate::tools::handlers::GetContextRemainingHandler;
+#[cfg(feature = "plugins")]
 use crate::tools::handlers::ListAvailablePluginsToInstallHandler;
 use crate::tools::handlers::ListMcpResourceTemplatesHandler;
 use crate::tools::handlers::ListMcpResourcesHandler;
@@ -22,6 +23,7 @@ use crate::tools::handlers::NewContextWindowHandler;
 use crate::tools::handlers::PlanHandler;
 use crate::tools::handlers::ReadMcpResourceHandler;
 use crate::tools::handlers::RequestPermissionsHandler;
+#[cfg(feature = "plugins")]
 use crate::tools::handlers::RequestPluginInstallHandler;
 use crate::tools::handlers::RequestUserInputHandler;
 use crate::tools::handlers::SendUserMessageAsyncHandler;
@@ -95,6 +97,7 @@ use codex_tools::ToolSpec;
 use codex_tools::UnifiedExecShellMode;
 use codex_tools::can_request_original_image_detail;
 use codex_tools::collect_code_mode_exec_prompt_tool_definitions;
+#[cfg(feature = "plugins")]
 use codex_tools::collect_request_plugin_install_entries;
 use codex_tools::default_namespace_description;
 use codex_tools::request_user_input_available_modes;
@@ -116,6 +119,7 @@ struct CoreToolPlanContext<'a> {
     model_info: &'a ModelInfo,
     environments: &'a TurnEnvironmentSnapshot,
     mcp: &'a codex_mcp::McpBinding,
+    #[cfg_attr(not(feature = "plugins"), allow(dead_code))]
     tool_suggest_candidates: Option<&'a crate::tools::router::ToolSuggestCandidates>,
     wait_for_environment_tool_config: Option<&'a Arc<crate::WaitForEnvironmentToolConfig>>,
     default_agent_type_description: &'a str,
@@ -1219,21 +1223,24 @@ fn add_core_utility_tools(context: &CoreToolPlanContext<'_>, registry: &mut Tool
         registry.add(SleepHandler);
     }
 
-    if full_tool_surface_enabled(turn_context)
-        && tool_suggest_enabled(turn_context)
-        && let Some(candidates) = context
-            .tool_suggest_candidates
-            .filter(|candidates| !candidates.tools.is_empty())
+    #[cfg(feature = "plugins")]
     {
-        if candidates.presentation == crate::tools::router::ToolSuggestPresentation::ListTool {
-            registry.add(ListAvailablePluginsToInstallHandler::new(
-                collect_request_plugin_install_entries(&candidates.tools),
+        if full_tool_surface_enabled(turn_context)
+            && tool_suggest_enabled(turn_context)
+            && let Some(candidates) = context
+                .tool_suggest_candidates
+                .filter(|candidates| !candidates.tools.is_empty())
+        {
+            if candidates.presentation == crate::tools::router::ToolSuggestPresentation::ListTool {
+                registry.add(ListAvailablePluginsToInstallHandler::new(
+                    collect_request_plugin_install_entries(&candidates.tools),
+                ));
+            }
+            registry.add(RequestPluginInstallHandler::new(
+                candidates.tools.clone(),
+                candidates.presentation,
             ));
         }
-        registry.add(RequestPluginInstallHandler::new(
-            candidates.tools.clone(),
-            candidates.presentation,
-        ));
     }
 
     if tool_enabled(turn_context, ToolCapability::ApplyPatch)

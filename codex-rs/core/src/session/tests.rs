@@ -213,7 +213,7 @@ use std::time::Duration as StdDuration;
 
 pub(crate) fn mcp_config_for_test(config: &crate::config::Config) -> Arc<codex_mcp::McpConfig> {
     Arc::new(config.to_mcp_config_with_loaded_plugins(
-        &codex_core_plugins::PluginLoadOutcome::default(),
+        &crate::plugins::runtime::PluginLoadOutcome::default(),
         std::iter::empty(),
     ))
 }

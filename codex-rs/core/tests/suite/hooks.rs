@@ -6,6 +6,7 @@ use anyhow::Result;
 use codex_config::test_support::CloudConfigBundleFixture;
 use codex_core::StartThreadOptions;
 use codex_core::TurnInputRequest;
+#[cfg(feature = "plugins")]
 use codex_core::config::Config;
 use codex_core::config::Constrained;
 use codex_core::config::ThreadStoreConfig;
@@ -14,8 +15,10 @@ use codex_history::RolloutItem;
 use codex_history::RolloutLine;
 use codex_model_provider_info::ModelProviderInfo;
 use codex_model_provider_info::built_in_model_providers;
-use codex_plugin::PluginHookSource;
-use codex_plugin::PluginId;
+#[cfg(feature = "plugins")]
+use codex_plugin_types::PluginHookSource;
+#[cfg(feature = "plugins")]
+use codex_plugin_types::PluginId;
 use codex_protocol::items::parse_hook_prompt_fragment;
 use codex_protocol::models::ContentItem;
 use codex_protocol::models::NetworkPermissions;
@@ -33,10 +36,12 @@ use codex_protocol::request_permissions::RequestPermissionProfile;
 use codex_protocol::request_permissions::RequestPermissionsResponse;
 use codex_protocol::user_input::UserInput;
 use codex_thread_store::InMemoryThreadStore;
+#[cfg(feature = "plugins")]
 use codex_utils_absolute_path::AbsolutePathBuf;
 use core_test_support::TestTargetOs;
 use core_test_support::fs_wait;
 use core_test_support::hooks::trust_discovered_hooks;
+#[cfg(feature = "plugins")]
 use core_test_support::hooks::trust_hooks;
 use core_test_support::managed_network_requirements_loader;
 use core_test_support::responses::ev_apply_patch_custom_tool_call;
@@ -151,6 +156,7 @@ fn non_openai_model_provider(server: &wiremock::MockServer) -> ModelProviderInfo
     provider
 }
 
+#[cfg(feature = "plugins")]
 fn trust_plugin_hooks(config: &mut Config, plugin_hook_sources: Vec<PluginHookSource>) {
     config
         .features
@@ -4006,6 +4012,7 @@ async fn post_tool_use_exit_two_rejects_code_mode_tool_promise() -> Result<()> {
         .await
 }
 
+#[cfg(feature = "plugins")]
 #[tokio::test]
 async fn plugin_pre_tool_use_blocks_exec_command_before_execution() -> Result<()> {
     skip_if_no_network!(Ok(()));

@@ -125,11 +125,13 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup-ci
       - uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582 # 1.95.0
-      - name: Check connector-disabled targets
+      - name: Check slim and explicit Full targets
         run: |
           cargo check -p codex-chatgpt --no-default-features
           cargo check -p codex-app-server --no-default-features
+          cargo check -p codex-core --no-default-features
           cargo check -p codex-buddy
+          cargo check -p codex-external-agent-migration
 
           tools_tree="$(cargo tree -p codex-tools -e normal --prefix none)"
           if grep -Eq '^codex-connectors v' <<<"$tools_tree"; then
@@ -167,7 +169,15 @@ jobs:
             exit 1
           fi
 
-          app_server_metadata="$(cargo metadata --no-deps --format-version=1)"
+          for dependency in codex-core-plugins codex-plugin; do
+            if grep -Eq "^$dependency v" <<<"$buddy_tree"; then
+              echo "codex-buddy unexpectedly depends on $dependency"
+              echo "$buddy_tree"
+              exit 1
+            fi
+          done
+
+          workspace_metadata="$(cargo metadata --no-deps --format-version=1)"
           for dependency in codex-connectors codex-core-plugins codex-plugin; do
             if ! jq -e --arg dependency "$dependency" '
               .packages[]
@@ -175,8 +185,21 @@ jobs:
               | .dependencies[]
               | select(.name == $dependency and .kind == null)
               | .optional == true
-            ' <<<"$app_server_metadata" >/dev/null; then
+            ' <<<"$workspace_metadata" >/dev/null; then
               echo "codex-app-server dependency $dependency must be optional"
+              exit 1
+            fi
+          done
+
+          for dependency in codex-core-plugins codex-plugin; do
+            if ! jq -e --arg dependency "$dependency" '
+              .packages[]
+              | select(.name == "codex-core")
+              | .dependencies[]
+              | select(.name == $dependency and .kind == null)
+              | .optional == true
+            ' <<<"$workspace_metadata" >/dev/null; then
+              echo "codex-core dependency $dependency must be optional"
               exit 1
             fi
           done

@@ -10,6 +10,7 @@ mod plugin_app_config;
 mod provider;
 
 pub use codex_plugin_types::AppConnectorId;
+pub use codex_plugin_types::AppDeclaration;
 pub use codex_plugin_types::ExecutorPluginHookSource;
 pub use codex_plugin_types::PluginCapabilitySummary;
 pub use codex_plugin_types::PluginHookSource;
@@ -27,13 +28,6 @@ pub use provider::PluginResourceLocator;
 pub use provider::ResolvedPlugin;
 pub use provider::ResolvedPluginError;
 pub use provider::ResolvedPluginLocation;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AppDeclaration {
-    pub name: String,
-    pub connector_id: AppConnectorId,
-    pub category: Option<String>,
-}
 
 pub fn app_connector_ids_from_declarations<'a>(
     app_declarations: impl IntoIterator<Item = &'a AppDeclaration>,

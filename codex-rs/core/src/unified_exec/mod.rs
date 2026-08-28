@@ -37,6 +37,7 @@ use rand::rng;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
+use crate::plugins::runtime::PluginMetricsSidecar;
 use crate::sandboxing::SandboxPermissions;
 use crate::session::session::Session;
 use crate::session::step_context::StepContext;
@@ -44,7 +45,6 @@ use crate::session::turn_context::TurnContext;
 use crate::session::turn_context::TurnEnvironment;
 use crate::shell::ShellType;
 use crate::tools::network_approval::DeferredNetworkApproval;
-use codex_core_plugins::PluginMetricsSidecar;
 
 mod async_watcher;
 mod errors;

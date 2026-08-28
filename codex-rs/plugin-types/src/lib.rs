@@ -12,6 +12,13 @@ pub use plugin_id::validate_plugin_segment;
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AppConnectorId(pub String);
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AppDeclaration {
+    pub name: String,
+    pub connector_id: AppConnectorId,
+    pub category: Option<String>,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PluginCapabilitySummary {
     pub config_name: String,

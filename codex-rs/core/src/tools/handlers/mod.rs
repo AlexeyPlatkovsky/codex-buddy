@@ -5,7 +5,9 @@ mod dynamic;
 pub(crate) mod extension_tools;
 mod get_context_remaining;
 pub(crate) mod get_context_remaining_spec;
+#[cfg(feature = "plugins")]
 mod list_available_plugins_to_install;
+#[cfg(feature = "plugins")]
 pub(crate) mod list_available_plugins_to_install_spec;
 mod mcp;
 mod mcp_resource;
@@ -19,7 +21,9 @@ pub(crate) mod new_context_window_spec;
 mod plan;
 pub(crate) mod plan_spec;
 mod request_permissions;
+#[cfg(feature = "plugins")]
 mod request_plugin_install;
+#[cfg(feature = "plugins")]
 pub(crate) mod request_plugin_install_spec;
 mod request_user_input;
 pub(crate) mod request_user_input_spec;
@@ -58,6 +62,7 @@ use codex_protocol::protocol::AskForApproval;
 pub use current_time::CurrentTimeHandler;
 pub use dynamic::DynamicToolHandler;
 pub use get_context_remaining::GetContextRemainingHandler;
+#[cfg(feature = "plugins")]
 pub use list_available_plugins_to_install::ListAvailablePluginsToInstallHandler;
 pub use mcp::McpHandler;
 pub use mcp_resource::ListMcpResourceTemplatesHandler;
@@ -66,6 +71,7 @@ pub use mcp_resource::ReadMcpResourceHandler;
 pub use new_context_window::NewContextWindowHandler;
 pub use plan::PlanHandler;
 pub use request_permissions::RequestPermissionsHandler;
+#[cfg(feature = "plugins")]
 pub use request_plugin_install::RequestPluginInstallHandler;
 pub use request_user_input::RequestUserInputHandler;
 pub use send_user_message_async::SendUserMessageAsyncHandler;

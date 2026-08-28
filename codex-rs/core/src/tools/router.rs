@@ -80,12 +80,14 @@ pub struct ToolRouter {
     can_manage_children: bool,
 }
 
+#[cfg_attr(not(feature = "plugins"), allow(dead_code))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ToolSuggestPresentation {
     ListTool,
     RecommendationContext,
 }
 
+#[cfg_attr(not(feature = "plugins"), allow(dead_code))]
 #[derive(Clone, Debug)]
 pub(crate) struct ToolSuggestCandidates {
     pub(crate) tools: Vec<DiscoverableTool>,

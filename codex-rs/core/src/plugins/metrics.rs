@@ -1,8 +1,8 @@
+use crate::plugins::runtime::PluginMetricsSidecar;
 use crate::session::session::Session;
 use crate::session::turn_context::TurnContext;
 use crate::tools::sandboxing::ToolCtx;
 use codex_analytics::PluginMeasurementsInput;
-use codex_core_plugins::PluginMetricsSidecar;
 use codex_exec_server::Environment;
 use codex_utils_path_uri::PathUri;
 

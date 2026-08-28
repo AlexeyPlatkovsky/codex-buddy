@@ -49,6 +49,7 @@ use codex_protocol::config_types::Settings;
 use codex_protocol::config_types::WindowsSandboxLevel;
 use codex_protocol::mcp_policy::McpServerIdentity;
 use codex_protocol::mcp_policy::McpServerRequirement;
+#[cfg(feature = "plugins")]
 use codex_protocol::mcp_policy::PluginMcpRequirements;
 use codex_protocol::models::ContentItem;
 use codex_protocol::models::PermissionProfile;
@@ -674,11 +675,32 @@ async fn text_only_mcp_content_uses_content_items() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[test_case(false; "configured servers")]
-#[test_case(true; "plugin servers")]
+#[derive(Clone, Copy)]
+enum EnvironmentMcpPolicyFixture {
+    ConfiguredServers,
+    #[cfg(feature = "plugins")]
+    PluginServers,
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn environment_mcp_policy_filters_runtime_config_and_model_tools(
-    from_plugin: bool,
+async fn environment_mcp_policy_filters_configured_runtime_and_model_tools() -> anyhow::Result<()> {
+    assert_environment_mcp_policy_filters_runtime_config_and_model_tools(
+        EnvironmentMcpPolicyFixture::ConfiguredServers,
+    )
+    .await
+}
+
+#[cfg(feature = "plugins")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn environment_mcp_policy_filters_plugin_runtime_and_model_tools() -> anyhow::Result<()> {
+    assert_environment_mcp_policy_filters_runtime_config_and_model_tools(
+        EnvironmentMcpPolicyFixture::PluginServers,
+    )
+    .await
+}
+
+async fn assert_environment_mcp_policy_filters_runtime_config_and_model_tools(
+    fixture_kind: EnvironmentMcpPolicyFixture,
 ) -> anyhow::Result<()> {
     skip_if_wine_exec!(
         Ok(()),
@@ -699,7 +721,8 @@ async fn environment_mcp_policy_filters_runtime_config_and_model_tools(
     let command = remote_aware_stdio_server_bin()?;
     let allowed_command = command.clone();
     let codex_home = Arc::new(tempdir()?);
-    if from_plugin {
+    #[cfg(feature = "plugins")]
+    if matches!(fixture_kind, EnvironmentMcpPolicyFixture::PluginServers) {
         let plugin_root =
             super::plugins::write_sample_plugin_manifest_and_config(codex_home.as_ref());
         let plugin_server = json!({
@@ -720,7 +743,7 @@ async fn environment_mcp_policy_filters_runtime_config_and_model_tools(
         .with_home(codex_home)
         .with_model_info_override("gpt-5.4", |model| model.supports_search_tool = false)
         .with_config(move |config| {
-            if !from_plugin {
+            if matches!(fixture_kind, EnvironmentMcpPolicyFixture::ConfiguredServers) {
                 for server_name in ["allowed", "blocked"] {
                     insert_mcp_server(
                         config,
@@ -780,8 +803,13 @@ async fn environment_mcp_policy_filters_runtime_config_and_model_tools(
             },
         },
     )]);
-    let mcp_policy = if from_plugin {
-        EnvironmentMcpPolicy {
+    let mcp_policy = match fixture_kind {
+        EnvironmentMcpPolicyFixture::ConfiguredServers => EnvironmentMcpPolicy {
+            servers: Some(allowed_servers),
+            plugins: None,
+        },
+        #[cfg(feature = "plugins")]
+        EnvironmentMcpPolicyFixture::PluginServers => EnvironmentMcpPolicy {
             servers: None,
             plugins: Some(BTreeMap::from([(
                 "sample@test".to_string(),
@@ -789,12 +817,7 @@ async fn environment_mcp_policy_filters_runtime_config_and_model_tools(
                     mcp_servers: Some(allowed_servers),
                 },
             )])),
-        }
-    } else {
-        EnvironmentMcpPolicy {
-            servers: Some(allowed_servers),
-            plugins: None,
-        }
+        },
     };
 
     fixture

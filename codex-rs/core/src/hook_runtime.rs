@@ -2,10 +2,10 @@ use std::future::Future;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::plugins::runtime::executor_plugin_hook_sources;
 use codex_analytics::CompactionTrigger;
 use codex_analytics::HookRunFact;
 use codex_analytics::build_track_events_context;
-use codex_core_plugins::executor_plugin_hook_sources;
 use codex_hooks::InterruptRequest;
 use codex_hooks::PermissionRequestDecision;
 use codex_hooks::PermissionRequestOutcome;

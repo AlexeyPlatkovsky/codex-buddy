@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use codex_core_plugins::PluginCommandAttribution;
-use codex_plugin::PluginId;
+use crate::plugins::runtime::PluginCommandAttribution;
+use codex_plugin_types::PluginId;
 use codex_protocol::approvals::ExecApprovalKind;
 use codex_protocol::protocol::ReviewDecision;
 use codex_protocol::request_permissions::PermissionGrantScope;
