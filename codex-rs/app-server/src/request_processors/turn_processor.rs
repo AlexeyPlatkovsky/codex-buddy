@@ -1,8 +1,5 @@
 use super::thread_input::ensure_direct_input_allowed;
 use super::*;
-use codex_agent_extension::AgentInvocation;
-use codex_agent_extension::AgentRun;
-use codex_agent_extension::AgentRunner;
 use codex_protocol::error::CodexErrorDetails;
 use codex_protocol::models::ContentItem;
 use codex_protocol::models::FunctionCallOutputBody;
@@ -14,6 +11,9 @@ use codex_protocol::protocol::TurnSettingsUpdate;
 use codex_protocol::protocol::TurnSettingsUpdateOutcome;
 use codex_skills::system_cache_root_dir;
 
+use crate::detached_review::DetachedReviewInvocation;
+use crate::detached_review::DetachedReviewRun;
+use crate::detached_review::DetachedReviewRunner;
 use crate::image_url::REMOTE_IMAGE_URL_ERROR;
 use crate::image_url::is_remote_image_url;
 
@@ -73,7 +73,7 @@ fn validate_response_item_image_urls(items: &[ResponseItem]) -> Result<(), JSONR
 
 #[derive(Clone)]
 pub(crate) struct TurnRequestProcessor {
-    agent_runner: AgentRunner,
+    detached_review_runner: DetachedReviewRunner,
     #[cfg(feature = "memories")]
     auth_manager: Arc<AuthManager>,
     thread_manager: Arc<ThreadManager>,
@@ -145,11 +145,11 @@ impl TurnRequestProcessor {
         skills_watcher: Arc<SkillsWatcher>,
         turn_cost_worker: Option<crate::turn_cost_worker::TurnCostWorkerHandle>,
     ) -> Self {
-        let agent_runner = AgentRunner::new(Arc::downgrade(&thread_manager));
+        let detached_review_runner = DetachedReviewRunner::new(Arc::downgrade(&thread_manager));
         #[cfg(not(feature = "memories"))]
         let _ = auth_manager;
         Self {
-            agent_runner,
+            detached_review_runner,
             #[cfg(feature = "memories")]
             auth_manager,
             thread_manager,
@@ -1478,22 +1478,21 @@ impl TurnRequestProcessor {
             config.model = Some(review_model.clone());
         }
 
-        let AgentRun {
+        let DetachedReviewRun {
             thread_id,
             thread: review_thread,
             turn_id,
         } = self
-            .agent_runner
+            .detached_review_runner
             .start(
                 parent_thread.session_configured().thread_id,
-                AgentInvocation {
+                DetachedReviewInvocation {
                     config,
                     prompt: prompt.to_string(),
                     parent_trace: self.request_trace_context(request_id).await,
                 },
             )
-            .await
-            .map_err(|err| internal_error(format!("failed to start detached review: {err}")))?;
+            .await?;
 
         let fallback_provider = self.config.model_provider_id.as_str();
         let stored_thread = match review_thread
@@ -1561,12 +1560,16 @@ impl TurnRequestProcessor {
             delivery,
         } = params;
 
+        let (review_request, display_text, target_prompt) =
+            Self::review_request_from_target(target)?;
+        let delivery = delivery.unwrap_or(ApiReviewDelivery::Inline).to_core();
+        if delivery == CoreReviewDelivery::Detached {
+            self.detached_review_runner.ensure_available()?;
+        }
         let (_, parent_thread) = self.load_thread(&thread_id).await?;
         self.ensure_direct_input_allowed(request_id, parent_thread.as_ref())
             .await?;
-        let (review_request, display_text, target_prompt) =
-            Self::review_request_from_target(target)?;
-        match delivery.unwrap_or(ApiReviewDelivery::Inline).to_core() {
+        match delivery {
             CoreReviewDelivery::Inline => {
                 self.start_inline_review(
                     request_id,

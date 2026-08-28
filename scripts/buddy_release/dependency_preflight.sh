@@ -54,8 +54,25 @@ for dependency in codex-core-plugins codex-plugin; do
   fi
 done
 
+for dependency in codex-agent-extension codex-queue-extension; do
+  if grep -Eq "^${dependency} v" <<<"${buddy_tree}"; then
+    echo "codex-buddy unexpectedly depends on ${dependency}"
+    echo "${buddy_tree}"
+    exit 1
+  fi
+done
+
+full_app_server_tree="$(cargo tree --locked -p codex-app-server -e normal --prefix none)"
+for dependency in codex-agent-extension codex-queue-extension; do
+  if ! grep -Eq "^${dependency} v" <<<"${full_app_server_tree}"; then
+    echo "full codex-app-server must depend on ${dependency}"
+    echo "${full_app_server_tree}"
+    exit 1
+  fi
+done
+
 workspace_metadata="$(cargo metadata --locked --no-deps --format-version=1)"
-for dependency in codex-connectors codex-core-plugins codex-plugin; do
+for dependency in codex-agent-extension codex-connectors codex-core-plugins codex-plugin codex-queue-extension; do
   if ! jq -e --arg dependency "${dependency}" '
     .packages[]
     | select(.name == "codex-app-server")

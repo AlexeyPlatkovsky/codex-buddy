@@ -652,6 +652,10 @@ mod thread_enrichment;
 mod thread_fork_goal;
 mod thread_input;
 mod thread_processor;
+#[cfg(feature = "queue")]
+mod thread_queue_processor;
+#[cfg(not(feature = "queue"))]
+#[path = "request_processors/thread_queue_unavailable_processor.rs"]
 mod thread_queue_processor;
 mod thread_sections;
 mod token_usage_replay;

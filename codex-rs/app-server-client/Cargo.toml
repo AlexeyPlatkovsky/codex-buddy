@@ -15,11 +15,15 @@ workspace = true
 [features]
 default = ["full-runtime-extensions"]
 coding-runtime-extensions = ["codex-app-server/coding-runtime-extensions"]
+detached-review = ["codex-app-server/detached-review"]
 full-runtime-extensions = [
     "coding-runtime-extensions",
     "codex-app-server/full-runtime-extensions",
     "codex-core/plugins",
+    "detached-review",
+    "queue",
 ]
+queue = ["codex-app-server/queue"]
 
 [dependencies]
 codex-app-server = { path = "../app-server", default-features = false }

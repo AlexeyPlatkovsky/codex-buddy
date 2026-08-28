@@ -104,6 +104,7 @@ mod config_manager_service;
 mod connection_cleanup;
 mod connection_rpc_gate;
 mod current_time;
+mod detached_review;
 mod dynamic_tools;
 #[cfg(feature = "connectors")]
 mod effective_plugin_change;
@@ -124,6 +125,7 @@ mod models;
 mod models_refresh_worker;
 mod otel_reloader;
 mod outgoing_message;
+mod queue_runtime;
 mod realtime_event_handling;
 mod realtime_history;
 mod request_processors;

@@ -9,6 +9,7 @@ use codex_app_server_protocol::ClientRequest;
 use codex_app_server_protocol::ItemCompletedNotification;
 use codex_app_server_protocol::ItemStartedNotification;
 use codex_app_server_protocol::JSONRPCError;
+#[cfg(feature = "detached-review")]
 use codex_app_server_protocol::JSONRPCMessage;
 use codex_app_server_protocol::RequestId;
 use codex_app_server_protocol::ReviewDelivery;
@@ -16,19 +17,26 @@ use codex_app_server_protocol::ReviewStartParams;
 use codex_app_server_protocol::ReviewStartResponse;
 use codex_app_server_protocol::ReviewTarget;
 use codex_app_server_protocol::ServerRequest;
+#[cfg(feature = "detached-review")]
 use codex_app_server_protocol::ThreadHistoryMode;
 use codex_app_server_protocol::ThreadItem;
 use codex_app_server_protocol::ThreadStartParams;
 use codex_app_server_protocol::ThreadStartResponse;
+#[cfg(feature = "detached-review")]
 use codex_app_server_protocol::ThreadStartedNotification;
+#[cfg(feature = "detached-review")]
 use codex_app_server_protocol::ThreadStatusChangedNotification;
 use codex_app_server_protocol::TurnItemsView;
+#[cfg(feature = "detached-review")]
 use codex_app_server_protocol::TurnStartParams;
+#[cfg(feature = "detached-review")]
 use codex_app_server_protocol::TurnStartResponse;
 use codex_app_server_protocol::TurnStatus;
 use codex_app_server_protocol::UserInput as V2UserInput;
 use codex_features::Feature;
+#[cfg(feature = "detached-review")]
 use codex_skills::system_cache_root_dir;
+#[cfg(feature = "detached-review")]
 use core_test_support::responses;
 use pretty_assertions::assert_eq;
 use serde_json::json;
@@ -37,8 +45,10 @@ use tokio::time::timeout;
 
 const DEFAULT_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 const INVALID_REQUEST_ERROR_CODE: i64 = -32600;
+#[cfg(feature = "detached-review")]
 const COLLIDING_REVIEW_SKILL_MARKER: &str = "COLLIDING_REVIEW_SKILL_MARKER";
 
+#[cfg(feature = "detached-review")]
 #[tokio::test]
 async fn review_start_rejects_detached_delivery_for_paginated_parent() -> Result<()> {
     let server = create_mock_responses_server_repeating_assistant("Done").await;
@@ -322,6 +332,7 @@ async fn review_start_rejects_empty_base_branch() -> Result<()> {
 }
 
 #[cfg_attr(target_os = "windows", ignore = "flaky on windows CI")]
+#[cfg(feature = "detached-review")]
 #[tokio::test]
 async fn review_start_with_detached_delivery_returns_new_thread_id() -> Result<()> {
     let server = responses::start_mock_server().await;
@@ -553,6 +564,7 @@ async fn start_default_thread(mcp: &mut TestAppServer) -> Result<String> {
     Ok(thread.id)
 }
 
+#[cfg(feature = "detached-review")]
 async fn materialize_thread_rollout(mcp: &mut TestAppServer, thread_id: &str) -> Result<()> {
     let _: TurnStartResponse = mcp
         .request(|request_id| ClientRequest::TurnStart {

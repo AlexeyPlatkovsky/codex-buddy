@@ -43,6 +43,7 @@ use super::thread_input::can_accept_direct_input;
 use super::thread_processor::THREAD_LIST_DEFAULT_LIMIT;
 use super::thread_processor::THREAD_LIST_MAX_LIMIT;
 use super::turn_processor::validate_user_input_image_urls;
+use crate::queue_runtime::QueueRuntime;
 
 const DIRECT_INPUT_TO_UNLOADED_SUBAGENT_ERROR: &str =
     "direct app-server input is not allowed for unloaded spawned sub-agents";
@@ -51,7 +52,7 @@ pub(crate) struct ThreadQueueRequestProcessor {
     thread_manager: Arc<ThreadManager>,
     thread_store: Arc<dyn ThreadStore>,
     outgoing: Arc<OutgoingMessageSender>,
-    service: Option<Arc<QueuedItemService>>,
+    runtime: QueueRuntime,
 }
 
 impl ThreadQueueRequestProcessor {
@@ -59,13 +60,13 @@ impl ThreadQueueRequestProcessor {
         thread_manager: Arc<ThreadManager>,
         thread_store: Arc<dyn ThreadStore>,
         outgoing: Arc<OutgoingMessageSender>,
-        service: Option<Arc<QueuedItemService>>,
+        runtime: QueueRuntime,
     ) -> Self {
         Self {
             thread_manager,
             thread_store,
             outgoing,
-            service,
+            runtime,
         }
     }
 
@@ -229,9 +230,9 @@ impl ThreadQueueRequestProcessor {
     }
 
     fn service(&self) -> Result<&QueuedItemService, JSONRPCErrorError> {
-        self.service
-            .as_deref()
-            .ok_or_else(|| invalid_request("user message queue is unavailable"))
+        self.runtime
+            .service()
+            .ok_or_else(QueueRuntime::unavailable_error)
     }
 
     async fn require_thread(
