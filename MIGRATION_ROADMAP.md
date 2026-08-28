@@ -18,10 +18,10 @@ Repository and branch:
 | Fork remote | `origin` → `AlexeyPlatkovsky/codex-buddy` |
 | Upstream remote | `upstream` → `openai/codex` |
 | Planning source | `.taskpilot/` |
-| Next pruning task | `CB-20` |
-| Runtime pruning sequence | `CB-20`, then `CB-45` through `CB-52` |
-| Measurement task | `CB-21` |
-| Cross-platform task | `CB-22` |
+| Runtime pruning sequence | `CB-20`, then `CB-45` through `CB-52` (completed) |
+| Measurement task | `CB-21` (hosted evidence run `33205340928`) |
+| Cross-platform task | `CB-22` (native run `33203764981`) |
+| Upstream workflow | `CB-35` (completed) |
 
 Run these read-only checks before editing:
 
@@ -35,11 +35,12 @@ taskpilot --json item show CB-20
 taskpilot validate
 ```
 
-Expected state after the Stage 1 checkpoint:
+Current migration checkpoint:
 
 - The Stage 1 implementation commit is `77e483d3dd Gate plugin runtime behind core feature`.
 - The worktree is clean.
-- `CB-19` is done. Continue with the `CB-20` → `CB-45`…`CB-52` chain; `CB-21`, `CB-22`, and `CB-35` remain follow-up work.
+- `CB-19`, `CB-20`, `CB-21`, `CB-35`, and `CB-45` through `CB-52` are done. `CB-22`
+  remains open for native macOS x86_64 evidence and automatic postmerge integration.
 - `CB-1` (explicit config-driven runtime) and `CB-23` (right-side subagent tree) are done.
 
 ## Product boundary
@@ -103,7 +104,7 @@ At this checkpoint:
 | Buddy normal graph contains `codex-plugin` | No |
 | Buddy normal graph contains `codex-core-plugins` | No |
 | Buddy normal graph contains `codex-app-server` | Yes, intentionally for now |
-| Approximate unique normal graph nodes | 1,289 after Stage 1, down from the 1,304 baseline |
+| Unique normal graph nodes | 1,330 at runtime-pruning closure, down from 1,331 at the measurement baseline |
 
 Useful graph commands:
 
@@ -384,9 +385,9 @@ App-server must remain for now, but its unconditional extension dependencies sho
   preflight, Bazel lock refresh, scoped fix, final formatting, and diff checks passed. The Full
   app-server host test compiled but could not reach assertions because package-scoped Cargo did not
   stage the existing `codex-code-mode-host` binary fixture; no runtime assertion failed.
-- Final review found no P0/P1 or compatibility issue. The generated target tree is 26 GiB and remains
-  queued for permanent cleanup because an unrelated active Cargo feature-tree process correctly
-  triggers the cleanup guard.
+- Final review found no P0/P1 or compatibility issue. The later generated 26 GiB target tree was
+  permanently removed after the cleanup guard proved the unrelated active Cargo feature-tree
+  process held no target files.
 
 ### Runtime-pruning closure evidence
 
@@ -414,11 +415,12 @@ App-server must remain for now, but its unconditional extension dependencies sho
   the current normal-graph count rather than reusing the older 1,287-node observation. CB-22
   remains the unblocked native release matrix handoff for macOS arm64, macOS x86_64, Linux x86_64,
   Linux arm64, and Windows x86_64. Neither is a completed CB-52 measurement.
-- `bash -n`, `taskpilot validate`, and `git diff --check` pass for this closure. No broad build,
-  graph preflight, or artifact cleanup was rerun while unrelated `cargo tree` PID 51403 remained
-  active and `codex-rs/target` was 26 GiB. The dedicated `buddy_slim` change output now detects
-  script-only preflight edits; those edits select only the Slim-boundary job, while Rust and
-  workflow changes retain their existing broader CI selection.
+- `bash -n`, `taskpilot validate`, and `git diff --check` pass for this closure. No broad build or
+  graph preflight was rerun while unrelated `cargo tree` PID 51403 remained active. After proving
+  that exact read-only process held no target files, the 26 GiB tree was permanently removed. The
+  dedicated `buddy_slim` change output now detects script-only preflight edits; those edits select
+  only the Slim-boundary job, while Rust and workflow changes retain their existing broader CI
+  selection.
 
 ### Build artifact cleanup guard
 
@@ -438,6 +440,10 @@ App-server must remain for now, but its unconditional extension dependencies sho
   `cargo tree -e features --no-dedupe` queries. Use the checked-in deduplicated preflight or a
   targeted inverse feature query; piping the expanded graph through `head` does not bound Cargo's
   recursive work.
+- A later 26 GiB target tree was inspected while the pre-existing unbounded `cargo tree` command
+  was still printing. The process held no target files, so the hardened cleanup script recognized
+  that exact read-only subcommand and permanently removed the target without interrupting Cargo.
+  Free space increased from about 525 GiB to 550 GiB; nothing was moved to Trash.
 
 Current unconditional or broadly included candidates include:
 
@@ -504,6 +510,48 @@ Do not remove:
 
 ## Stage 4: measurement
 
+Status: completed in hosted run `33205340928`; TaskPilot `CB-21` is done.
+
+The checked-in harness compares baseline `021111061d` with runtime-pruning closure `326747461d`
+on one host/target/linker/profile. It records normal dependency nodes, forbidden roots, release and
+temporarily stripped size, parser-process launches, first terminal output, first qualified TUI
+frame, first-output RSS, bounded child-process observations, release-profile/environment settings,
+and disk cleanup deltas. Baseline and current worktrees/targets are permanently deleted between
+revisions and the final report is emitted only after cleanup.
+
+The report does not mislabel unavailable evidence: privileged true-cold cache eviction, stable idle
+RSS, in-process service tracing, and a model first-turn scenario remain explicit limitations.
+
+### Hosted measurement result
+
+Run `33205340928` compared `021111061d86417b9bead7cd47bf5c0c3a21d34b` with
+`326747461d58c873c50529ba363d2349577b7118` on Linux x86_64, Rust 1.95.0, the
+Cargo-default linker, `CARGO_INCREMENTAL=0`, and the same thin-LTO release profile.
+The uploaded JSON has SHA-256
+`43b3e9c481c9570d08bfff681c8e34d0abbf17432f8553caefe5d95440b26e1d` and 30-day
+workflow-artifact retention.
+
+| Metric | Baseline | Current | Delta |
+|---|---:|---:|---:|
+| Unique normal dependency nodes | 1,331 | 1,330 | -1 |
+| Unstripped release binary | 987,346,640 B | 967,450,136 B | -19,896,504 B (-2.015%) |
+| Temporarily stripped binary | 203,310,872 B | 199,288,736 B | -4,022,136 B (-1.978%) |
+| First measured parser-process launch | 7.676 ms | 7.649 ms | -0.027 ms |
+| Five-run warm parser-process mean | 7.500 ms | 7.517 ms | +0.017 ms |
+| First qualified 80x24 TUI frame | 106.701 ms | 107.094 ms | +0.393 ms |
+| RSS at first TUI output | 23,356 KiB | 23,052 KiB | -304 KiB |
+
+The baseline graph still contained `codex-code-mode` and `codex-code-mode-protocol`; the current
+forbidden-root set is empty. Neither sampled TUI observation found a child process. The small timing
+deltas are noise-scale and are not claimed as a runtime-startup improvement. The linked-binary
+reduction is real but does not meet the 15% release-size gate; publishing therefore still requires
+an explicitly approved size-gate exception or further pruning.
+
+Per-revision permanent cleanup reclaimed 7,726,919,680 B for the baseline and 7,563,227,136 B for
+the current build. Final workspace-root cleanup reclaimed the remaining 407,642,112 B before the
+JSON was emitted. Runner-wide free space ended 1,372,803,072 B below its initial value because
+toolchain/shared runner caches live outside the guarded workspace measurement root.
+
 Use `CB-21`. Establish repeatable baselines rather than anecdotal timing.
 
 Capture at minimum:
@@ -521,6 +569,27 @@ Capture at minimum:
 Record commit hashes, OS, target triple, Rust version, linker, feature set, and commands with every result.
 
 ## Stage 5: CI and platforms
+
+Status: in progress in TaskPilot `CB-22`. Manual native run `33203764981` at
+`68be9f217757e9b8cbe754da3f7f8c445ba3c59a` completed successfully. Every automatic lane built the
+default Coding release composition, verified the native host target, passed `--version` and
+`exec --help` smoke checks, and permanently removed its exact runner-temporary Cargo target.
+
+| Native lane | Runner | Result |
+|---|---|---|
+| macOS arm64 | `macos-15` | passed |
+| Linux x86_64 | `ubuntu-24.04` | passed |
+| Linux arm64 | `ubuntu-24.04-arm` | passed |
+| Windows x86_64 | `windows-2025` | passed |
+| macOS x86_64 | opt-in self-hosted | pending; lane intentionally skipped because no Intel runner is configured |
+
+The direct workflow run is authoritative native evidence. The existing `postmerge-ci` parent had
+repeatedly ended in `startup_failure` before creating jobs, including run `33206203918` at main
+`10e22963dac4`. GitHub's run annotation identifies the exact permission-chain error: nested V8
+builds requested `actions: read` while the caller allowed `actions: none`. The final migration
+change grants `actions: read` and `contents: read` only to the V8 reusable-workflow call. A green
+automatic main run remains required before claiming the repaired postmerge release gate. Native
+macOS Intel remains an explicit opt-in self-hosted lane until a runner is configured.
 
 Use `CB-22`.
 
@@ -650,6 +719,26 @@ Use `CB-20` and `CB-45` through `CB-52` for the ordered runtime-removal slices, 
 | Measurement | Startup, binary size, dependency count, and runtime initialization deltas are reproducible and recorded. |
 | Upstream maintenance | Sync conflicts remain localized to feature composition and small boundary modules. |
 
+## Remaining migration gates
+
+The runtime-pruning implementation, compatibility work, hosted measurement, four automatic native
+platform lanes, cleanup guard, and upstream-sync hardening are complete. The parent feature
+`CB-18` and epic `CB-12` remain open for these evidence/release decisions:
+
+1. Meet the 15% stripped release-binary reduction target or approve a documented exception. The
+   measured reduction is 1.978%, so dependency exclusion is proven but the size gate is not met.
+2. Configure an Intel macOS self-hosted runner and execute the opt-in native x86_64 lane, or approve
+   an explicit supported-platform exception.
+3. Verify the scoped `postmerge-ci` V8 permission fix on main so the green native matrix runs
+   automatically, then retain the successful run URL as release evidence.
+4. If stronger performance claims are required, collect the explicitly missing privileged
+   true-cold, stable idle-RSS, in-process initialization, and model-backed first-turn measurements.
+   The current report deliberately makes no claim from unavailable evidence.
+
 ## Next-session recommended first action
 
-Upstream advanced to `868c9edb0d` after the Stage 1 checkpoint. Land and validate a sync-only ordinary merge before Stage 2. Then execute `CB-20`: make Buddy select an explicit coding app-server composition while Full Cargo and Bazel retain their current behavior. Do not remove the in-process app-server itself; that remains a separate architecture decision.
+Verify one automatic main-branch native run after the scoped `postmerge-ci` V8 permission fix. Keep
+`CB-22` open until that evidence and native Intel macOS evidence (or an approved exception) exist.
+Treat the 15% size gate as a release decision: continue pruning in a new reviewable TaskPilot slice
+or record explicit approval for the measured 1.978% result. Do not remove the in-process app-server
+as part of either follow-up; that remains a separate architecture decision.
