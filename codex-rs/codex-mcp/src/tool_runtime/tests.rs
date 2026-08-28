@@ -1,3 +1,4 @@
+// Cache invariants remain covered at the MCP ownership boundary.
 use super::persistence::CODEX_APPS_TOOLS_CACHE_MAX_BYTES;
 use super::persistence::CODEX_APPS_TOOLS_CACHE_SCHEMA_VERSION;
 use super::persistence::read_cached_codex_apps_tools;

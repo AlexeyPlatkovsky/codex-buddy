@@ -1,4 +1,4 @@
-//! Shared runtime snapshot for connector-backed MCP tools.
+//! Shared runtime snapshot for Codex Apps MCP tools.
 //!
 //! Runtime snapshots are process-local live state scoped by account and
 //! workspace. Disk is best-effort cold-start persistence; a context reads it

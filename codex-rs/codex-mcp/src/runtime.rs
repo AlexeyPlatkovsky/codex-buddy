@@ -13,11 +13,11 @@ use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 
+use crate::ConnectorRuntimeContextKey;
+use crate::ConnectorRuntimeManager;
 use arc_swap::ArcSwap;
 use async_channel::Sender;
 use codex_config::types::McpServerDisabledReason;
-use codex_connectors::ConnectorRuntimeContextKey;
-use codex_connectors::ConnectorRuntimeManager;
 use codex_exec_server::Environment;
 use codex_exec_server::EnvironmentManager;
 use codex_exec_server::HttpClient;

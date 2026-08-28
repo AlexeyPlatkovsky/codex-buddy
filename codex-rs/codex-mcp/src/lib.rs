@@ -28,9 +28,9 @@ pub use tools::ToolInfo;
 pub use trusted_access::TrustedAccessContext;
 
 /// Backward-compatible name for the shared Codex Apps tools runtime.
-pub type CodexAppsToolsCache = codex_connectors::ConnectorRuntimeManager<ToolInfo>;
+pub type CodexAppsToolsCache = ConnectorRuntimeManager<ToolInfo>;
 /// Backward-compatible name for the Codex Apps runtime context key.
-pub type CodexAppsToolsCacheKey = codex_connectors::ConnectorRuntimeContextKey;
+pub type CodexAppsToolsCacheKey = ConnectorRuntimeContextKey;
 
 pub use catalog::McpCatalogBuilder;
 pub use catalog::McpEnvironmentAuthority;
@@ -56,8 +56,6 @@ pub use auth_elicitation::auth_elicitation_id;
 pub use auth_elicitation::build_auth_elicitation;
 pub use auth_elicitation::build_auth_elicitation_plan;
 pub use auth_elicitation::connector_auth_failure_from_tool_result;
-/// Backward-compatible name for the Codex Apps runtime context key builder.
-pub use codex_connectors::connector_runtime_context_key as codex_apps_tools_cache_key;
 pub use mcp::codex_apps_mcp_server_config;
 pub use mcp::configured_mcp_servers;
 pub use mcp::effective_mcp_servers;
@@ -70,6 +68,17 @@ pub use plugin_config::PluginMcpServerParseError;
 pub use plugin_config::parse_agent_plugin_mcp_config;
 pub use plugin_config::parse_executor_plugin_mcp_config;
 pub use plugin_config::parse_plugin_mcp_config;
+pub use tool_runtime::ConnectorRuntimeContext;
+pub use tool_runtime::ConnectorRuntimeContextKey;
+pub use tool_runtime::ConnectorRuntimeFetchSource;
+pub use tool_runtime::ConnectorRuntimeFetchTicket;
+pub use tool_runtime::ConnectorRuntimeManager;
+pub use tool_runtime::ConnectorRuntimePayload;
+pub use tool_runtime::ConnectorRuntimeSnapshot;
+pub use tool_runtime::connector_runtime_cache_path;
+/// Backward-compatible name for the Codex Apps runtime context key builder.
+pub use tool_runtime::connector_runtime_context_key as codex_apps_tools_cache_key;
+pub use tool_runtime::connector_runtime_context_key;
 
 pub use mcp::McpServerStatusSnapshot;
 pub use mcp::McpSnapshotDetail;
@@ -112,5 +121,6 @@ pub(crate) mod rmcp_client;
 pub(crate) mod runtime;
 pub(crate) mod server;
 mod tool_catalog_cache;
+mod tool_runtime;
 pub(crate) mod tools;
 mod trusted_access;

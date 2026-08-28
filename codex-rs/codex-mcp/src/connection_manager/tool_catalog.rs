@@ -6,7 +6,6 @@ use std::time::Instant;
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
-use codex_connectors::ConnectorRuntimeFetchSource;
 use futures::future::join_all;
 use tracing::Instrument;
 use tracing::instrument;
@@ -15,6 +14,7 @@ use tracing::trace_span;
 
 use super::McpConnectionSet;
 use super::McpServerMetadata;
+use crate::ConnectorRuntimeFetchSource;
 use crate::binding::McpBinding;
 use crate::binding::PreparedMcpCall;
 use crate::binding_clients::McpBindingClients;

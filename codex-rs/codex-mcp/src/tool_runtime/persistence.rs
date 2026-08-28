@@ -1,4 +1,4 @@
-//! Bounded, atomic persistence for connector runtime snapshots.
+//! Bounded, atomic persistence for Codex Apps runtime snapshots.
 
 use std::fs::File;
 use std::io::Read;

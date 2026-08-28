@@ -3,6 +3,7 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use crate::ConnectorRuntimeContextKey;
 use crate::runtime::McpRuntimeContext;
 use codex_api::SharedAuthProvider;
 use codex_config::AppToolApproval;
@@ -11,7 +12,6 @@ use codex_config::McpServerConfig;
 use codex_config::McpServerTransportConfig;
 use codex_config::types::AuthKeyringBackendKind;
 use codex_config::types::OAuthCredentialsStoreMode;
-use codex_connectors::ConnectorRuntimeContextKey;
 use codex_exec_server::Environment;
 use codex_login::CodexAuth;
 use codex_protocol::mcp::ClientMcpExtensions;

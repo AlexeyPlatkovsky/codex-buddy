@@ -21,6 +21,8 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 use std::time::Instant;
 
+use crate::ConnectorRuntimeContext;
+use crate::ConnectorRuntimeFetchSource;
 use crate::codex_apps::normalize_codex_apps_callable_name;
 use crate::codex_apps::normalize_codex_apps_callable_namespace;
 use crate::codex_apps::normalize_codex_apps_tool_title;
@@ -49,8 +51,6 @@ use codex_config::McpServerConfig;
 use codex_config::McpServerTransportConfig;
 use codex_config::types::AuthKeyringBackendKind;
 use codex_config::types::OAuthCredentialsStoreMode;
-use codex_connectors::ConnectorRuntimeContext;
-use codex_connectors::ConnectorRuntimeFetchSource;
 use codex_exec_server::Environment;
 use codex_protocol::mcp::ClientMcpExtensions;
 use codex_protocol::mcp::McpServerInfo;
