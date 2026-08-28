@@ -3,9 +3,9 @@ id: CB-45
 title: Prune queue and detached-review extensions
 priority: high
 type: task
-status: in_progress
+status: done
 created_at: '2026-08-28T15:35:24Z'
-updated_at: '2026-08-28T16:10:32Z'
+updated_at: '2026-08-28T16:31:38Z'
 parent_id: CB-18
 tags:
 - app-server

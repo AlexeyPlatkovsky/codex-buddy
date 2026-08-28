@@ -308,6 +308,14 @@ App-server must remain for now, but its unconditional extension dependencies sho
 - Buddy remains at 1,289 unique normal nodes with plugins/connectors absent; Full retains them. `Cargo.lock` and `MODULE.bazel.lock` did not change.
 - `8fac8bd7aa` moves the existing Slim dependency assertions into `scripts/buddy_release/dependency_preflight.sh`; the reusable preflight passes locally with locked Cargo operations.
 
+### Queue and detached-review completion record
+
+- `53ee214a32` makes `codex-queue-extension` and `codex-agent-extension` optional Full features. Buddy/Coding omits both; Full retains both.
+- All six `thread/queue/*` request variants and detached `review/start` remain in app-server v2. Coding returns stable `-32600` unavailable errors; inline review remains active.
+- Persistent `codex queue` TUI support is Full-only. The in-session composer follow-up queue and Core subagents/right panel are unchanged.
+- Slim unavailable/inline tests passed 3/3; Full queue/detached tests passed 2/2; Full TUI queue tests passed 2/2. Coding/Full compile checks and the reusable graph preflight passed.
+- Buddy graph decreased from 1,289 to 1,287 unique normal nodes. No Cargo or Bazel lockfile changed.
+
 Current unconditional or broadly included candidates include:
 
 - `codex-agent-extension`
