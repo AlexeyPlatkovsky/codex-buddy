@@ -1,124 +1,30 @@
-use codex_app_server_protocol::AppBranding as ApiAppBranding;
-use codex_app_server_protocol::AppInfo as ApiAppInfo;
-use codex_app_server_protocol::AppMetadata as ApiAppMetadata;
-use codex_app_server_protocol::AppReview as ApiAppReview;
-use codex_app_server_protocol::AppScreenshot as ApiAppScreenshot;
-use codex_connectors::AppBranding;
-use codex_connectors::AppInfo;
-use codex_connectors::AppMetadata;
-use codex_connectors::AppReview;
-use codex_connectors::AppScreenshot;
+pub(crate) use codex_app_server_protocol::AppInfo;
 
-/// Converts the app-server wire type owned by `codex-app-server-protocol` into connector-domain
-/// app metadata owned by `codex-connectors`.
-///
-/// The types stay separate so app-server protocol ownership does not leak into the connector
-/// domain crate. Because this crate owns neither type, Rust's orphan rules require an explicit
-/// conversion function instead of a `From` implementation.
-pub(crate) fn app_info_from_api(app: ApiAppInfo) -> AppInfo {
-    let ApiAppInfo {
-        id,
-        name,
-        description,
-        logo_url,
-        logo_url_dark,
-        icon_assets,
-        icon_dark_assets,
-        distribution_channel,
-        branding,
-        app_metadata,
-        labels,
-        install_url,
-        is_accessible,
-        is_enabled,
-        plugin_display_names,
-    } = app;
-    AppInfo {
-        id,
-        name,
-        description,
-        logo_url,
-        logo_url_dark,
-        icon_assets,
-        icon_dark_assets,
-        distribution_channel,
-        branding: branding.map(app_branding_from_api),
-        app_metadata: app_metadata.map(app_metadata_from_api),
-        labels,
-        install_url,
-        is_accessible,
-        is_enabled,
-        plugin_display_names,
+pub(crate) fn connector_display_label(connector: &AppInfo) -> String {
+    connector.name.clone()
+}
+
+pub(crate) fn connector_mention_slug(connector: &AppInfo) -> String {
+    connector_mention_slug_from_name(&connector_display_label(connector))
+}
+
+pub(crate) fn connector_mention_slug_from_name(name: &str) -> String {
+    let mut normalized = String::with_capacity(name.len());
+    for character in name.chars() {
+        if character.is_ascii_alphanumeric() {
+            normalized.push(character.to_ascii_lowercase());
+        } else {
+            normalized.push('-');
+        }
+    }
+    let normalized = normalized.trim_matches('-');
+    if normalized.is_empty() {
+        "app".to_string()
+    } else {
+        normalized.to_string()
     }
 }
 
-fn app_branding_from_api(branding: ApiAppBranding) -> AppBranding {
-    let ApiAppBranding {
-        category,
-        developer,
-        website,
-        privacy_policy,
-        terms_of_service,
-        is_discoverable_app,
-    } = branding;
-    AppBranding {
-        category,
-        developer,
-        website,
-        privacy_policy,
-        terms_of_service,
-        is_discoverable_app,
-    }
-}
-
-fn app_review_from_api(review: ApiAppReview) -> AppReview {
-    let ApiAppReview { status } = review;
-    AppReview { status }
-}
-
-fn app_screenshot_from_api(screenshot: ApiAppScreenshot) -> AppScreenshot {
-    let ApiAppScreenshot {
-        url,
-        file_id,
-        user_prompt,
-    } = screenshot;
-    AppScreenshot {
-        url,
-        file_id,
-        user_prompt,
-    }
-}
-
-fn app_metadata_from_api(metadata: ApiAppMetadata) -> AppMetadata {
-    let ApiAppMetadata {
-        review,
-        categories,
-        sub_categories,
-        seo_description,
-        screenshots,
-        developer,
-        version,
-        version_id,
-        version_notes,
-        first_party_requires_install,
-        show_in_composer_when_unlinked,
-    } = metadata;
-    AppMetadata {
-        review: review.map(app_review_from_api),
-        categories,
-        sub_categories,
-        seo_description,
-        screenshots: screenshots.map(|screenshots| {
-            screenshots
-                .into_iter()
-                .map(app_screenshot_from_api)
-                .collect()
-        }),
-        developer,
-        version,
-        version_id,
-        version_notes,
-        first_party_requires_install,
-        show_in_composer_when_unlinked,
-    }
-}
+#[cfg(test)]
+#[path = "app_info_tests.rs"]
+mod tests;

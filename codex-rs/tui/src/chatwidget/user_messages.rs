@@ -11,9 +11,12 @@ use std::collections::VecDeque;
 use std::ops::Deref;
 use std::path::PathBuf;
 
+use crate::app_info::connector_mention_slug_from_name;
 use crate::bottom_pane::LocalImageAttachment;
 use crate::bottom_pane::MentionBinding;
 use crate::bottom_pane::QueuedInputAction;
+use crate::plugin_models::PLUGIN_TEXT_MENTION_SIGIL;
+use crate::plugin_models::TOOL_MENTION_SIGIL;
 use codex_app_server_protocol::TextElement as AppServerTextElement;
 use codex_app_server_protocol::UserInput;
 use codex_protocol::config_types::CollaborationMode;
@@ -21,8 +24,6 @@ use codex_protocol::config_types::CollaborationModeMask;
 use codex_protocol::models::local_image_label_text;
 use codex_protocol::user_input::ByteRange;
 use codex_protocol::user_input::TextElement;
-use codex_utils_plugins::mention_syntax::PLUGIN_TEXT_MENTION_SIGIL;
-use codex_utils_plugins::mention_syntax::TOOL_MENTION_SIGIL;
 
 use super::ChatWidget;
 
@@ -572,7 +573,7 @@ pub(crate) fn mention_bindings_from_user_inputs(
                         .unwrap_or(plugin_id)
                         .to_string()
                 } else if path.starts_with("app://") {
-                    codex_connectors::metadata::connector_mention_slug_from_name(name)
+                    connector_mention_slug_from_name(name)
                 } else {
                     name.clone()
                 };

@@ -3,20 +3,21 @@ use std::collections::HashSet;
 
 use super::ChatWidget;
 use crate::app_event::AppEvent;
+use crate::app_info::AppInfo;
+use crate::app_info::connector_mention_slug;
 use crate::bottom_pane::SelectionItem;
 use crate::bottom_pane::SelectionViewParams;
 use crate::bottom_pane::SkillsToggleItem;
 use crate::bottom_pane::SkillsToggleView;
 use crate::bottom_pane::popup_consts::standard_popup_hint_line;
+use crate::plugin_models::TOOL_MENTION_SIGIL;
 use crate::skills_helpers::skill_description;
 use crate::skills_helpers::skill_display_name;
 use codex_app_server_protocol::SkillMetadata;
 use codex_app_server_protocol::SkillsListEntry;
 use codex_app_server_protocol::SkillsListResponse;
-use codex_connectors::AppInfo;
 use codex_protocol::parse_command::ParsedCommand;
 use codex_utils_absolute_path::AbsolutePathBuf;
-use codex_utils_plugins::mention_syntax::TOOL_MENTION_SIGIL;
 
 impl ChatWidget {
     pub(crate) fn open_skills_list(&mut self) {
@@ -253,12 +254,12 @@ pub(crate) fn find_app_mentions(
 
     let mut slug_counts: HashMap<String, usize> = HashMap::new();
     for app in apps.iter().filter(|app| is_app_mentionable(app)) {
-        let slug = codex_connectors::metadata::connector_mention_slug(app);
+        let slug = connector_mention_slug(app);
         *slug_counts.entry(slug).or_insert(0) += 1;
     }
 
     for app in apps.iter().filter(|app| is_app_mentionable(app)) {
-        let slug = codex_connectors::metadata::connector_mention_slug(app);
+        let slug = connector_mention_slug(app);
         let slug_count = slug_counts.get(&slug).copied().unwrap_or(0);
         if mentions.names.contains(&slug)
             && !explicit_names.contains(&slug)

@@ -307,23 +307,25 @@ use self::slash_input::SubmissionValidation;
 use crate::app_event::AppEvent;
 use crate::app_event::ConnectorsSnapshot;
 use crate::app_event_sender::AppEventSender;
+use crate::app_info::AppInfo;
+use crate::app_info::connector_display_label;
+use crate::app_info::connector_mention_slug;
 use crate::bottom_pane::LocalImageAttachment;
 use crate::bottom_pane::MentionBinding;
 use crate::bottom_pane::textarea::TextArea;
 use crate::clipboard_paste::normalize_pasted_path;
 use crate::clipboard_paste::pasted_image_format;
 use crate::history_cell;
+#[cfg(test)]
+use crate::plugin_models::AppConnectorId;
+use crate::plugin_models::PluginCapabilitySummary;
 use crate::skills_helpers::skill_display_name;
 use crate::tui::FrameRequester;
 use crate::ui_consts::LIVE_PREFIX_COLS;
 #[cfg(test)]
 use codex_app_server_protocol::SkillInterface;
 use codex_app_server_protocol::SkillMetadata;
-use codex_connectors::AppInfo;
 use codex_file_search::FileMatch;
-#[cfg(test)]
-use codex_plugin::AppConnectorId;
-use codex_plugin::PluginCapabilitySummary;
 use std::cell::OnceCell;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -4281,9 +4283,9 @@ impl ChatComposer {
                 if !connector.is_accessible || !connector.is_enabled {
                     continue;
                 }
-                let display_name = codex_connectors::metadata::connector_display_label(connector);
+                let display_name = connector_display_label(connector);
                 let description = Some(Self::connector_brief_description(connector));
-                let slug = codex_connectors::metadata::connector_mention_slug(connector);
+                let slug = connector_mention_slug(connector);
                 let search_terms = vec![display_name.clone(), connector.id.clone(), slug.clone()];
                 let connector_id = connector.id.as_str();
                 mentions.push(MentionItem {

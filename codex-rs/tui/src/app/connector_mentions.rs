@@ -10,7 +10,6 @@ use codex_app_server_protocol::AppsReadParams;
 use codex_app_server_protocol::AppsReadResponse;
 use codex_app_server_protocol::ClientRequest;
 use codex_app_server_protocol::RequestId;
-use codex_connectors::AppInfo;
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -18,6 +17,7 @@ use super::App;
 use super::background_requests::fetch_connectors_list;
 use crate::app_event::AppEvent;
 use crate::app_event::ConnectorsSnapshot;
+use crate::app_info::AppInfo;
 use crate::app_server_session::AppServerSession;
 use crate::chatwidget::ConnectorScopeGeneration;
 

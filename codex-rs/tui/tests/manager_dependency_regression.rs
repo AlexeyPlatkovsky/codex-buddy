@@ -19,6 +19,20 @@ fn rust_sources_under(dir: &Path) -> Vec<PathBuf> {
     files
 }
 
+fn source_violations(sources: &[PathBuf], forbidden: &[&str]) -> Vec<String> {
+    sources
+        .iter()
+        .flat_map(|path| {
+            let contents = fs::read_to_string(path).expect("Rust source file should be readable");
+            let path_display = path.display().to_string();
+            forbidden
+                .iter()
+                .filter(move |needle| contents.contains(**needle))
+                .map(move |needle| format!("{path_display} contains `{needle}`"))
+        })
+        .collect()
+}
+
 #[test]
 fn tui_runtime_source_does_not_depend_on_manager_escape_hatches() {
     let src_file = codex_utils_cargo_bin::find_resource!("src/chatwidget.rs")
@@ -34,21 +48,34 @@ fn tui_runtime_source_does_not_depend_on_manager_escape_hatches() {
         "thread_manager(",
     ];
 
-    let violations: Vec<String> = sources
-        .iter()
-        .flat_map(|path| {
-            let contents = fs::read_to_string(path).expect("Rust source file should be readable");
-            let path_display = path.display().to_string();
-            forbidden
-                .iter()
-                .filter(move |needle| contents.contains(**needle))
-                .map(move |needle| format!("{path_display} contains `{needle}`"))
-        })
-        .collect();
+    let violations = source_violations(&sources, &forbidden);
 
     assert!(
         violations.is_empty(),
         "unexpected manager dependency regression(s):\n{}",
+        violations.join("\n")
+    );
+}
+
+#[test]
+fn tui_runtime_source_does_not_depend_on_plugin_implementation_crates() {
+    let src_file = codex_utils_cargo_bin::find_resource!("src/chatwidget.rs")
+        .expect("chatwidget source runfile should resolve");
+    let src_dir = src_file
+        .parent()
+        .expect("chatwidget source file should have a parent");
+    let sources = rust_sources_under(src_dir);
+    let forbidden = [
+        "codex_connectors",
+        "codex_core_plugins",
+        "codex_plugin",
+        "codex_utils_plugins",
+    ];
+    let violations = source_violations(&sources, &forbidden);
+
+    assert!(
+        violations.is_empty(),
+        "unexpected plugin implementation dependency regression(s):\n{}",
         violations.join("\n")
     );
 }
