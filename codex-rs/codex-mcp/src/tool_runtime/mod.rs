@@ -1,9 +1,8 @@
-//! Shared runtime snapshot for Codex Apps MCP tools.
+//! Shared runtime snapshot for MCP tools.
 //!
-//! Runtime snapshots are process-local live state scoped by account and
-//! workspace. Disk is best-effort cold-start persistence; a context reads it
-//! once when created and never rereads it. Full connector metadata is
-//! owned by the connector metadata store, not by this module.
+//! Runtime snapshots are process-local live state scoped by a caller-provided
+//! context key. Disk is best-effort cold-start persistence; a context reads it
+//! once when created and never rereads it.
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -17,37 +16,36 @@ use std::time::Instant;
 use std::time::SystemTime;
 
 use arc_swap::ArcSwapOption;
-use codex_login::CodexAuth;
 use codex_protocol::mcp::McpServerInfo;
 use serde::Deserialize;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
 use self::persistence::load_cached_codex_apps_server_info;
-use self::persistence::load_cached_connector_runtime_for_identity;
+use self::persistence::load_cached_mcp_tool_runtime_for_identity;
 use self::persistence::persist_codex_apps_cache;
 use self::persistence::server_info_cache_path;
 use self::persistence::tools_cache_path;
 
 const MCP_TOOLS_CACHE_PUBLISH_DURATION_METRIC: &str = "codex.mcp.tools.cache_publish.duration_ms";
 
-/// Values stored in the connector runtime's persisted tool snapshot.
+/// Values stored in the MCP tool runtime's persisted snapshot.
 ///
-/// The runtime uses the connector-owned Codex Apps cache layout for every
+/// The current persistence adapter uses the Codex Apps cache layout for every
 /// serializable, cloneable payload.
-pub trait ConnectorRuntimePayload: Clone + Serialize + DeserializeOwned {}
+pub trait McpToolRuntimePayload: Clone + Serialize + DeserializeOwned {}
 
-impl<T> ConnectorRuntimePayload for T where T: Clone + Serialize + DeserializeOwned {}
+impl<T> McpToolRuntimePayload for T where T: Clone + Serialize + DeserializeOwned {}
 
-/// The account and workspace identity of a connector runtime catalog.
+/// The account and workspace identity of an MCP tool runtime catalog.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct ConnectorRuntimeContextKey {
+pub struct McpToolRuntimeContextKey {
     account_id: Option<String>,
     chatgpt_user_id: Option<String>,
     is_workspace_account: bool,
 }
 
-impl ConnectorRuntimeContextKey {
+impl McpToolRuntimeContextKey {
     pub fn personal(account_id: Option<String>, chatgpt_user_id: Option<String>) -> Self {
         Self {
             account_id,
@@ -65,37 +63,28 @@ impl ConnectorRuntimeContextKey {
     }
 }
 
-/// Builds the connector runtime context key for the active Codex auth.
-pub fn connector_runtime_context_key(auth: Option<&CodexAuth>) -> ConnectorRuntimeContextKey {
-    let account_id = auth.and_then(CodexAuth::get_account_id);
-    let chatgpt_user_id = auth.and_then(CodexAuth::get_chatgpt_user_id);
-    if auth.is_some_and(CodexAuth::is_workspace_account) {
-        ConnectorRuntimeContextKey::workspace(account_id, chatgpt_user_id)
-    } else {
-        ConnectorRuntimeContextKey::personal(account_id, chatgpt_user_id)
-    }
-}
-
-/// Returns the persisted connector runtime tools cache path for the active auth identity.
-pub fn connector_runtime_cache_path(codex_home: &Path, auth: Option<&CodexAuth>) -> PathBuf {
-    let identity = ConnectorRuntimeIdentity {
+pub(crate) fn mcp_tool_runtime_cache_path(
+    codex_home: &Path,
+    key: McpToolRuntimeContextKey,
+) -> PathBuf {
+    let identity = McpToolRuntimeIdentity {
         codex_home: codex_home.to_path_buf(),
-        key: connector_runtime_context_key(auth),
+        key,
     };
     tools_cache_path(&identity)
 }
 
-/// One atomically published connector runtime state.
+/// One atomically published MCP tool runtime state.
 ///
 /// Tools remain raw and in response order. Local and managed configuration is
 /// intentionally applied by readers rather than persisted in this snapshot.
 #[derive(Debug, Clone)]
-pub struct ConnectorRuntimeSnapshot<T> {
+pub struct McpToolRuntimeSnapshot<T> {
     tools: Vec<T>,
     refreshed_at: SystemTime,
 }
 
-impl<T> ConnectorRuntimeSnapshot<T> {
+impl<T> McpToolRuntimeSnapshot<T> {
     pub fn tools(&self) -> &[T] {
         &self.tools
     }
@@ -111,16 +100,16 @@ impl<T> ConnectorRuntimeSnapshot<T> {
     }
 }
 
-/// Process-scoped registry of connector runtime state by account and workspace.
+/// Process-scoped registry of MCP tool runtime state by account and workspace.
 ///
 /// Contexts with the same identity share one live entry. Different identities
 /// remain independently available for clients that already hold their context.
-pub struct ConnectorRuntimeManager<T: ConnectorRuntimePayload> {
-    entries: Arc<Mutex<HashMap<ConnectorRuntimeIdentity, Arc<ConnectorRuntimeEntry<T>>>>>,
-    disk_cache: ConnectorRuntimeDiskCache,
+pub struct McpToolRuntimeManager<T: McpToolRuntimePayload> {
+    entries: Arc<Mutex<HashMap<McpToolRuntimeIdentity, Arc<McpToolRuntimeEntry<T>>>>>,
+    disk_cache: McpToolRuntimeDiskCache,
 }
 
-impl<T: ConnectorRuntimePayload> Clone for ConnectorRuntimeManager<T> {
+impl<T: McpToolRuntimePayload> Clone for McpToolRuntimeManager<T> {
     fn clone(&self) -> Self {
         Self {
             entries: Arc::clone(&self.entries),
@@ -129,53 +118,53 @@ impl<T: ConnectorRuntimePayload> Clone for ConnectorRuntimeManager<T> {
     }
 }
 
-impl<T: ConnectorRuntimePayload> Default for ConnectorRuntimeManager<T> {
+impl<T: McpToolRuntimePayload> Default for McpToolRuntimeManager<T> {
     fn default() -> Self {
         Self {
             entries: Arc::new(Mutex::new(HashMap::new())),
-            disk_cache: ConnectorRuntimeDiskCache::Enabled,
+            disk_cache: McpToolRuntimeDiskCache::Enabled,
         }
     }
 }
 
-impl<T: ConnectorRuntimePayload> ConnectorRuntimeManager<T> {
-    /// Constructs a process-local connector runtime that never reads or writes the disk cache.
+impl<T: McpToolRuntimePayload> McpToolRuntimeManager<T> {
+    /// Constructs a process-local MCP tool runtime that never reads or writes the disk cache.
     pub fn new_without_cache() -> Self {
         Self {
             entries: Arc::new(Mutex::new(HashMap::new())),
-            disk_cache: ConnectorRuntimeDiskCache::Disabled,
+            disk_cache: McpToolRuntimeDiskCache::Disabled,
         }
     }
 
     pub fn current_snapshot(
         &self,
         codex_home: PathBuf,
-        key: ConnectorRuntimeContextKey,
-    ) -> Option<Arc<ConnectorRuntimeSnapshot<T>>> {
+        key: McpToolRuntimeContextKey,
+    ) -> Option<Arc<McpToolRuntimeSnapshot<T>>> {
         self.context(codex_home, key).current_snapshot()
     }
 
     pub fn context(
         &self,
         codex_home: PathBuf,
-        key: ConnectorRuntimeContextKey,
-    ) -> ConnectorRuntimeContext<T> {
-        let identity = ConnectorRuntimeIdentity { codex_home, key };
+        key: McpToolRuntimeContextKey,
+    ) -> McpToolRuntimeContext<T> {
+        let identity = McpToolRuntimeIdentity { codex_home, key };
         let mut entries = lock_unpoisoned(&self.entries);
         let entry = entries
             .entry(identity.clone())
-            .or_insert_with(|| Arc::new(ConnectorRuntimeEntry::new(identity, self.disk_cache)))
+            .or_insert_with(|| Arc::new(McpToolRuntimeEntry::new(identity, self.disk_cache)))
             .clone();
-        ConnectorRuntimeContext { entry }
+        McpToolRuntimeContext { entry }
     }
 }
 
-/// Handle to one shared account/workspace connector runtime.
-pub struct ConnectorRuntimeContext<T: ConnectorRuntimePayload> {
-    entry: Arc<ConnectorRuntimeEntry<T>>,
+/// Handle to one shared account/workspace MCP tool runtime.
+pub struct McpToolRuntimeContext<T: McpToolRuntimePayload> {
+    entry: Arc<McpToolRuntimeEntry<T>>,
 }
 
-impl<T: ConnectorRuntimePayload> Clone for ConnectorRuntimeContext<T> {
+impl<T: McpToolRuntimePayload> Clone for McpToolRuntimeContext<T> {
     fn clone(&self) -> Self {
         Self {
             entry: Arc::clone(&self.entry),
@@ -183,8 +172,8 @@ impl<T: ConnectorRuntimePayload> Clone for ConnectorRuntimeContext<T> {
     }
 }
 
-impl<T: ConnectorRuntimePayload> ConnectorRuntimeContext<T> {
-    pub fn current_snapshot(&self) -> Option<Arc<ConnectorRuntimeSnapshot<T>>> {
+impl<T: McpToolRuntimePayload> McpToolRuntimeContext<T> {
+    pub fn current_snapshot(&self) -> Option<Arc<McpToolRuntimeSnapshot<T>>> {
         self.entry.current_snapshot.load_full()
     }
 
@@ -192,8 +181,8 @@ impl<T: ConnectorRuntimePayload> ConnectorRuntimeContext<T> {
         self.current_snapshot().is_some()
     }
 
-    pub fn begin_fetch(&self, source: ConnectorRuntimeFetchSource) -> ConnectorRuntimeFetchTicket {
-        ConnectorRuntimeFetchTicket {
+    pub fn begin_fetch(&self, source: McpToolRuntimeFetchSource) -> McpToolRuntimeFetchTicket {
+        McpToolRuntimeFetchTicket {
             generation: self
                 .entry
                 .next_fetch_generation
@@ -205,8 +194,8 @@ impl<T: ConnectorRuntimePayload> ConnectorRuntimeContext<T> {
 
     pub fn cached_server_info(&self) -> Option<McpServerInfo> {
         match self.entry.disk_cache {
-            ConnectorRuntimeDiskCache::Enabled => load_cached_codex_apps_server_info(self),
-            ConnectorRuntimeDiskCache::Disabled => None,
+            McpToolRuntimeDiskCache::Enabled => load_cached_codex_apps_server_info(self),
+            McpToolRuntimeDiskCache::Disabled => None,
         }
     }
 
@@ -225,18 +214,18 @@ impl<T: ConnectorRuntimePayload> ConnectorRuntimeContext<T> {
 
     pub fn publish_runtime_if_newest_accepted(
         &self,
-        ticket: ConnectorRuntimeFetchTicket,
+        ticket: McpToolRuntimeFetchTicket,
         server_info: &McpServerInfo,
         tools: Vec<T>,
-    ) -> Arc<ConnectorRuntimeSnapshot<T>> {
+    ) -> Arc<McpToolRuntimeSnapshot<T>> {
         match self.entry.disk_cache {
-            ConnectorRuntimeDiskCache::Enabled => self.publish_runtime_if_newest_accepted_with(
+            McpToolRuntimeDiskCache::Enabled => self.publish_runtime_if_newest_accepted_with(
                 ticket,
                 server_info,
                 tools,
                 persist_codex_apps_cache,
             ),
-            ConnectorRuntimeDiskCache::Disabled => self.publish_runtime_if_newest_accepted_with(
+            McpToolRuntimeDiskCache::Disabled => self.publish_runtime_if_newest_accepted_with(
                 ticket,
                 server_info,
                 tools,
@@ -247,11 +236,11 @@ impl<T: ConnectorRuntimePayload> ConnectorRuntimeContext<T> {
 
     fn publish_runtime_if_newest_accepted_with(
         &self,
-        ticket: ConnectorRuntimeFetchTicket,
+        ticket: McpToolRuntimeFetchTicket,
         server_info: &McpServerInfo,
         tools: Vec<T>,
-        persist: impl FnOnce(&ConnectorRuntimeContext<T>, &McpServerInfo, &ConnectorRuntimeSnapshot<T>),
-    ) -> Arc<ConnectorRuntimeSnapshot<T>> {
+        persist: impl FnOnce(&McpToolRuntimeContext<T>, &McpServerInfo, &McpToolRuntimeSnapshot<T>),
+    ) -> Arc<McpToolRuntimeSnapshot<T>> {
         let publish_start = Instant::now();
         let mut last_accepted_generation = lock_unpoisoned(&self.entry.last_accepted_generation);
         if ticket.generation <= *last_accepted_generation
@@ -266,7 +255,7 @@ impl<T: ConnectorRuntimePayload> ConnectorRuntimeContext<T> {
             return snapshot;
         }
 
-        let snapshot = Arc::new(ConnectorRuntimeSnapshot {
+        let snapshot = Arc::new(McpToolRuntimeSnapshot {
             tools,
             refreshed_at: SystemTime::now(),
         });
@@ -289,7 +278,7 @@ impl<T: ConnectorRuntimePayload> ConnectorRuntimeContext<T> {
 
     pub fn publish_if_newest_accepted(
         &self,
-        ticket: ConnectorRuntimeFetchTicket,
+        ticket: McpToolRuntimeFetchTicket,
         server_info: &McpServerInfo,
         tools: Vec<T>,
     ) -> Vec<T> {
@@ -300,12 +289,12 @@ impl<T: ConnectorRuntimePayload> ConnectorRuntimeContext<T> {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum ConnectorRuntimeFetchSource {
+pub enum McpToolRuntimeFetchSource {
     Startup,
     HardRefresh,
 }
 
-impl ConnectorRuntimeFetchSource {
+impl McpToolRuntimeFetchSource {
     fn as_str(self) -> &'static str {
         match self {
             Self::Startup => "startup",
@@ -314,27 +303,27 @@ impl ConnectorRuntimeFetchSource {
     }
 }
 
-pub struct ConnectorRuntimeFetchTicket {
+pub struct McpToolRuntimeFetchTicket {
     generation: u64,
-    source: ConnectorRuntimeFetchSource,
+    source: McpToolRuntimeFetchSource,
 }
 
-/// All live state owned by one connector identity.
-struct ConnectorRuntimeEntry<T: ConnectorRuntimePayload> {
-    identity: ConnectorRuntimeIdentity,
-    disk_cache: ConnectorRuntimeDiskCache,
-    current_snapshot: ArcSwapOption<ConnectorRuntimeSnapshot<T>>,
+/// All live state owned by one MCP tool runtime identity.
+struct McpToolRuntimeEntry<T: McpToolRuntimePayload> {
+    identity: McpToolRuntimeIdentity,
+    disk_cache: McpToolRuntimeDiskCache,
+    current_snapshot: ArcSwapOption<McpToolRuntimeSnapshot<T>>,
     next_fetch_generation: AtomicU64,
     last_accepted_generation: Mutex<u64>,
 }
 
-impl<T: ConnectorRuntimePayload> ConnectorRuntimeEntry<T> {
-    fn new(identity: ConnectorRuntimeIdentity, disk_cache: ConnectorRuntimeDiskCache) -> Self {
+impl<T: McpToolRuntimePayload> McpToolRuntimeEntry<T> {
+    fn new(identity: McpToolRuntimeIdentity, disk_cache: McpToolRuntimeDiskCache) -> Self {
         let current_snapshot = match disk_cache {
-            ConnectorRuntimeDiskCache::Enabled => {
-                load_cached_connector_runtime_for_identity(&identity).map(Arc::new)
+            McpToolRuntimeDiskCache::Enabled => {
+                load_cached_mcp_tool_runtime_for_identity(&identity).map(Arc::new)
             }
-            ConnectorRuntimeDiskCache::Disabled => None,
+            McpToolRuntimeDiskCache::Disabled => None,
         };
         Self {
             identity,
@@ -347,19 +336,19 @@ impl<T: ConnectorRuntimePayload> ConnectorRuntimeEntry<T> {
 }
 
 #[derive(Clone, Copy)]
-enum ConnectorRuntimeDiskCache {
+enum McpToolRuntimeDiskCache {
     Enabled,
     Disabled,
 }
 
-/// Everything that decides whether two connector runtime clients can share a snapshot.
+/// Everything that decides whether two MCP tool runtime clients can share a snapshot.
 ///
 /// The auth key says whose runtime catalog we are reading. `codex_home` keeps
 /// the persisted cache under the right home directory.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-struct ConnectorRuntimeIdentity {
+struct McpToolRuntimeIdentity {
     codex_home: PathBuf,
-    key: ConnectorRuntimeContextKey,
+    key: McpToolRuntimeContextKey,
 }
 
 fn emit_duration(metric: &str, duration: Duration, tags: &[(&str, &str)]) {

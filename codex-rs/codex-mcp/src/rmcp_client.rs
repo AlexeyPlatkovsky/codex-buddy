@@ -21,8 +21,8 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 use std::time::Instant;
 
-use crate::ConnectorRuntimeContext;
-use crate::ConnectorRuntimeFetchSource;
+use crate::McpToolRuntimeContext;
+use crate::McpToolRuntimeFetchSource;
 use crate::codex_apps::normalize_codex_apps_callable_name;
 use crate::codex_apps::normalize_codex_apps_callable_namespace;
 use crate::codex_apps::normalize_codex_apps_tool_title;
@@ -116,7 +116,7 @@ pub(crate) struct ManagedClient {
     pub(crate) tool_timeout: Option<Duration>,
     pub(crate) server_instructions: Option<String>,
     pub(crate) server_supports_sandbox_state_meta_capability: bool,
-    pub(crate) codex_apps_tools_cache_context: Option<ConnectorRuntimeContext<ToolInfo>>,
+    pub(crate) codex_apps_tools_cache_context: Option<McpToolRuntimeContext<ToolInfo>>,
 }
 
 impl ManagedClient {
@@ -125,7 +125,7 @@ impl ManagedClient {
         if let Some(tools) = self
             .codex_apps_tools_cache_context
             .as_ref()
-            .and_then(ConnectorRuntimeContext::current_tools)
+            .and_then(McpToolRuntimeContext::current_tools)
         {
             emit_duration(
                 MCP_TOOLS_LIST_DURATION_METRIC,
@@ -285,7 +285,7 @@ struct ManagedClientStartup {
     keyring_backend_kind: AuthKeyringBackendKind,
     tx_event: Option<Sender<Event>>,
     elicitation_requests: ElicitationRequestManager,
-    codex_apps_tools_cache_context: Option<ConnectorRuntimeContext<ToolInfo>>,
+    codex_apps_tools_cache_context: Option<McpToolRuntimeContext<ToolInfo>>,
     tool_catalog_cache_context: Option<McpToolCatalogCacheContext>,
     runtime_context: McpRuntimeContext,
     resolved_environment: std::result::Result<Option<Arc<Environment>>, String>,
@@ -405,7 +405,7 @@ pub(crate) struct AsyncManagedClient {
     pub(crate) client: ManagedClientFuture,
     pub(crate) is_codex_apps_mcp_server: bool,
     pub(crate) cached_server_info: Option<McpServerInfo>,
-    pub(crate) codex_apps_tools_cache_context: Option<ConnectorRuntimeContext<ToolInfo>>,
+    pub(crate) codex_apps_tools_cache_context: Option<McpToolRuntimeContext<ToolInfo>>,
     pub(crate) tool_catalog_cache_context: Option<McpToolCatalogCacheContext>,
     pub(crate) startup_complete: Arc<AtomicBool>,
     pub(crate) startup_reconnect: Option<Arc<CodexAppsStartupReconnect>>,
@@ -426,7 +426,7 @@ impl AsyncManagedClient {
         cancel_token: CancellationToken,
         tx_event: Option<Sender<Event>>,
         elicitation_requests: ElicitationRequestManager,
-        codex_apps_tools_cache_context: Option<ConnectorRuntimeContext<ToolInfo>>,
+        codex_apps_tools_cache_context: Option<McpToolRuntimeContext<ToolInfo>>,
         tool_catalog_cache_context: Option<McpToolCatalogCacheContext>,
         runtime_context: McpRuntimeContext,
         resolved_environment: std::result::Result<Option<Arc<Environment>>, String>,
@@ -442,7 +442,7 @@ impl AsyncManagedClient {
         let cached_server_info = if is_codex_apps_mcp_server {
             codex_apps_tools_cache_context
                 .as_ref()
-                .and_then(ConnectorRuntimeContext::cached_server_info)
+                .and_then(McpToolRuntimeContext::cached_server_info)
         } else {
             None
         };
@@ -545,7 +545,7 @@ impl AsyncManagedClient {
     pub(crate) fn has_cached_tools(&self) -> bool {
         self.codex_apps_tools_cache_context
             .as_ref()
-            .is_some_and(ConnectorRuntimeContext::has_current_tools)
+            .is_some_and(McpToolRuntimeContext::has_current_tools)
             || self
                 .tool_catalog_cache_context
                 .as_ref()
@@ -555,7 +555,7 @@ impl AsyncManagedClient {
     fn cached_tools(&self) -> Option<Vec<ToolInfo>> {
         self.codex_apps_tools_cache_context
             .as_ref()
-            .and_then(ConnectorRuntimeContext::current_tools)
+            .and_then(McpToolRuntimeContext::current_tools)
             .or_else(|| {
                 self.tool_catalog_cache_context
                     .as_ref()
@@ -922,7 +922,7 @@ async fn start_server_task(
     let list_start = Instant::now();
     let fetch_ticket = codex_apps_tools_cache_context
         .as_ref()
-        .map(|cache_context| cache_context.begin_fetch(ConnectorRuntimeFetchSource::Startup));
+        .map(|cache_context| cache_context.begin_fetch(McpToolRuntimeFetchSource::Startup));
     let client_tools = list_tools_for_client_uncached(
         &server_name,
         is_codex_apps_mcp_server,
@@ -1053,7 +1053,7 @@ struct StartServerTaskParams {
     startup_timeout: Option<Duration>, // TODO: cancel_token should handle this.
     tx_event: Option<Sender<Event>>,
     elicitation_requests: ElicitationRequestManager,
-    codex_apps_tools_cache_context: Option<ConnectorRuntimeContext<ToolInfo>>,
+    codex_apps_tools_cache_context: Option<McpToolRuntimeContext<ToolInfo>>,
     tool_catalog_cache_context: Option<McpToolCatalogCacheContext>,
     tool_catalog_fetch_ticket: Option<McpToolCatalogFetchTicket>,
     client_elicitation_capability: ElicitationCapability,

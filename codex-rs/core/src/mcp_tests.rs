@@ -59,7 +59,7 @@ async fn coding_projection_skips_automatic_mcp_contributors_and_servers() -> any
     let manager = McpManager::new_with_extensions(
         plugins_manager,
         extensions,
-        ConnectorRuntimeManager::default(),
+        McpToolRuntimeManager::default(),
     );
 
     assert_eq!(manager.runtime_servers(&coding).await, HashMap::new());

@@ -1,9 +1,9 @@
 use super::*;
-use crate::ConnectorRuntimeContext;
-use crate::ConnectorRuntimeContextKey;
-use crate::ConnectorRuntimeFetchSource;
-use crate::ConnectorRuntimeManager;
 use crate::McpBinding;
+use crate::McpToolRuntimeContext;
+use crate::McpToolRuntimeContextKey;
+use crate::McpToolRuntimeFetchSource;
+use crate::McpToolRuntimeManager;
 use crate::elicitation::ElicitationLifecycle;
 use crate::elicitation::ElicitationRequestManager;
 use crate::elicitation::ElicitationRequestRouter;
@@ -200,19 +200,19 @@ fn create_codex_apps_tools_cache_context(
     codex_home: PathBuf,
     account_id: Option<&str>,
     chatgpt_user_id: Option<&str>,
-) -> ConnectorRuntimeContext<ToolInfo> {
-    ConnectorRuntimeManager::<ToolInfo>::default().context(
+) -> McpToolRuntimeContext<ToolInfo> {
+    McpToolRuntimeManager::<ToolInfo>::default().context(
         codex_home,
-        ConnectorRuntimeContextKey::personal(
+        McpToolRuntimeContextKey::personal(
             account_id.map(ToOwned::to_owned),
             chatgpt_user_id.map(ToOwned::to_owned),
         ),
     )
 }
 
-fn store_current_tools(cache_context: &ConnectorRuntimeContext<ToolInfo>, tools: Vec<ToolInfo>) {
+fn store_current_tools(cache_context: &McpToolRuntimeContext<ToolInfo>, tools: Vec<ToolInfo>) {
     let _ = cache_context.publish_if_newest_accepted(
-        cache_context.begin_fetch(ConnectorRuntimeFetchSource::HardRefresh),
+        cache_context.begin_fetch(McpToolRuntimeFetchSource::HardRefresh),
         &create_test_server_info("Codex Apps"),
         tools,
     );
@@ -726,7 +726,7 @@ fn create_gated_async_managed_client(
 }
 
 async fn create_test_manager_with_ready_apps_client(
-    cache_context: ConnectorRuntimeContext<ToolInfo>,
+    cache_context: McpToolRuntimeContext<ToolInfo>,
     tool_name: &str,
     list_started: Option<Arc<Notify>>,
     release_list: Option<Arc<Notify>>,
@@ -1937,10 +1937,9 @@ fn codex_apps_env_bearer_token_bypasses_shared_tools_cache() {
 #[tokio::test]
 async fn codex_apps_extension_does_not_share_host_owned_tools_cache() -> anyhow::Result<()> {
     let codex_home = tempdir()?;
-    let cache_key = ConnectorRuntimeContextKey::personal(
-        /*account_id*/ None, /*chatgpt_user_id*/ None,
-    );
-    let codex_apps_tools_cache = ConnectorRuntimeManager::<ToolInfo>::default();
+    let cache_key =
+        McpToolRuntimeContextKey::personal(/*account_id*/ None, /*chatgpt_user_id*/ None);
+    let codex_apps_tools_cache = McpToolRuntimeManager::<ToolInfo>::default();
     let cache_context =
         codex_apps_tools_cache.context(codex_home.path().to_path_buf(), cache_key.clone());
     store_current_tools(
@@ -2159,8 +2158,8 @@ async fn capture_binding_uses_the_ready_clients_own_tools() {
 async fn hard_refresh_keeps_binding_override_local_when_shared_cache_loses_race()
 -> anyhow::Result<()> {
     let codex_home = tempdir()?;
-    let shared_cache = ConnectorRuntimeManager::<ToolInfo>::default();
-    let cache_key = ConnectorRuntimeContextKey::personal(
+    let shared_cache = McpToolRuntimeManager::<ToolInfo>::default();
+    let cache_key = McpToolRuntimeContextKey::personal(
         Some("shared-account".to_string()),
         Some("shared-user".to_string()),
     );
@@ -3976,9 +3975,9 @@ async fn executor_owned_chatgpt_mcp_accepts_only_safe_explicit_authorization() -
                 tx_event: None,
                 startup_cancellation_token: CancellationToken::new(),
                 runtime_context: runtime_context.clone(),
-                codex_apps_tools_cache: ConnectorRuntimeManager::default(),
+                codex_apps_tools_cache: McpToolRuntimeManager::default(),
                 tool_catalog_cache: McpToolCatalogCache::default(),
-                codex_apps_tools_cache_key: ConnectorRuntimeContextKey::personal(
+                codex_apps_tools_cache_key: McpToolRuntimeContextKey::personal(
                     /*account_id*/ None, /*chatgpt_user_id*/ None,
                 ),
                 client_mcp_extensions: ClientMcpExtensions::default(),
@@ -4095,9 +4094,9 @@ async fn no_local_runtime_fails_local_stdio_but_keeps_local_http_server() {
                 Arc::new(environment_manager_without_environments()),
                 PathBuf::from("/tmp"),
             ),
-            codex_apps_tools_cache: ConnectorRuntimeManager::<ToolInfo>::default(),
+            codex_apps_tools_cache: McpToolRuntimeManager::<ToolInfo>::default(),
             tool_catalog_cache: McpToolCatalogCache::default(),
-            codex_apps_tools_cache_key: ConnectorRuntimeContextKey::personal(
+            codex_apps_tools_cache_key: McpToolRuntimeContextKey::personal(
                 /*account_id*/ None, /*chatgpt_user_id*/ None,
             ),
             client_mcp_extensions: ClientMcpExtensions::default(),
@@ -4507,9 +4506,9 @@ async fn reconcile_reusable_server_with_mcp_config(
             tx_event: Some(tx_event),
             startup_cancellation_token: CancellationToken::new(),
             runtime_context,
-            codex_apps_tools_cache: ConnectorRuntimeManager::default(),
+            codex_apps_tools_cache: McpToolRuntimeManager::default(),
             tool_catalog_cache: McpToolCatalogCache::default(),
-            codex_apps_tools_cache_key: ConnectorRuntimeContextKey::personal(
+            codex_apps_tools_cache_key: McpToolRuntimeContextKey::personal(
                 /*account_id*/ None, /*chatgpt_user_id*/ None,
             ),
             client_mcp_extensions: ClientMcpExtensions::default(),
@@ -4963,9 +4962,9 @@ async fn reconciliation_replaces_connection_when_protocol_mode_changes() {
             tx_event: None,
             startup_cancellation_token: CancellationToken::new(),
             runtime_context,
-            codex_apps_tools_cache: ConnectorRuntimeManager::default(),
+            codex_apps_tools_cache: McpToolRuntimeManager::default(),
             tool_catalog_cache: McpToolCatalogCache::default(),
-            codex_apps_tools_cache_key: ConnectorRuntimeContextKey::personal(
+            codex_apps_tools_cache_key: McpToolRuntimeContextKey::personal(
                 /*account_id*/ None, /*chatgpt_user_id*/ None,
             ),
             client_mcp_extensions: ClientMcpExtensions::default(),
@@ -5021,9 +5020,9 @@ async fn reconciliation_reuses_legacy_stdio_server_when_modern_protocol_is_enabl
             tx_event: None,
             startup_cancellation_token: CancellationToken::new(),
             runtime_context,
-            codex_apps_tools_cache: ConnectorRuntimeManager::default(),
+            codex_apps_tools_cache: McpToolRuntimeManager::default(),
             tool_catalog_cache: McpToolCatalogCache::default(),
-            codex_apps_tools_cache_key: ConnectorRuntimeContextKey::personal(
+            codex_apps_tools_cache_key: McpToolRuntimeContextKey::personal(
                 /*account_id*/ None, /*chatgpt_user_id*/ None,
             ),
             client_mcp_extensions: ClientMcpExtensions::default(),

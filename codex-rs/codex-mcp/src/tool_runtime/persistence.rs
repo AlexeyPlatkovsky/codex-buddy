@@ -21,10 +21,10 @@ use sha1::Sha1;
 use tempfile::NamedTempFile;
 use tracing::instrument;
 
-use super::ConnectorRuntimeContext;
-use super::ConnectorRuntimeIdentity;
-use super::ConnectorRuntimePayload;
-use super::ConnectorRuntimeSnapshot;
+use super::McpToolRuntimeContext;
+use super::McpToolRuntimeIdentity;
+use super::McpToolRuntimePayload;
+use super::McpToolRuntimeSnapshot;
 use super::emit_duration;
 
 const MCP_TOOLS_CACHE_WRITE_DURATION_METRIC: &str = "codex.mcp.tools.cache_write.duration_ms";
@@ -34,15 +34,15 @@ const CODEX_APPS_SERVER_INFO_CACHE_DIR: &str = "cache/codex_apps_server_info";
 const CODEX_APPS_SERVER_INFO_CACHE_SCHEMA_VERSION: u8 = 1;
 pub(crate) const CODEX_APPS_TOOLS_CACHE_MAX_BYTES: u64 = 32 * 1024 * 1024;
 
-pub(crate) fn tools_cache_path(identity: &ConnectorRuntimeIdentity) -> PathBuf {
+pub(crate) fn tools_cache_path(identity: &McpToolRuntimeIdentity) -> PathBuf {
     cache_path_in(identity, CODEX_APPS_TOOLS_CACHE_DIR)
 }
 
-pub(crate) fn server_info_cache_path(identity: &ConnectorRuntimeIdentity) -> PathBuf {
+pub(crate) fn server_info_cache_path(identity: &McpToolRuntimeIdentity) -> PathBuf {
     cache_path_in(identity, CODEX_APPS_SERVER_INFO_CACHE_DIR)
 }
 
-fn cache_path_in(identity: &ConnectorRuntimeIdentity, cache_dir: &str) -> PathBuf {
+fn cache_path_in(identity: &McpToolRuntimeIdentity, cache_dir: &str) -> PathBuf {
     // `codex_home` is already the parent directory. Keep it out of the
     // filename hash so non-UTF-8 Unix paths cannot collapse distinct auth keys.
     let identity_json = serde_json::to_string(&identity.key).unwrap_or_default();
@@ -54,39 +54,39 @@ fn cache_path_in(identity: &ConnectorRuntimeIdentity, cache_dir: &str) -> PathBu
 }
 
 #[instrument(level = "trace", skip_all)]
-pub(crate) fn load_cached_connector_runtime_for_identity<T: ConnectorRuntimePayload>(
-    identity: &ConnectorRuntimeIdentity,
-) -> Option<ConnectorRuntimeSnapshot<T>> {
+pub(crate) fn load_cached_mcp_tool_runtime_for_identity<T: McpToolRuntimePayload>(
+    identity: &McpToolRuntimeIdentity,
+) -> Option<McpToolRuntimeSnapshot<T>> {
     let cache_path = tools_cache_path(identity);
     let (bytes, modified_at) = read_bounded_cache_file(&cache_path).ok()?;
     let cache: CodexAppsToolsDiskCache<T> = serde_json::from_slice(&bytes).ok()?;
     (cache.schema_version == CODEX_APPS_TOOLS_CACHE_SCHEMA_VERSION).then_some(
-        ConnectorRuntimeSnapshot {
+        McpToolRuntimeSnapshot {
             tools: cache.tools,
             refreshed_at: modified_at,
         },
     )
 }
 
-pub(crate) fn write_cached_connector_runtime<T>(
-    cache_context: &ConnectorRuntimeContext<T>,
-    snapshot: &ConnectorRuntimeSnapshot<T>,
+pub(crate) fn write_cached_mcp_tool_runtime<T>(
+    cache_context: &McpToolRuntimeContext<T>,
+    snapshot: &McpToolRuntimeSnapshot<T>,
 ) -> anyhow::Result<()>
 where
-    T: ConnectorRuntimePayload,
+    T: McpToolRuntimePayload,
 {
     let cache_path = cache_context.tools_cache_path();
     let bytes = serde_json::to_vec_pretty(&CodexAppsToolsDiskCache {
         schema_version: CODEX_APPS_TOOLS_CACHE_SCHEMA_VERSION,
         tools: snapshot.tools.clone(),
     })
-    .context("failed to serialize connector runtime cache")?;
+    .context("failed to serialize MCP tool runtime cache")?;
     write_codex_apps_cache_file(&cache_path, "runtime", bytes)
 }
 
 #[instrument(level = "trace", skip_all)]
-pub(crate) fn load_cached_codex_apps_server_info<T: ConnectorRuntimePayload>(
-    cache_context: &ConnectorRuntimeContext<T>,
+pub(crate) fn load_cached_codex_apps_server_info<T: McpToolRuntimePayload>(
+    cache_context: &McpToolRuntimeContext<T>,
 ) -> Option<McpServerInfo> {
     let (bytes, _) = read_bounded_cache_file(&cache_context.server_info_cache_path()).ok()?;
     let cache: CodexAppsServerInfoDiskCache = serde_json::from_slice(&bytes).ok()?;
@@ -94,8 +94,8 @@ pub(crate) fn load_cached_codex_apps_server_info<T: ConnectorRuntimePayload>(
         .then_some(cache.server_info)
 }
 
-fn write_cached_codex_apps_server_info<T: ConnectorRuntimePayload>(
-    cache_context: &ConnectorRuntimeContext<T>,
+fn write_cached_codex_apps_server_info<T: McpToolRuntimePayload>(
+    cache_context: &McpToolRuntimeContext<T>,
     server_info: &McpServerInfo,
 ) -> anyhow::Result<()> {
     let cache_path = cache_context.server_info_cache_path();
@@ -108,16 +108,16 @@ fn write_cached_codex_apps_server_info<T: ConnectorRuntimePayload>(
 }
 
 pub(crate) fn persist_codex_apps_cache<T>(
-    cache_context: &ConnectorRuntimeContext<T>,
+    cache_context: &McpToolRuntimeContext<T>,
     server_info: &McpServerInfo,
-    snapshot: &ConnectorRuntimeSnapshot<T>,
+    snapshot: &McpToolRuntimeSnapshot<T>,
 ) where
-    T: ConnectorRuntimePayload,
+    T: McpToolRuntimePayload,
 {
     let cache_write_start = Instant::now();
-    let tools_result = write_cached_connector_runtime(cache_context, snapshot);
+    let tools_result = write_cached_mcp_tool_runtime(cache_context, snapshot);
     if let Err(err) = &tools_result {
-        tracing::warn!("failed to write connector runtime cache: {err:#}");
+        tracing::warn!("failed to write MCP tool runtime cache: {err:#}");
     }
     let server_info_result = write_cached_codex_apps_server_info(cache_context, server_info);
     if let Err(err) = &server_info_result {
@@ -224,13 +224,13 @@ fn sha1_hex(s: &str) -> String {
 
 #[cfg(test)]
 pub(crate) fn write_cached_codex_apps_tools_for_test<T>(
-    cache_context: &ConnectorRuntimeContext<T>,
+    cache_context: &McpToolRuntimeContext<T>,
     server_info: &McpServerInfo,
     tools: &[T],
 ) where
-    T: ConnectorRuntimePayload,
+    T: McpToolRuntimePayload,
 {
-    let snapshot = ConnectorRuntimeSnapshot {
+    let snapshot = McpToolRuntimeSnapshot {
         tools: tools.to_vec(),
         refreshed_at: SystemTime::now(),
     };
@@ -243,26 +243,26 @@ pub(crate) fn write_cached_codex_apps_tools_for_test<T>(
 
 #[cfg(test)]
 pub(crate) fn read_cached_codex_apps_tools<T>(
-    cache_context: &ConnectorRuntimeContext<T>,
+    cache_context: &McpToolRuntimeContext<T>,
 ) -> Option<Vec<T>>
 where
-    T: ConnectorRuntimePayload,
+    T: McpToolRuntimePayload,
 {
-    load_cached_connector_runtime_for_identity(&cache_context.entry.identity)
+    load_cached_mcp_tool_runtime_for_identity(&cache_context.entry.identity)
         .map(|snapshot| snapshot.tools)
 }
 
 #[cfg(test)]
 pub(crate) fn write_cached_codex_apps_tools<T>(
-    cache_context: &ConnectorRuntimeContext<T>,
+    cache_context: &McpToolRuntimeContext<T>,
     tools: &[T],
 ) -> anyhow::Result<()>
 where
-    T: ConnectorRuntimePayload,
+    T: McpToolRuntimePayload,
 {
-    let snapshot = ConnectorRuntimeSnapshot {
+    let snapshot = McpToolRuntimeSnapshot {
         tools: tools.to_vec(),
         refreshed_at: SystemTime::now(),
     };
-    write_cached_connector_runtime(cache_context, &snapshot)
+    write_cached_mcp_tool_runtime(cache_context, &snapshot)
 }

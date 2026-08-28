@@ -11,7 +11,6 @@ pub use codex_connectors::AppInfo;
 pub use codex_connectors::AppMetadata;
 use codex_connectors::ConnectorDirectoryCacheContext;
 use codex_connectors::ConnectorDirectoryCacheKey;
-use codex_connectors::connector_runtime_context_key;
 use codex_exec_server::EnvironmentManager;
 use codex_exec_server::ExecServerRuntimePaths;
 use codex_tools::DiscoverableConnectorInfo;
@@ -39,6 +38,7 @@ use codex_mcp::McpRuntimeInput;
 use codex_mcp::McpStartupPolicy;
 use codex_mcp::ToolInfo;
 use codex_mcp::ToolPluginProvenance;
+use codex_mcp::codex_apps_tools_cache_key;
 use codex_mcp::effective_mcp_servers;
 use codex_mcp::tool_plugin_provenance;
 use codex_protocol::mcp::ClientMcpExtensions;
@@ -274,7 +274,7 @@ pub async fn list_accessible_connectors_from_mcp_tools_with_mcp_manager(
         runtime_context,
         codex_apps_tools_cache: mcp_manager.codex_apps_tools_cache(),
         tool_catalog_cache: mcp_manager.tool_catalog_cache(),
-        codex_apps_tools_cache_key: connector_runtime_context_key(auth.as_ref()),
+        codex_apps_tools_cache_key: codex_apps_tools_cache_key(auth.as_ref()),
         client_mcp_extensions: ClientMcpExtensions::default(),
         auth: auth.clone(),
         auth_manager: codex_apps_auth_manager,

@@ -14,7 +14,7 @@ use tracing::trace_span;
 
 use super::McpConnectionSet;
 use super::McpServerMetadata;
-use crate::ConnectorRuntimeFetchSource;
+use crate::McpToolRuntimeFetchSource;
 use crate::binding::McpBinding;
 use crate::binding::PreparedMcpCall;
 use crate::binding_clients::McpBindingClients;
@@ -367,13 +367,10 @@ impl McpConnectionSet {
             .context("failed to get client")?;
 
         let list_start = Instant::now();
-        let fetch_ticket =
-            managed_client
-                .codex_apps_tools_cache_context
-                .as_ref()
-                .map(|cache_context| {
-                    cache_context.begin_fetch(ConnectorRuntimeFetchSource::HardRefresh)
-                });
+        let fetch_ticket = managed_client
+            .codex_apps_tools_cache_context
+            .as_ref()
+            .map(|cache_context| cache_context.begin_fetch(McpToolRuntimeFetchSource::HardRefresh));
         let client_tools = list_tools_for_client_uncached(
             CODEX_APPS_MCP_SERVER_NAME,
             /*is_codex_apps_mcp_server*/ true,

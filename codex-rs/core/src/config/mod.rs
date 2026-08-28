@@ -1806,11 +1806,11 @@ impl Config {
             },
             mcp_server_catalog: catalog.build(),
             connector_snapshot: if mcp_source_policy == ExternalSourcePolicy::Automatic {
-                codex_connectors::ConnectorSnapshot::from_plugin_capability_summaries(
+                codex_plugin::ConnectorSnapshot::from_plugin_capability_summaries(
                     loaded_plugins.capability_summaries(),
                 )
             } else {
-                codex_connectors::ConnectorSnapshot::default()
+                codex_plugin::ConnectorSnapshot::default()
             },
         }
     }

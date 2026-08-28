@@ -5,9 +5,6 @@ use crate::config::Config;
 use crate::environment_selection::ThreadEnvironments;
 use codex_config::DEFAULT_MCP_SERVER_ENVIRONMENT_ID;
 use codex_config::McpServerConfig;
-use codex_connectors::ConnectorRuntimeManager;
-use codex_connectors::ConnectorSnapshot;
-use codex_connectors::PluginConnectorSource;
 use codex_core_plugins::PluginLoadOutcome;
 use codex_core_plugins::PluginsManager;
 use codex_exec_server::ExecutorCapabilityDiscoverySnapshot;
@@ -27,11 +24,14 @@ use codex_mcp::McpEnvironmentAuthority;
 use codex_mcp::McpPluginAttribution;
 use codex_mcp::McpServerRegistration;
 use codex_mcp::McpToolCatalogCache;
+use codex_mcp::McpToolRuntimeManager;
 use codex_mcp::ToolInfo;
 use codex_mcp::codex_apps_mcp_server_config;
 use codex_mcp::configured_mcp_servers;
 use codex_mcp::effective_mcp_servers;
 use codex_plugin::AppConnectorId;
+use codex_plugin::ConnectorSnapshot;
+use codex_plugin::PluginConnectorSource;
 use codex_protocol::capabilities::SelectedCapabilityRoot;
 use codex_protocol::protocol::EnvironmentConfigState;
 use codex_protocol::protocol::SessionSource;
@@ -77,7 +77,7 @@ enum OrderedMcpOverlay {
 pub struct McpManager {
     plugins_manager: Arc<PluginsManager>,
     extensions: Arc<ExtensionRegistry<Config>>,
-    codex_apps_tools_cache: ConnectorRuntimeManager<ToolInfo>,
+    codex_apps_tools_cache: McpToolRuntimeManager<ToolInfo>,
     tool_catalog_cache: McpToolCatalogCache,
 }
 
@@ -86,7 +86,7 @@ impl McpManager {
         Self::new_with_extensions(
             plugins_manager,
             codex_extension_api::empty_extension_registry(),
-            ConnectorRuntimeManager::default(),
+            McpToolRuntimeManager::default(),
         )
     }
 
@@ -94,7 +94,7 @@ impl McpManager {
     pub fn new_with_extensions(
         plugins_manager: Arc<PluginsManager>,
         extensions: Arc<ExtensionRegistry<Config>>,
-        codex_apps_tools_cache: ConnectorRuntimeManager<ToolInfo>,
+        codex_apps_tools_cache: McpToolRuntimeManager<ToolInfo>,
     ) -> Self {
         Self {
             plugins_manager,
@@ -104,7 +104,7 @@ impl McpManager {
         }
     }
 
-    pub fn codex_apps_tools_cache(&self) -> ConnectorRuntimeManager<ToolInfo> {
+    pub fn codex_apps_tools_cache(&self) -> McpToolRuntimeManager<ToolInfo> {
         self.codex_apps_tools_cache.clone()
     }
 

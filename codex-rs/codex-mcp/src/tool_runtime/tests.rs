@@ -50,10 +50,10 @@ fn create_codex_apps_tools_cache_context(
     codex_home: PathBuf,
     account_id: Option<&str>,
     chatgpt_user_id: Option<&str>,
-) -> ConnectorRuntimeContext<TestTool> {
-    ConnectorRuntimeManager::<TestTool>::default().context(
+) -> McpToolRuntimeContext<TestTool> {
+    McpToolRuntimeManager::<TestTool>::default().context(
         codex_home,
-        ConnectorRuntimeContextKey {
+        McpToolRuntimeContextKey {
             account_id: account_id.map(ToOwned::to_owned),
             chatgpt_user_id: chatgpt_user_id.map(ToOwned::to_owned),
             is_workspace_account: false,
@@ -126,6 +126,23 @@ fn codex_apps_tools_cache_is_scoped_per_user() {
         cache_context_user_1.tools_cache_path(),
         cache_context_user_2.tools_cache_path(),
         "each user should get an isolated cache file"
+    );
+}
+
+#[test]
+fn codex_apps_tools_cache_path_preserves_identity_hash_format() {
+    let codex_home = PathBuf::from("/codex-home");
+    let path = mcp_tool_runtime_cache_path(
+        &codex_home,
+        McpToolRuntimeContextKey::personal(
+            Some("account-one".to_string()),
+            Some("user-one".to_string()),
+        ),
+    );
+
+    assert_eq!(
+        path,
+        codex_home.join("cache/codex_apps_tools/3ee2e36a9f9ee95357626b2c0ec2c72f069c2258.json")
     );
 }
 
@@ -349,10 +366,10 @@ fn codex_apps_tools_cache_context_does_not_reread_disk_after_creation() {
 #[test]
 fn codex_apps_tools_cache_publishes_newest_shared_snapshot() {
     let codex_home = tempdir().expect("tempdir");
-    let cache = ConnectorRuntimeManager::<TestTool>::default();
+    let cache = McpToolRuntimeManager::<TestTool>::default();
     let cache_context_1 = cache.context(
         codex_home.path().to_path_buf(),
-        ConnectorRuntimeContextKey {
+        McpToolRuntimeContextKey {
             account_id: Some("account-one".to_string()),
             chatgpt_user_id: Some("user-one".to_string()),
             is_workspace_account: false,
@@ -360,14 +377,14 @@ fn codex_apps_tools_cache_publishes_newest_shared_snapshot() {
     );
     let cache_context_2 = cache.context(
         codex_home.path().to_path_buf(),
-        ConnectorRuntimeContextKey {
+        McpToolRuntimeContextKey {
             account_id: Some("account-one".to_string()),
             chatgpt_user_id: Some("user-one".to_string()),
             is_workspace_account: false,
         },
     );
-    let older_ticket = cache_context_1.begin_fetch(ConnectorRuntimeFetchSource::Startup);
-    let newer_ticket = cache_context_2.begin_fetch(ConnectorRuntimeFetchSource::HardRefresh);
+    let older_ticket = cache_context_1.begin_fetch(McpToolRuntimeFetchSource::Startup);
+    let newer_ticket = cache_context_2.begin_fetch(McpToolRuntimeFetchSource::HardRefresh);
     let server_info = create_test_server_info("Codex Apps");
     let newer_tools = vec![create_test_tool(CODEX_APPS_MCP_SERVER_NAME, "newer")];
     let older_tools = vec![create_test_tool(CODEX_APPS_MCP_SERVER_NAME, "older")];
@@ -395,9 +412,9 @@ fn codex_apps_tools_cache_keeps_live_publish_when_disk_persistence_fails() {
     let codex_home = tempdir().expect("tempdir");
     let codex_home_file = codex_home.path().join("not-a-directory");
     std::fs::write(&codex_home_file, b"occupied").expect("create codex home file");
-    let cache_context = ConnectorRuntimeManager::<TestTool>::default().context(
+    let cache_context = McpToolRuntimeManager::<TestTool>::default().context(
         codex_home_file,
-        ConnectorRuntimeContextKey {
+        McpToolRuntimeContextKey {
             account_id: Some("account-one".to_string()),
             chatgpt_user_id: Some("user-one".to_string()),
             is_workspace_account: false,
@@ -405,7 +422,7 @@ fn codex_apps_tools_cache_keeps_live_publish_when_disk_persistence_fails() {
     );
     let tools = vec![create_test_tool(CODEX_APPS_MCP_SERVER_NAME, "live")];
     let published_tools = cache_context.publish_if_newest_accepted(
-        cache_context.begin_fetch(ConnectorRuntimeFetchSource::HardRefresh),
+        cache_context.begin_fetch(McpToolRuntimeFetchSource::HardRefresh),
         &create_test_server_info("Codex Apps"),
         tools.clone(),
     );
@@ -425,9 +442,9 @@ fn connector_runtime_without_cache_ignores_disk_state() {
     let tools = vec![create_test_tool(CODEX_APPS_MCP_SERVER_NAME, "cached")];
     let server_info = create_test_server_info("Codex Apps");
     write_cached_codex_apps_tools_for_test(&writer, &server_info, &tools);
-    let context = ConnectorRuntimeManager::<TestTool>::new_without_cache().context(
+    let context = McpToolRuntimeManager::<TestTool>::new_without_cache().context(
         codex_home.path().to_path_buf(),
-        ConnectorRuntimeContextKey {
+        McpToolRuntimeContextKey {
             account_id: Some("account-one".to_string()),
             chatgpt_user_id: Some("user-one".to_string()),
             is_workspace_account: false,
@@ -442,9 +459,9 @@ fn connector_runtime_without_cache_ignores_disk_state() {
 fn connector_runtime_without_cache_publishes_without_writing() {
     let temp_dir = tempdir().expect("tempdir");
     let codex_home = temp_dir.path().join("codex-home");
-    let context = ConnectorRuntimeManager::<TestTool>::new_without_cache().context(
+    let context = McpToolRuntimeManager::<TestTool>::new_without_cache().context(
         codex_home.clone(),
-        ConnectorRuntimeContextKey {
+        McpToolRuntimeContextKey {
             account_id: Some("account-one".to_string()),
             chatgpt_user_id: Some("user-one".to_string()),
             is_workspace_account: false,
@@ -452,7 +469,7 @@ fn connector_runtime_without_cache_publishes_without_writing() {
     );
     let tools = vec![create_test_tool(CODEX_APPS_MCP_SERVER_NAME, "live")];
     let published_tools = context.publish_if_newest_accepted(
-        context.begin_fetch(ConnectorRuntimeFetchSource::HardRefresh),
+        context.begin_fetch(McpToolRuntimeFetchSource::HardRefresh),
         &create_test_server_info("Codex Apps"),
         tools.clone(),
     );
@@ -468,10 +485,10 @@ fn codex_apps_tools_cache_scopes_non_utf8_home_disk_paths() {
     let codex_home = PathBuf::from(std::ffi::OsString::from_vec(
         b"/tmp/codex-home-\xff".to_vec(),
     ));
-    let cache = ConnectorRuntimeManager::<TestTool>::default();
+    let cache = McpToolRuntimeManager::<TestTool>::default();
     let user_one_context = cache.context(
         codex_home.clone(),
-        ConnectorRuntimeContextKey {
+        McpToolRuntimeContextKey {
             account_id: Some("account-one".to_string()),
             chatgpt_user_id: Some("user-one".to_string()),
             is_workspace_account: false,
@@ -479,7 +496,7 @@ fn codex_apps_tools_cache_scopes_non_utf8_home_disk_paths() {
     );
     let user_two_context = cache.context(
         codex_home,
-        ConnectorRuntimeContextKey {
+        McpToolRuntimeContextKey {
             account_id: Some("account-two".to_string()),
             chatgpt_user_id: Some("user-two".to_string()),
             is_workspace_account: false,
@@ -496,10 +513,10 @@ fn codex_apps_tools_cache_scopes_non_utf8_home_disk_paths() {
 #[test]
 fn contexts_for_different_identities_keep_isolated_snapshots() {
     let codex_home = tempdir().expect("tempdir");
-    let manager = ConnectorRuntimeManager::<TestTool>::default();
+    let manager = McpToolRuntimeManager::<TestTool>::default();
     let context_a = manager.context(
         codex_home.path().to_path_buf(),
-        ConnectorRuntimeContextKey {
+        McpToolRuntimeContextKey {
             account_id: Some("account-a".to_string()),
             chatgpt_user_id: Some("user-a".to_string()),
             is_workspace_account: false,
@@ -507,14 +524,14 @@ fn contexts_for_different_identities_keep_isolated_snapshots() {
     );
     let tools_a = vec![create_test_tool(CODEX_APPS_MCP_SERVER_NAME, "tool-a")];
     let snapshot_a = context_a.publish_runtime_if_newest_accepted(
-        context_a.begin_fetch(ConnectorRuntimeFetchSource::HardRefresh),
+        context_a.begin_fetch(McpToolRuntimeFetchSource::HardRefresh),
         &create_test_server_info("Codex Apps"),
         tools_a.clone(),
     );
-    let older_ticket_a = context_a.begin_fetch(ConnectorRuntimeFetchSource::Startup);
+    let older_ticket_a = context_a.begin_fetch(McpToolRuntimeFetchSource::Startup);
     let context_b = manager.context(
         codex_home.path().to_path_buf(),
-        ConnectorRuntimeContextKey {
+        McpToolRuntimeContextKey {
             account_id: Some("account-b".to_string()),
             chatgpt_user_id: Some("user-b".to_string()),
             is_workspace_account: false,
@@ -522,7 +539,7 @@ fn contexts_for_different_identities_keep_isolated_snapshots() {
     );
     let same_context_a = manager.context(
         codex_home.path().to_path_buf(),
-        ConnectorRuntimeContextKey {
+        McpToolRuntimeContextKey {
             account_id: Some("account-a".to_string()),
             chatgpt_user_id: Some("user-a".to_string()),
             is_workspace_account: false,
@@ -539,13 +556,13 @@ fn contexts_for_different_identities_keep_isolated_snapshots() {
 
     let tools_b = vec![create_test_tool(CODEX_APPS_MCP_SERVER_NAME, "tool-b")];
     let snapshot_b = context_b.publish_runtime_if_newest_accepted(
-        context_b.begin_fetch(ConnectorRuntimeFetchSource::HardRefresh),
+        context_b.begin_fetch(McpToolRuntimeFetchSource::HardRefresh),
         &create_test_server_info("Codex Apps"),
         tools_b.clone(),
     );
     let newer_tools_a = vec![create_test_tool(CODEX_APPS_MCP_SERVER_NAME, "newer-a")];
     let newer_snapshot_a = same_context_a.publish_runtime_if_newest_accepted(
-        same_context_a.begin_fetch(ConnectorRuntimeFetchSource::HardRefresh),
+        same_context_a.begin_fetch(McpToolRuntimeFetchSource::HardRefresh),
         &create_test_server_info("Codex Apps"),
         newer_tools_a.clone(),
     );
@@ -625,8 +642,8 @@ fn accepted_generations_finish_persistence_in_order() {
         Some("account-one"),
         Some("user-one"),
     );
-    let older_ticket = context.begin_fetch(ConnectorRuntimeFetchSource::Startup);
-    let newer_ticket = context.begin_fetch(ConnectorRuntimeFetchSource::HardRefresh);
+    let older_ticket = context.begin_fetch(McpToolRuntimeFetchSource::Startup);
+    let newer_ticket = context.begin_fetch(McpToolRuntimeFetchSource::HardRefresh);
     let (older_persisting_tx, older_persisting_rx) = std::sync::mpsc::channel();
     let (release_older_tx, release_older_rx) = std::sync::mpsc::channel();
     let older_context = context.clone();
@@ -682,10 +699,10 @@ fn accepted_generations_finish_persistence_in_order() {
 #[test]
 fn personal_and_workspace_contexts_are_distinct_even_with_matching_ids() {
     let codex_home = tempdir().expect("tempdir");
-    let manager = ConnectorRuntimeManager::<TestTool>::default();
+    let manager = McpToolRuntimeManager::<TestTool>::default();
     let personal_context = manager.context(
         codex_home.path().to_path_buf(),
-        ConnectorRuntimeContextKey {
+        McpToolRuntimeContextKey {
             account_id: Some("account".to_string()),
             chatgpt_user_id: Some("user".to_string()),
             is_workspace_account: false,
@@ -693,14 +710,14 @@ fn personal_and_workspace_contexts_are_distinct_even_with_matching_ids() {
     );
     let personal_tools = vec![create_test_tool(CODEX_APPS_MCP_SERVER_NAME, "personal")];
     let _ = personal_context.publish_runtime_if_newest_accepted(
-        personal_context.begin_fetch(ConnectorRuntimeFetchSource::Startup),
+        personal_context.begin_fetch(McpToolRuntimeFetchSource::Startup),
         &create_test_server_info("Codex Apps"),
         personal_tools.clone(),
     );
 
     let workspace_context = manager.context(
         codex_home.path().to_path_buf(),
-        ConnectorRuntimeContextKey {
+        McpToolRuntimeContextKey {
             account_id: Some("account".to_string()),
             chatgpt_user_id: Some("user".to_string()),
             is_workspace_account: true,
@@ -709,7 +726,7 @@ fn personal_and_workspace_contexts_are_distinct_even_with_matching_ids() {
 
     let workspace_tools = vec![create_test_tool(CODEX_APPS_MCP_SERVER_NAME, "workspace")];
     let _ = workspace_context.publish_runtime_if_newest_accepted(
-        workspace_context.begin_fetch(ConnectorRuntimeFetchSource::Startup),
+        workspace_context.begin_fetch(McpToolRuntimeFetchSource::Startup),
         &create_test_server_info("Codex Apps"),
         workspace_tools.clone(),
     );
@@ -730,8 +747,8 @@ fn live_publish_sets_timestamp_and_stale_publish_preserves_it() {
         Some("account-one"),
         Some("user-one"),
     );
-    let stale_ticket = context.begin_fetch(ConnectorRuntimeFetchSource::Startup);
-    let current_ticket = context.begin_fetch(ConnectorRuntimeFetchSource::HardRefresh);
+    let stale_ticket = context.begin_fetch(McpToolRuntimeFetchSource::Startup);
+    let current_ticket = context.begin_fetch(McpToolRuntimeFetchSource::HardRefresh);
     let before = SystemTime::now();
     let current = context.publish_runtime_if_newest_accepted(
         current_ticket,

@@ -13,8 +13,8 @@ use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 
-use crate::ConnectorRuntimeContextKey;
-use crate::ConnectorRuntimeManager;
+use crate::McpToolRuntimeContextKey;
+use crate::McpToolRuntimeManager;
 use arc_swap::ArcSwap;
 use async_channel::Sender;
 use codex_config::types::McpServerDisabledReason;
@@ -77,9 +77,9 @@ pub struct McpRuntimeInput {
     pub tx_event: Option<Sender<Event>>,
     pub startup_cancellation_token: CancellationToken,
     pub runtime_context: McpRuntimeContext,
-    pub codex_apps_tools_cache: ConnectorRuntimeManager<ToolInfo>,
+    pub codex_apps_tools_cache: McpToolRuntimeManager<ToolInfo>,
     pub tool_catalog_cache: McpToolCatalogCache,
-    pub codex_apps_tools_cache_key: ConnectorRuntimeContextKey,
+    pub codex_apps_tools_cache_key: McpToolRuntimeContextKey,
     pub client_mcp_extensions: ClientMcpExtensions,
     pub auth: Option<CodexAuth>,
     pub auth_manager: Option<Arc<AuthManager>>,
