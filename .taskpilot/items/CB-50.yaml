@@ -1,0 +1,16 @@
+schema_version: 1
+id: CB-50
+title: Extract transport-neutral code-mode types
+priority: high
+type: task
+status: backlog
+created_at: '2026-08-28T15:35:28Z'
+updated_at: '2026-08-28T15:35:50Z'
+parent_id: CB-18
+tags:
+- code-mode
+- architecture
+description: Move shared code-cell DTOs and provider/session contracts into a neutral crate, retaining compatibility reexports and historical rollout projection.
+links:
+  blocks:
+  - CB-51

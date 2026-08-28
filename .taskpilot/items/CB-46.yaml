@@ -1,0 +1,16 @@
+schema_version: 1
+id: CB-46
+title: Lock existing audio memory image and cloud boundaries
+priority: normal
+type: task
+status: backlog
+created_at: '2026-08-28T15:35:25Z'
+updated_at: '2026-08-28T15:35:46Z'
+parent_id: CB-18
+tags:
+- cargo
+- ci
+description: Add negative Buddy graph coverage for already-absent non-coding crates while retaining protocol, config, remote-server, and historical-rollout compatibility.
+links:
+  blocks:
+  - CB-47
