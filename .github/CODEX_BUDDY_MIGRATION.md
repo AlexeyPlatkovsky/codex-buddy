@@ -35,9 +35,28 @@ legacy deserializers and verify that the full runtime preset remains compatible.
 
 ## Synchronization checklist
 
-Before merging a migration stage:
+Before merging a migration stage, start from a clean local `main` that exactly
+matches `origin/main`. Run the read-only rehearsal with the refs already on disk:
 
-1. Confirm the worktree is clean except for the intended branch changes.
-2. Merge the latest `origin/main` and rerun checks for every conflicted area.
-3. Check that the Buddy build still uses only its permitted runtime capabilities.
-4. Note platform, dependency, schema, Bazel-lock, or snapshot impact in the PR.
+```bash
+scripts/buddy_release/upstream_sync_preflight.sh
+```
+
+Pass `--fetch` only when you intentionally want the script to refresh
+`origin/main` and `upstream/main`. The preflight verifies the canonical remotes,
+reports fork/upstream divergence and overlapping paths, and uses `git merge-tree`
+to detect conflicts without changing the index or worktree. It never merges,
+rebases, resolves conflicts, pushes, or force-pushes.
+
+After the preflight reports `ready`:
+
+1. Confirm the worktree remains clean.
+2. Create an ordinary sync-only merge of `upstream/main`; do not mix feature work
+   into its conflict resolutions.
+3. Rerun checks for every conflicted area and the dependency-boundary preflight.
+4. Record the upstream commit, conflict choices, and exact checks in TaskPilot and
+   `MIGRATION_ROADMAP.md`.
+5. Merge the latest `origin/main` into subsequent migration branches.
+
+Check that the Buddy build still uses only its permitted runtime capabilities,
+and note platform, dependency, schema, Bazel-lock, or snapshot impact in the PR.

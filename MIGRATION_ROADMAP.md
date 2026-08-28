@@ -531,13 +531,27 @@ Add targeted macOS and Windows build/smoke coverage for the coding configuration
 
 ## Stage 6: upstream synchronization
 
+Status: completed in `d031b8ba20`; TaskPilot `CB-35` is done.
+
+The clean-main completion rehearsal compared `origin/main` with the previously
+merged `upstream/main` (`868c9edb0d`): 97 fork-only commits, no upstream-only
+commits, no overlapping changed paths, and no conflicts. The preflight reported
+the repository ready and permanently removed its temporary merge-tree output.
+
 Before starting a new migration slice:
 
-1. Fetch `upstream`.
+1. From a clean `main` equal to `origin/main`, run
+   `scripts/buddy_release/upstream_sync_preflight.sh --fetch`. Omit `--fetch` when
+   intentionally rehearsing the already-fetched refs.
 2. Inspect the incoming range and current dirty state.
 3. Use an ordinary sync-only merge commit; do not rebase, force-push, repeat the historical `ours` bridge, or mix conflict resolution with a feature refactor.
 4. Run checks proportional to conflicts.
 5. Record recurring conflict patterns in TaskPilot.
+
+The preflight validates the fork/upstream remote roles, reports divergence and
+overlapping paths, and performs a bounded `git merge-tree` rehearsal without
+mutating the index or worktree. A non-clean main, local/origin drift, or a
+rehearsed conflict is a blocking result, not an automatic resolution request.
 
 High-conflict files currently include:
 
