@@ -34,10 +34,12 @@ full-runtime-extensions = [
     "dep:codex-external-agent-migration",
     "codex-external-agent-migration/memories",
     "connectors",
+    "detached-review",
     "goals",
     "history-notes",
     "image-generation",
     "memories",
+    "queue",
 ]
 connectors = [
     "dep:codex-connectors",
@@ -48,10 +50,12 @@ connectors = [
     "codex-core/plugins",
     "codex-mcp-extension/plugin-runtime",
 ]
+detached-review = ["dep:codex-agent-extension"]
 goals = ["dep:codex-goal-extension"]
 history-notes = ["dep:codex-history-notes-extension"]
 image-generation = ["dep:codex-image-generation-extension"]
 memories = ["dep:codex-memories-extension", "dep:codex-memories-write"]
+queue = ["dep:codex-queue-extension"]
 
 [dependencies]
 anyhow = { workspace = true }
@@ -63,7 +67,7 @@ axum = { workspace = true, default-features = false, features = [
     "ws",
 ] }
 codex-analytics = { workspace = true }
-codex-agent-extension = { workspace = true }
+codex-agent-extension = { workspace = true, optional = true }
 codex-arg0 = { workspace = true }
 codex-aws-auth = { workspace = true }
 codex-cloud-config = { workspace = true }
@@ -107,7 +111,7 @@ codex-model-provider = { workspace = true }
 codex-models-manager = { workspace = true }
 codex-protocol = { workspace = true }
 codex-runtime-profile = { workspace = true }
-codex-queue-extension = { workspace = true }
+codex-queue-extension = { workspace = true, optional = true }
 codex-app-server-protocol = { workspace = true }
 codex-app-server-transport = { workspace = true }
 codex-feedback = { workspace = true }

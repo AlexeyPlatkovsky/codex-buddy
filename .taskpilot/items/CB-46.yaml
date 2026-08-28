@@ -3,9 +3,9 @@ id: CB-46
 title: Lock existing audio memory image and cloud boundaries
 priority: normal
 type: task
-status: backlog
+status: in_progress
 created_at: '2026-08-28T15:35:25Z'
-updated_at: '2026-08-28T15:35:46Z'
+updated_at: '2026-08-28T16:31:39Z'
 parent_id: CB-18
 tags:
 - cargo

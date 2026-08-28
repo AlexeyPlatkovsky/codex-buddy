@@ -91,7 +91,6 @@ use codex_protocol::ThreadId;
 use codex_protocol::mcp::ClientMcpExtensions;
 use codex_protocol::protocol::SessionSource;
 use codex_protocol::protocol::W3cTraceContext;
-use codex_queue_extension::QueuedItemService;
 use codex_rollout::StateDbHandle;
 use codex_state::log_db::LogDbLayer;
 use codex_thread_store::LocalQueueStore;
@@ -107,6 +106,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::Instrument;
 
 use crate::models_refresh_worker::ModelsRefreshWorker;
+use crate::queue_runtime::QueueRuntime;
 
 const CONNECTION_RPC_DRAIN_TIMEOUT: Duration = Duration::from_secs(/*secs*/ 30);
 
@@ -338,15 +338,13 @@ impl MessageProcessor {
             .then(|| Arc::new(GoalService::new()));
         let extension_event_sink =
             app_server_extension_event_sink(outgoing.clone(), thread_state_manager.clone());
-        let mut queue_service = None;
+        let mut queue_runtime = QueueRuntime::default();
         let thread_manager = Arc::new_cyclic(|thread_manager| {
-            queue_service = queue_store.map(|queue| {
-                Arc::new(QueuedItemService::new(
-                    queue,
-                    thread_manager.clone(),
-                    Arc::clone(&extension_event_sink),
-                ))
-            });
+            queue_runtime = QueueRuntime::new(
+                queue_store,
+                thread_manager.clone(),
+                Arc::clone(&extension_event_sink),
+            );
             let manager = ThreadManager::new(
                 config.as_ref(),
                 auth_manager.clone(),
@@ -371,7 +369,7 @@ impl MessageProcessor {
                         executor_skill_provider: executor_skill_provider.clone(),
                         git_attribution_base_url: config.chatgpt_base_url.clone(),
                         http_client_factory: config.http_client_factory(),
-                        queue_service: queue_service.clone(),
+                        queue_runtime: queue_runtime.clone(),
                         composition: extension_composition.clone(),
                     },
                 ),
@@ -528,7 +526,7 @@ impl MessageProcessor {
             Arc::clone(&thread_manager),
             Arc::clone(&thread_store),
             outgoing.clone(),
-            queue_service,
+            queue_runtime,
         );
         let project_processor = ProjectRequestProcessor::new(
             Arc::clone(&thread_store),

@@ -88,6 +88,8 @@ mod request_validation;
 mod residency;
 mod review;
 mod rollout_migration;
+#[cfg(any(not(feature = "queue"), not(feature = "detached-review")))]
+mod runtime_extensions_disabled;
 mod safety_check_downgrade;
 #[cfg(not(target_os = "windows"))]
 mod selected_capability_stack;
@@ -106,6 +108,7 @@ mod thread_loaded_list;
 mod thread_memory_mode_set;
 mod thread_metadata_update;
 mod thread_name_websocket;
+#[cfg(feature = "queue")]
 mod thread_queue;
 mod thread_read;
 mod thread_resume;

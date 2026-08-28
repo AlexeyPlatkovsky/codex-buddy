@@ -33,7 +33,6 @@ use codex_protocol::ThreadId;
 use codex_protocol::error::CodexErr;
 use codex_protocol::protocol::Event;
 use codex_protocol::protocol::EventMsg;
-use codex_queue_extension::QueuedItemService;
 #[cfg(feature = "goals")]
 use codex_rollout::state_db::StateDbHandle;
 
@@ -41,6 +40,7 @@ use crate::extension_composition::ExtensionComponent;
 use crate::extension_composition::ExtensionComposition;
 use crate::outgoing_message::OutgoingMessageSender;
 use crate::outgoing_message::ThreadScopedOutgoingMessageSender;
+use crate::queue_runtime::QueueRuntime;
 use crate::thread_state::ThreadListenerCommand;
 use crate::thread_state::ThreadStateManager;
 
@@ -60,7 +60,7 @@ pub(crate) struct ThreadExtensionDependencies {
     pub(crate) git_attribution_base_url: String,
     pub(crate) http_client_factory: HttpClientFactory,
     /// Process-scoped queue shared by idle dispatch and app-server requests.
-    pub(crate) queue_service: Option<Arc<QueuedItemService>>,
+    pub(crate) queue_runtime: QueueRuntime,
     pub(crate) composition: ExtensionComposition,
 }
 
@@ -86,14 +86,12 @@ where
         executor_skill_provider,
         git_attribution_base_url,
         http_client_factory,
-        queue_service,
+        queue_runtime,
         composition,
     } = dependencies;
     let mut builder = ExtensionRegistryBuilder::<Config>::with_event_sink(Arc::clone(&event_sink));
-    if composition.installs(ExtensionComponent::Queue)
-        && let Some(queue_service) = queue_service
-    {
-        codex_queue_extension::install(&mut builder, queue_service);
+    if composition.installs(ExtensionComponent::Queue) {
+        queue_runtime.install(&mut builder);
     }
     #[cfg(feature = "history-notes")]
     if composition.installs(ExtensionComponent::HistoryNotes) {

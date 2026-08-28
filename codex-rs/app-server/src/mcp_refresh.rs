@@ -347,7 +347,7 @@ enabled = false
                         executor_skill_provider: Some(Arc::clone(&executor_skill_provider)),
                         git_attribution_base_url: good_config.chatgpt_base_url.clone(),
                         http_client_factory: good_config.http_client_factory(),
-                        queue_service: None,
+                        queue_runtime: crate::queue_runtime::QueueRuntime::default(),
                         composition: extension_composition.clone(),
                     },
                 ),

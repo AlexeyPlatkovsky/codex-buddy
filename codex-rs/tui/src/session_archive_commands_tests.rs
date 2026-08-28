@@ -19,6 +19,7 @@ use crate::app_server_session::AppServerSession;
 use crate::app_server_session::ThreadParamsMode;
 use crate::legacy_core::config::Config;
 use crate::legacy_core::config::ConfigBuilder;
+#[cfg(feature = "full-runtime-extensions")]
 use crate::session_queue_commands::run_session_queue_action_with_app_server;
 use crate::tests::start_test_embedded_app_server;
 
@@ -324,6 +325,7 @@ async fn deletes_valid_duplicate_after_stale_sqlite_hit() -> color_eyre::Result<
     Ok(())
 }
 
+#[cfg(feature = "full-runtime-extensions")]
 #[tokio::test]
 async fn trusts_sqlite_name_over_legacy_index_for_delete() -> color_eyre::Result<()> {
     let temp_dir = TempDir::new()?;
@@ -392,6 +394,7 @@ async fn trusts_sqlite_name_over_legacy_index_for_delete() -> color_eyre::Result
     Ok(())
 }
 
+#[cfg(feature = "full-runtime-extensions")]
 #[tokio::test]
 async fn queues_non_interactive_and_custom_sessions_without_scanning_rollouts()
 -> color_eyre::Result<()> {

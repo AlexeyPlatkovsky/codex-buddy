@@ -77,6 +77,7 @@ pub use session_archive_commands::DeleteConfirmation;
 pub use session_archive_commands::SessionArchiveAction;
 pub use session_archive_commands::SessionArchiveCommandOptions;
 pub use session_archive_commands::run_session_archive_command;
+#[cfg(feature = "full-runtime-extensions")]
 pub use session_queue_commands::run_session_queue_command;
 use std::fs::OpenOptions;
 use std::io::IsTerminal;
@@ -175,6 +176,7 @@ mod selection_list;
 mod service_tier_resolution;
 mod session_archive_commands;
 mod session_log;
+#[cfg(feature = "full-runtime-extensions")]
 mod session_queue_commands;
 mod session_resume;
 mod session_start;
