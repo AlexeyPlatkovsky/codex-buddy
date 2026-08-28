@@ -1,8 +1,7 @@
-use codex_plugin::AppConnectorId;
-use codex_plugin::AppDeclaration;
-use pretty_assertions::assert_eq;
-
 use super::parse_plugin_app_config;
+use crate::AppConnectorId;
+use crate::AppDeclaration;
+use pretty_assertions::assert_eq;
 
 #[test]
 fn parses_plugin_app_config_in_order_without_validating_connector_ids() {

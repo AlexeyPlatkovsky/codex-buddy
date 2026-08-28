@@ -2735,7 +2735,6 @@ dependencies = [
  "codex-otel",
  "codex-plugin",
  "codex-protocol",
- "indexmap 2.14.0",
  "pretty_assertions",
  "serde",
  "serde_json",
@@ -2933,7 +2932,6 @@ dependencies = [
  "codex-analytics",
  "codex-app-server-protocol",
  "codex-config",
- "codex-connectors",
  "codex-exec-server",
  "codex-exec-server-test-support",
  "codex-git-utils",
@@ -3953,7 +3951,10 @@ dependencies = [
  "codex-skills",
  "codex-utils-absolute-path",
  "codex-utils-path-uri",
+ "indexmap 2.14.0",
  "pretty_assertions",
+ "serde",
+ "serde_json",
  "thiserror 2.0.18",
 ]
 

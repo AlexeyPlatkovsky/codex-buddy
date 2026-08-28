@@ -1,5 +1,5 @@
-use codex_plugin::AppConnectorId;
-use codex_plugin::AppDeclaration;
+use crate::AppConnectorId;
+use crate::AppDeclaration;
 use indexmap::IndexMap;
 use serde::Deserialize;
 use serde_json::Value;
@@ -46,5 +46,5 @@ fn cleaned_category(category: Option<String>) -> Option<String> {
 }
 
 #[cfg(test)]
-#[path = "plugin_config_tests.rs"]
+#[path = "plugin_app_config_tests.rs"]
 mod tests;

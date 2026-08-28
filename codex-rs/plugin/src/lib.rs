@@ -6,6 +6,7 @@ pub use codex_skills::mention_syntax;
 
 mod load_outcome;
 pub mod manifest;
+mod plugin_app_config;
 mod plugin_id;
 mod provider;
 
@@ -15,6 +16,8 @@ use codex_utils_path_uri::PathUri;
 pub use load_outcome::LoadedPlugin;
 pub use load_outcome::PluginLoadOutcome;
 pub use load_outcome::prompt_safe_plugin_description;
+pub use plugin_app_config::parse_plugin_app_config;
+pub use plugin_app_config::parse_plugin_app_config_value;
 pub use plugin_id::PluginId;
 pub use plugin_id::PluginIdError;
 pub use plugin_id::validate_plugin_segment;
