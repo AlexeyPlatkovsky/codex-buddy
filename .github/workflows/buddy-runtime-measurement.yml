@@ -1,0 +1,45 @@
+name: Buddy runtime measurement
+
+on:
+  workflow_dispatch:
+
+jobs:
+  measure:
+    name: Baseline/current runtime evidence
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    env:
+      CARGO_INCREMENTAL: "0"
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/setup-ci
+      - uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582 # 1.95.0
+      - name: Measure baseline and Coding runtime
+        shell: bash
+        run: |
+          scripts/buddy_release/measure_runtime_delta.sh \
+            >"${RUNNER_TEMP}/buddy-runtime-measurement.json"
+          jq -e '.mode == "measurement"' \
+            "${RUNNER_TEMP}/buddy-runtime-measurement.json"
+      - name: Upload measurement evidence
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: buddy-runtime-measurement-${{ github.run_id }}
+          path: ${{ runner.temp }}/buddy-runtime-measurement.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Verify workspace artifact cleanup
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          if find . -maxdepth 1 -name '.buddy_runtime_measurement.*' -print -quit \
+            | grep -q .; then
+            echo "measurement artifacts remain in the workspace" >&2
+            exit 1
+          fi

@@ -241,7 +241,8 @@ measure_revision() {
   local graph_json="${measurement_root}/${label}-graph.json"
   local probe_json="${measurement_root}/${label}-probe.json"
   local probe_home="${measurement_root}/${label}-codex-home"
-  local binary binary_copy stripped_bytes strip_status graph profile
+  local binary binary_copy stripped_bytes strip_status graph profile result
+  local revision_artifact_bytes free_before_revision_cleanup free_after_revision_cleanup
 
   git -C "${repo_root}" worktree add --detach "${worktree}" "${revision}" >/dev/null
   if [[ ! -d "${worktree}" || -L "${worktree}" || ! -d "${target_dir}" && -e "${target_dir}" ]]; then
@@ -280,7 +281,11 @@ measure_revision() {
   python3 "${probe}" --binary "${binary}" --codex-home "${probe_home}" >"${probe_json}"
   graph="$(cat "${graph_json}")"
   profile="$(release_profile_json "${worktree}/codex-rs/Cargo.toml")"
-  jq -n \
+  revision_artifact_bytes="$((
+    $(directory_size_bytes "${worktree}") + $(directory_size_bytes "${target_dir}")
+  ))"
+  free_before_revision_cleanup="$(disk_free_bytes)"
+  result="$(jq -n \
     --arg revision "$(git -C "${repo_root}" rev-parse "${revision}^{commit}")" \
     --arg binary "${binary}" \
     --arg strip_status "${strip_status}" \
@@ -288,8 +293,22 @@ measure_revision() {
     --argjson profile "${profile}" \
     --argjson probe "$(cat "${probe_json}")" \
     --argjson binary_bytes "$(file_size_bytes "${binary}")" \
+    --argjson revision_artifact_bytes "${revision_artifact_bytes}" \
     --arg stripped_bytes "${stripped_bytes}" \
-    '{revision: $revision, graph: $graph, release_profile: $profile, binary: {release_bytes: $binary_bytes, strip_command: $strip_status, stripped_bytes: (if $stripped_bytes == "" then null else ($stripped_bytes | tonumber) end)}, process_and_tui: $probe}'
+    '{revision: $revision, graph: $graph, release_profile: $profile, binary: {ephemeral_path: $binary, release_bytes: $binary_bytes, strip_command: $strip_status, stripped_bytes: (if $stripped_bytes == "" then null else ($stripped_bytes | tonumber) end)}, revision_artifact_bytes_before_cleanup: $revision_artifact_bytes, process_and_tui: $probe}')"
+  if ! python3 "${delete_guard}" --delete -- "${worktree}" "${target_dir}" >&2; then
+    echo "failed to permanently clean ${label} worktree and target" >&2
+    exit 1
+  fi
+  if ! git -C "${repo_root}" worktree prune; then
+    echo "failed to prune the deleted ${label} worktree registration" >&2
+    exit 1
+  fi
+  free_after_revision_cleanup="$(disk_free_bytes)"
+  jq --argjson free_before_cleanup "${free_before_revision_cleanup}" \
+    --argjson free_after_cleanup "${free_after_revision_cleanup}" \
+    '. + {revision_cleanup: {free_before_bytes: $free_before_cleanup, free_after_bytes: $free_after_cleanup, reclaimed_free_bytes: ($free_after_cleanup - $free_before_cleanup), cleanup: "worktree and target permanently deleted before the next revision"}}' \
+    <<<"${result}"
 }
 
 baseline_json="$(measure_revision baseline "${baseline_revision}")"
