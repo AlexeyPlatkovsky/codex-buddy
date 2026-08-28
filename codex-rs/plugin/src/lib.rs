@@ -4,6 +4,7 @@ use std::collections::HashSet;
 
 pub use codex_skills::mention_syntax;
 
+mod connector_snapshot;
 mod load_outcome;
 pub mod manifest;
 mod plugin_app_config;
@@ -13,6 +14,8 @@ mod provider;
 use codex_config::HookEventsToml;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use codex_utils_path_uri::PathUri;
+pub use connector_snapshot::ConnectorSnapshot;
+pub use connector_snapshot::PluginConnectorSource;
 pub use load_outcome::LoadedPlugin;
 pub use load_outcome::PluginLoadOutcome;
 pub use load_outcome::prompt_safe_plugin_description;

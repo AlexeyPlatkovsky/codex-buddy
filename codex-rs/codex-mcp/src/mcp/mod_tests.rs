@@ -42,7 +42,7 @@ pub(crate) fn test_mcp_config(codex_home: PathBuf) -> McpConfig {
         protocol_mode: McpProtocolMode::Legacy,
         client_elicitation_capability: ElicitationCapability::default(),
         mcp_server_catalog: ResolvedMcpCatalog::default(),
-        connector_snapshot: codex_connectors::ConnectorSnapshot::default(),
+        connector_snapshot: codex_plugin::ConnectorSnapshot::default(),
     }
 }
 
@@ -201,7 +201,7 @@ fn tool_plugin_provenance_collects_app_and_mcp_sources() {
     ));
     config.mcp_server_catalog = catalog.build();
     config.connector_snapshot =
-        codex_connectors::ConnectorSnapshot::from_plugin_capability_summaries(&[
+        codex_plugin::ConnectorSnapshot::from_plugin_capability_summaries(&[
             PluginCapabilitySummary {
                 config_name: "alpha@test".to_string(),
                 display_name: "alpha-plugin".to_string(),
@@ -274,7 +274,7 @@ fn selected_mcp_attribution_does_not_join_an_unrelated_local_summary() {
     ));
     config.mcp_server_catalog = catalog.build();
     config.connector_snapshot =
-        codex_connectors::ConnectorSnapshot::from_plugin_capability_summaries(&[
+        codex_plugin::ConnectorSnapshot::from_plugin_capability_summaries(&[
             PluginCapabilitySummary {
                 config_name: "shared-plugin-id".to_string(),
                 display_name: "Local GitHub".to_string(),

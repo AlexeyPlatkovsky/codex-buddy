@@ -25,6 +25,7 @@ codex-exec-server = { workspace = true }
 codex-login = { workspace = true }
 codex-model-provider = { workspace = true }
 codex-otel = { workspace = true }
+codex-plugin = { workspace = true }
 codex-protocol = { workspace = true }
 codex-rmcp-client = { workspace = true }
 codex-utils-path-uri = { workspace = true }
@@ -44,7 +45,6 @@ url = { workspace = true }
 [dev-dependencies]
 assert_matches = { workspace = true }
 codex-exec-server-test-support = { workspace = true }
-codex-plugin = { workspace = true }
 pretty_assertions = { workspace = true }
 rmcp = { workspace = true, default-features = false, features = ["base64", "macros", "schemars", "server"] }
 tempfile = { workspace = true }

@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-use codex_plugin::AppConnectorId;
-use codex_plugin::AppDeclaration;
-use codex_plugin::PluginCapabilitySummary;
+use crate::AppConnectorId;
+use crate::AppDeclaration;
+use crate::PluginCapabilitySummary;
 
 /// Connector declarations contributed by one plugin package.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -101,7 +101,7 @@ impl ConnectorSnapshot {
         }
     }
 
-    /// Adapts the current host plugin summaries to the connector-owned snapshot.
+    /// Adapts the current host plugin summaries to a connector snapshot.
     pub fn from_plugin_capability_summaries(summaries: &[PluginCapabilitySummary]) -> Self {
         Self::from_plugin_sources(summaries.iter().map(|summary| {
             PluginConnectorSource::from_connector_ids(
@@ -132,5 +132,5 @@ impl ConnectorSnapshot {
 }
 
 #[cfg(test)]
-#[path = "snapshot_tests.rs"]
+#[path = "connector_snapshot_tests.rs"]
 mod tests;

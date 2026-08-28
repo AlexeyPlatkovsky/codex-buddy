@@ -18,7 +18,6 @@ pub mod merge;
 pub mod metadata;
 mod metadata_store;
 mod runtime_projection;
-mod snapshot;
 
 pub use app_info::AppBranding;
 pub use app_info::AppInfo;
@@ -30,6 +29,8 @@ pub use app_tool_policy::AppToolPolicyEvaluator;
 pub use app_tool_policy::AppToolPolicyInput;
 pub use app_tool_policy::app_is_enabled;
 pub use app_tool_policy::apps_config_from_layer_stack;
+pub use codex_plugin::ConnectorSnapshot;
+pub use codex_plugin::PluginConnectorSource;
 pub use codex_plugin::parse_plugin_app_config;
 pub use codex_plugin::parse_plugin_app_config_value;
 pub use connector_runtime::ConnectorRuntimeContext;
@@ -49,8 +50,6 @@ pub use runtime_projection::ConnectorRuntimeTool;
 pub use runtime_projection::InstalledConnectorRuntime;
 pub use runtime_projection::connector_tool_is_synthetic;
 pub use runtime_projection::installed_connector_runtime;
-pub use snapshot::ConnectorSnapshot;
-pub use snapshot::PluginConnectorSource;
 
 pub const CONNECTORS_CACHE_TTL: Duration = Duration::from_secs(3600);
 /// TTL for app/read metadata; it starts aligned with the connector directory cache.
