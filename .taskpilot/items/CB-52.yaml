@@ -3,9 +3,9 @@ id: CB-52
 title: Close heavy-runtime dependency and compatibility evidence
 priority: high
 type: task
-status: in_progress
+status: done
 created_at: '2026-08-28T15:35:30Z'
-updated_at: '2026-08-28T18:45:41Z'
+updated_at: '2026-08-28T18:49:11Z'
 parent_id: CB-18
 tags:
 - tests
