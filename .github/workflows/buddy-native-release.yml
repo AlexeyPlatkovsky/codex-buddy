@@ -20,9 +20,9 @@ jobs:
   native:
     name: Buddy release — ${{ matrix.name }}
     # This workflow is called only by postmerge-ci or manually dispatched by a
-    # repository maintainer. It deliberately has no pull_request trigger, so
-    # untrusted fork code never reaches the private Linux or Windows runners.
-    runs-on: ${{ matrix.runs_on || matrix.runner }}
+    # repository maintainer. Its automatic lanes use GitHub-hosted runners and
+    # it deliberately has no pull_request trigger.
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     permissions:
       contents: read
@@ -44,23 +44,14 @@ jobs:
             name: Linux x86_64 (native)
             runner: ubuntu-24.04
             target: x86_64-unknown-linux-gnu
-            runs_on:
-              group: ${{ github.event.repository.name }}-runners
-              labels: ${{ github.event.repository.name }}-linux-x64
           - id: linux-arm64
             name: Linux arm64 (native)
             runner: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
-            runs_on:
-              group: ${{ github.event.repository.name }}-runners
-              labels: ${{ github.event.repository.name }}-linux-arm64
           - id: windows-x64
             name: Windows x86_64 (native)
-            runner: windows-x64
+            runner: windows-2025
             target: x86_64-pc-windows-msvc
-            runs_on:
-              group: ${{ github.event.repository.name }}-runners
-              labels: ${{ github.event.repository.name }}-windows-x64
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
