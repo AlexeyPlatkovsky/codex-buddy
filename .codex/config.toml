@@ -17,6 +17,15 @@ remote_plugin = false
 [mcp_servers.openaiDeveloperDocs]
 url = "https://developers.openai.com/mcp"
 
+[[hooks.PreToolUse]]
+matcher = "^Bash$"
+
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "python3 .codex/hooks/permanent_delete.py"
+timeout = 10
+statusMessage = "ensuring workspace deletions are permanent"
+
 [agents.architecture]
 description = "Maps upstream architecture and designs low-conflict boundaries for the maintainable coding-only fork."
 config_file = "agents/architecture.toml"
