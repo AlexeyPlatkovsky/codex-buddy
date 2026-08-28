@@ -531,6 +531,13 @@ Add targeted macOS and Windows build/smoke coverage for the coding configuration
 
 ## Stage 6: upstream synchronization
 
+Status: completed in `d031b8ba20`; TaskPilot `CB-35` is done.
+
+The clean-main completion rehearsal compared `origin/main` with the previously
+merged `upstream/main` (`868c9edb0d`): 97 fork-only commits, no upstream-only
+commits, no overlapping changed paths, and no conflicts. The preflight reported
+the repository ready and permanently removed its temporary merge-tree output.
+
 Before starting a new migration slice:
 
 1. From a clean `main` equal to `origin/main`, run
