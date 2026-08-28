@@ -316,6 +316,12 @@ App-server must remain for now, but its unconditional extension dependencies sho
 - Slim unavailable/inline tests passed 3/3; Full queue/detached tests passed 2/2; Full TUI queue tests passed 2/2. Coding/Full compile checks and the reusable graph preflight passed.
 - Buddy graph decreased from 1,289 to 1,287 unique normal nodes. No Cargo or Bazel lockfile changed.
 
+### Existing runtime-boundary completion record
+
+- `ad6a67a3f9` locks the already-achieved Coding exclusions for audio, all three memory runtime crates, image generation, and all three cloud-task runtime crates into the reusable dependency preflight.
+- Positive guards use the actual Full owners: app-server for audio, memories, and image generation; CLI for cloud tasks. `codex-cloud-config` remains intentionally available to Coding.
+- This stage changes no product code or compatibility surface. The locked graph preflight and shell syntax check passed.
+
 Current unconditional or broadly included candidates include:
 
 - `codex-agent-extension`
