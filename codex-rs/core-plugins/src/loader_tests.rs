@@ -8,7 +8,7 @@ use codex_config::ConfigLayerSource;
 use codex_config::ConfigRequirements;
 use codex_config::ConfigRequirementsToml;
 use codex_plugin::PluginId;
-use codex_utils_plugins::AGENT_PLUGIN_SCHEMA_URI;
+use codex_skills::plugin::AGENT_PLUGIN_SCHEMA_URI;
 use pretty_assertions::assert_eq;
 use tempfile::TempDir;
 

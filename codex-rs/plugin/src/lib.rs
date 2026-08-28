@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-pub use codex_utils_plugins::mention_syntax;
+pub use codex_skills::mention_syntax;
 
 mod load_outcome;
 pub mod manifest;

@@ -523,7 +523,7 @@ fn resolve_marketplace_plugin_entry(
 
     let manifest = match &source {
         MarketplacePluginSource::Local { path } => {
-            if codex_utils_plugins::find_plugin_manifest_path(path.as_path()).is_some() {
+            if codex_skills::plugin::find_plugin_manifest_path(path.as_path()).is_some() {
                 load_plugin_manifest(path.as_path())
             } else if manifest_fallback.has_metadata {
                 manifest_fallback.parse_for_plugin_root(path.as_path())

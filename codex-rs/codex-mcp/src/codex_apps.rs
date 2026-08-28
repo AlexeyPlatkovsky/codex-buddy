@@ -3,8 +3,6 @@
 //! This module owns the normalization that turns ChatGPT-hosted app
 //! connector/tool metadata into model-visible MCP callable names.
 
-use codex_utils_plugins::mcp_connector::sanitize_name;
-
 mod file_params;
 
 pub use file_params::declared_openai_file_input_param_names;
@@ -66,5 +64,26 @@ pub(crate) fn normalize_codex_apps_callable_namespace(
         format!("{}__{}", server_name, sanitize_name(connector_name))
     } else {
         server_name.to_string()
+    }
+}
+
+fn sanitize_name(name: &str) -> String {
+    sanitize_slug(name).replace('-', "_")
+}
+
+fn sanitize_slug(name: &str) -> String {
+    let mut normalized = String::with_capacity(name.len());
+    for character in name.chars() {
+        if character.is_ascii_alphanumeric() {
+            normalized.push(character.to_ascii_lowercase());
+        } else {
+            normalized.push('-');
+        }
+    }
+    let normalized = normalized.trim_matches('-');
+    if normalized.is_empty() {
+        "app".to_string()
+    } else {
+        normalized.to_string()
     }
 }

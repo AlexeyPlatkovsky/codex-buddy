@@ -6,14 +6,14 @@ use codex_exec_server::GetMetadataOptions;
 use codex_exec_server::ReadFileOptions;
 use codex_protocol::protocol::SkillScope;
 use codex_skills::ParsedSkillFrontmatter;
+use codex_skills::PluginIdentity;
+use codex_skills::PluginSkillRoot;
+use codex_skills::SkillDiscoveryMode;
 use codex_skills::SkillError;
 use codex_skills::SkillMetadata;
 use codex_skills::parse_skill_frontmatter_metadata;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use codex_utils_path_uri::PathUri;
-use codex_utils_plugins::PluginIdentity;
-use codex_utils_plugins::PluginSkillRoot;
-use codex_utils_plugins::SkillDiscoveryMode;
 use futures::StreamExt;
 use tracing::error;
 

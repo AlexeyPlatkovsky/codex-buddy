@@ -6,10 +6,10 @@ use super::UriPluginManifest;
 use super::compatibility_json_error;
 use super::parse_legacy_plugin_manifest_uri;
 use super::resolve_raw_plugin_manifest;
+use codex_skills::plugin::AGENT_PLUGIN_SCHEMA_PREFIX;
+use codex_skills::plugin::AGENT_PLUGIN_SCHEMA_URI;
+use codex_skills::plugin::SUPPORTED_AGENT_PLUGIN_SCHEMA_URIS;
 use codex_utils_path_uri::PathUri;
-use codex_utils_plugins::AGENT_PLUGIN_SCHEMA_PREFIX;
-use codex_utils_plugins::AGENT_PLUGIN_SCHEMA_URI;
-use codex_utils_plugins::SUPPORTED_AGENT_PLUGIN_SCHEMA_URIS;
 use serde::Deserialize;
 use serde_json::Value as JsonValue;
 

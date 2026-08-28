@@ -11,6 +11,7 @@ use codex_extension_api::SkillInvocationKind;
 use codex_otel::sanitize_metric_tag_value;
 use codex_protocol::protocol::SkillScope;
 use codex_runtime_profile::ExternalSource;
+use codex_skills::PluginSkillRoot;
 use codex_skills::SkillMetadata;
 use codex_skills_extension::HostSkillsLoadInput;
 use codex_skills_extension::InjectedHostSkillPrompts;
@@ -18,7 +19,6 @@ use codex_skills_extension::detect_implicit_skill_invocation;
 use codex_skills_extension::record_plugin_turn_usage;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use codex_utils_path_uri::PathUri;
-use codex_utils_plugins::PluginSkillRoot;
 use std::collections::HashSet;
 use tokio::sync::Mutex;
 

@@ -93,6 +93,8 @@ use codex_plugin::prompt_safe_plugin_description;
 use codex_protocol::auth::AuthMode;
 use codex_protocol::protocol::HookEventName;
 use codex_protocol::protocol::Product;
+use codex_skills::PluginIdentity;
+use codex_skills::PluginSkillRoot;
 use codex_skills::SkillMetadata;
 use codex_skills::SkillRootLoader;
 use codex_skills::SkillRootSnapshots;
@@ -100,8 +102,6 @@ use codex_tools::DiscoverablePluginInfo;
 use codex_tools::DiscoverableTool;
 use codex_tools::filter_request_plugin_install_discoverable_tools_for_client;
 use codex_utils_absolute_path::AbsolutePathBuf;
-use codex_utils_plugins::PluginIdentity;
-use codex_utils_plugins::PluginSkillRoot;
 use std::collections::BTreeSet;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -2437,7 +2437,7 @@ impl PluginsManager {
             ));
         }
         let loaded_manifest =
-            if codex_utils_plugins::find_plugin_manifest_path(source_path.as_path()).is_some() {
+            if codex_skills::plugin::find_plugin_manifest_path(source_path.as_path()).is_some() {
                 load_plugin_manifest_with_format(source_path.as_path())
             } else {
                 plugin

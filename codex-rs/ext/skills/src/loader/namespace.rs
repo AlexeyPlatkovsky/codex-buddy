@@ -2,11 +2,60 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 
 use codex_exec_server::ExecutorFileSystem;
+use codex_exec_server::GetMetadataOptions;
+use codex_exec_server::ReadFileOptions;
+use codex_exec_server_protocol::DISCOVERABLE_PLUGIN_MANIFEST_PATHS;
 use codex_utils_path_uri::PathUri;
-use codex_utils_plugins::plugin_namespace_for_root_uri;
 use futures::StreamExt;
 
 use super::discovery::MAX_CONCURRENT_SKILL_LOADS;
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawPluginManifestName {
+    #[serde(default)]
+    name: String,
+}
+
+/// Returns the plugin manifest name defined directly below `plugin_root`.
+async fn plugin_namespace_for_root_uri(
+    fs: &dyn ExecutorFileSystem,
+    plugin_root: &PathUri,
+) -> Option<String> {
+    let mut manifest_path = None;
+    for relative_path in DISCOVERABLE_PLUGIN_MANIFEST_PATHS {
+        let candidate = plugin_root.join(relative_path).ok()?;
+        match fs
+            .get_metadata(
+                &candidate,
+                GetMetadataOptions::default(),
+                /*sandbox*/ None,
+            )
+            .await
+        {
+            Ok(metadata) if metadata.is_file => {
+                manifest_path = Some(candidate);
+                break;
+            }
+            Ok(_) | Err(_) => {}
+        }
+    }
+    let contents = fs
+        .read_file_text(
+            &manifest_path?,
+            ReadFileOptions::default(),
+            /*sandbox*/ None,
+        )
+        .await
+        .ok()?;
+    let RawPluginManifestName { name: raw_name } = serde_json::from_str(&contents).ok()?;
+    Some(
+        plugin_root
+            .basename()
+            .filter(|_| raw_name.trim().is_empty())
+            .unwrap_or(raw_name),
+    )
+}
 
 /// Resolves the namespace prefix applied to skill names during one skills scan.
 ///

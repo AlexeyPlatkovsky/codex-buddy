@@ -3,9 +3,9 @@ use std::sync::Arc;
 use std::sync::Mutex;
 
 use codex_skills::LoadedSkillRoot;
+use codex_skills::PluginSkillRoot;
 use codex_skills::SkillRootSnapshotCache;
 use codex_skills::SkillRootSnapshots;
-use codex_utils_plugins::PluginSkillRoot;
 
 #[derive(Default)]
 struct PluginSkillSnapshotCache {

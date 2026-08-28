@@ -86,7 +86,6 @@ codex-utils-home-dir = { workspace = true }
 codex-utils-output-truncation = { workspace = true }
 codex-utils-path = { workspace = true }
 codex-utils-path-uri = { workspace = true }
-codex-utils-plugins = { workspace = true }
 codex-utils-pty = { workspace = true }
 codex-utils-string = { workspace = true }
 codex-utils-stream-parser = { workspace = true }

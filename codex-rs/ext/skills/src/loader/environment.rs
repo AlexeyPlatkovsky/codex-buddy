@@ -9,10 +9,10 @@ use codex_protocol::protocol::Product;
 use codex_skills::EnvironmentSkillMetadata;
 use codex_skills::ParsedSkillFrontmatter;
 use codex_skills::SkillDependencies;
+use codex_skills::SkillDiscoveryMode;
 use codex_skills::SkillPolicy;
 use codex_skills::parse_skill_frontmatter_metadata;
 use codex_utils_path_uri::PathUri;
-use codex_utils_plugins::SkillDiscoveryMode;
 use futures::StreamExt;
 
 use super::MAX_QUALIFIED_NAME_LEN;

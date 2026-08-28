@@ -11,9 +11,9 @@ use codex_plugin::app_connector_ids_from_declarations;
 use codex_plugin::prompt_safe_plugin_description;
 use codex_protocol::auth::AuthMode;
 use codex_protocol::protocol::Product;
+use codex_skills::PluginIdentity;
+use codex_skills::PluginSkillRoot;
 use codex_skills::SkillRootLoader;
-use codex_utils_plugins::PluginIdentity;
-use codex_utils_plugins::PluginSkillRoot;
 use tokio::sync::Semaphore;
 
 use crate::app_mcp_routing::apply_app_mcp_routing_policy;

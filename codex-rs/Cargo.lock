@@ -2845,7 +2845,6 @@ dependencies = [
  "codex-utils-output-truncation",
  "codex-utils-path",
  "codex-utils-path-uri",
- "codex-utils-plugins",
  "codex-utils-pty",
  "codex-utils-redacted-string",
  "codex-utils-stream-parser",
@@ -2952,7 +2951,6 @@ dependencies = [
  "codex-utils-absolute-path",
  "codex-utils-path",
  "codex-utils-path-uri",
- "codex-utils-plugins",
  "dirs",
  "flate2",
  "futures",
@@ -3630,7 +3628,6 @@ dependencies = [
  "codex-protocol",
  "codex-rmcp-client",
  "codex-utils-path-uri",
- "codex-utils-plugins",
  "futures",
  "lru",
  "pretty_assertions",
@@ -3953,9 +3950,9 @@ version = "0.0.0"
 dependencies = [
  "codex-config",
  "codex-protocol",
+ "codex-skills",
  "codex-utils-absolute-path",
  "codex-utils-path-uri",
- "codex-utils-plugins",
  "pretty_assertions",
  "thiserror 2.0.18",
 ]
@@ -4263,6 +4260,7 @@ dependencies = [
 name = "codex-skills"
 version = "0.0.0"
 dependencies = [
+ "codex-exec-server-protocol",
  "codex-protocol",
  "codex-shell-command",
  "codex-utils-absolute-path",
@@ -4270,8 +4268,10 @@ dependencies = [
  "include_dir",
  "pretty_assertions",
  "serde",
+ "serde_json",
  "serde_yaml",
  "shlex",
+ "tempfile",
  "thiserror 2.0.18",
  "tracing",
 ]
@@ -4284,6 +4284,7 @@ dependencies = [
  "codex-analytics",
  "codex-config",
  "codex-exec-server",
+ "codex-exec-server-protocol",
  "codex-extension-api",
  "codex-mcp",
  "codex-models-manager",
@@ -4295,7 +4296,6 @@ dependencies = [
  "codex-utils-absolute-path",
  "codex-utils-cargo-bin",
  "codex-utils-path-uri",
- "codex-utils-plugins",
  "codex-utils-string",
  "dirs",
  "dunce",

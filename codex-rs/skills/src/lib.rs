@@ -1,10 +1,12 @@
 mod interface;
 mod invocation;
 mod loading;
+pub mod mention_syntax;
 mod mentions;
 mod model;
 mod name_counts;
 mod parser;
+pub mod plugin;
 mod selection;
 
 pub use interface::SkillInterfaceAssetPolicy;
@@ -40,6 +42,9 @@ pub use name_counts::build_skill_name_counts;
 pub use parser::ParsedSkillFrontmatter;
 pub use parser::SkillParseError;
 pub use parser::parse_skill_frontmatter_metadata;
+pub use plugin::PluginIdentity;
+pub use plugin::PluginSkillRoot;
+pub use plugin::SkillDiscoveryMode;
 pub use selection::ExplicitSkillLookup;
 pub use selection::collect_explicit_skill_mentions;
 

@@ -1,9 +1,9 @@
 use codex_config::HooksFile;
+use codex_skills::plugin::AGENT_PLUGIN_MANIFEST_RELATIVE_PATH;
+use codex_skills::plugin::find_plugin_manifest_path;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use codex_utils_path_uri::PathConvention;
 use codex_utils_path_uri::PathUri;
-use codex_utils_plugins::AGENT_PLUGIN_MANIFEST_RELATIVE_PATH;
-use codex_utils_plugins::find_plugin_manifest_path;
 use serde::Deserialize;
 use serde_json::Value as JsonValue;
 use std::fs;
