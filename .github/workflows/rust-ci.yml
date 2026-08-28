@@ -138,6 +138,13 @@ jobs:
             exit 1
           fi
 
+          mcp_tree="$(cargo tree -p codex-mcp -e normal --prefix none)"
+          if grep -Eq '^codex-connectors v' <<<"$mcp_tree"; then
+            echo 'codex-mcp unexpectedly depends on codex-connectors'
+            echo "$mcp_tree"
+            exit 1
+          fi
+
           app_server_metadata="$(cargo metadata --no-deps --format-version=1)"
           for dependency in codex-connectors codex-core-plugins codex-plugin; do
             if ! jq -e --arg dependency "$dependency" '
