@@ -68,6 +68,23 @@ target_env_name="CARGO_TARGET_$(printf '%s' "${target_triple}" | tr '[:lower:]-'
 linker="${!target_env_name:-cargo-default}"
 
 metadata_json() {
+  local profile_environment
+  profile_environment="$(python3 - <<'PY'
+import json
+import os
+
+print(
+    json.dumps(
+        {
+            key: value
+            for key, value in os.environ.items()
+            if key.startswith("CARGO_PROFILE_RELEASE_")
+        },
+        sort_keys=True,
+    )
+)
+PY
+)"
   jq -n \
     --arg baseline "$(git -C "${repo_root}" rev-parse "${baseline_revision}^{commit}")" \
     --arg current "$(git -C "${repo_root}" rev-parse "${current_revision}^{commit}")" \
@@ -77,7 +94,8 @@ metadata_json() {
     --arg cargo "${cargo_version}" \
     --arg linker "${linker}" \
     --arg linker_env "${target_env_name}" \
-    '{baseline: $baseline, current: $current, host: $os, target_triple: $target, rustc: $rustc, cargo: $cargo, linker: $linker, linker_environment: $linker_env, cargo_build: ["build", "--locked", "--release", "-p", "codex-buddy", "--target", $target], cargo_incremental: "0", post_build_strip: "strip -S -x on a temporary copy when supported"}'
+    --argjson profile_environment "${profile_environment}" \
+    '{baseline: $baseline, current: $current, host: $os, target_triple: $target, rustc: $rustc, cargo: $cargo, linker: $linker, linker_environment: $linker_env, cargo_build: ["build", "--locked", "--release", "-p", "codex-buddy", "--target", $target], cargo_incremental: "0", cargo_profile_release_environment_overrides: $profile_environment, post_build_strip: "strip -S -x on a temporary copy when supported"}'
 }
 
 active_builds() {
@@ -132,7 +150,9 @@ require_no_active_builds
 cargo_version="$(cargo -V)"
 
 measurement_root="$(mktemp -d "${repo_root}/.buddy_runtime_measurement.XXXXXX")"
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 if [[ ! -d "${measurement_root}" || -L "${measurement_root}" ]]; then
   echo "refusing unsafe measurement root: ${measurement_root}" >&2
@@ -160,6 +180,7 @@ with open(sys.argv[1], "rb") as manifest_file:
 print(
     json.dumps(
         {
+            "source": "workspace manifest with Cargo release-profile defaults; environment overrides are recorded in report metadata",
             "opt-level": configured.get("opt-level", 3),
             "lto": configured.get("lto", False),
             "codegen-units": configured.get("codegen-units", 16),
