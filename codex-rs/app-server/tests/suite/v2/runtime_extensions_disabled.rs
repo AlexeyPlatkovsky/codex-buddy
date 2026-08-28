@@ -94,3 +94,55 @@ async fn detached_review_method_remains_known_and_reports_unavailable() -> Resul
 
     Ok(())
 }
+
+#[cfg(not(feature = "realtime"))]
+#[tokio::test]
+async fn realtime_methods_remain_known_and_report_unavailable() -> Result<()> {
+    let mut app = TestAppServer::builder().build_initialized().await?;
+    let thread_id = "00000000-0000-0000-0000-000000000000";
+    let requests = [
+        (
+            "thread/realtime/start",
+            json!({"threadId": thread_id, "outputModality": "audio"}),
+        ),
+        (
+            "thread/realtime/appendAudio",
+            json!({
+                "threadId": thread_id,
+                "audio": {
+                    "data": "",
+                    "sampleRate": 24_000,
+                    "numChannels": 1,
+                    "samplesPerChannel": null,
+                    "itemId": null,
+                },
+            }),
+        ),
+        (
+            "thread/realtime/appendText",
+            json!({"threadId": thread_id, "text": "hello"}),
+        ),
+        (
+            "thread/realtime/appendSpeech",
+            json!({"threadId": thread_id, "text": "hello"}),
+        ),
+        ("thread/realtime/stop", json!({"threadId": thread_id})),
+        ("thread/realtime/listVoices", json!({})),
+    ];
+
+    for (method, params) in requests {
+        let request_id = app.send_raw_request(method, Some(params)).await?;
+        let error: JSONRPCError = timeout(
+            READ_TIMEOUT,
+            app.read_stream_until_error_message(RequestId::Integer(request_id)),
+        )
+        .await??;
+        assert_eq!(error.error.code, INVALID_REQUEST_ERROR_CODE);
+        assert_eq!(
+            error.error.message,
+            "realtime conversation is unavailable in this build"
+        );
+    }
+
+    Ok(())
+}

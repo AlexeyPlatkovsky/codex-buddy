@@ -23,9 +23,13 @@ use codex_protocol::error::CodexErr;
 use codex_protocol::error::Result as CodexResult;
 use codex_protocol::models::ResponseItem;
 use codex_protocol::protocol::AdditionalContextEntry;
+#[cfg(any(test, feature = "realtime"))]
 use codex_protocol::protocol::CodexErrorInfo;
+#[cfg(any(test, feature = "realtime"))]
 use codex_protocol::protocol::ErrorEvent;
+#[cfg(feature = "realtime")]
 use codex_protocol::protocol::Event;
+#[cfg(any(test, feature = "realtime"))]
 use codex_protocol::protocol::EventMsg;
 use codex_protocol::protocol::NonSteerableTurnKind;
 use codex_protocol::protocol::ThreadSettingsOverrides;
@@ -35,11 +39,13 @@ use codex_protocol::turn_input::TurnInputMode;
 use codex_protocol::turn_input::TurnInputRequest;
 use codex_protocol::turn_input::TurnInputSubmission;
 use codex_protocol::turn_input::TurnStartOptions;
+#[cfg(feature = "realtime")]
 use codex_protocol::user_input::UserInput;
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::sync::Arc;
+#[cfg(feature = "realtime")]
 use uuid::Uuid;
 
 #[cfg(test)]
@@ -487,6 +493,7 @@ async fn steer(
 }
 
 impl Session {
+    #[cfg(feature = "realtime")]
     pub(crate) async fn route_realtime_text_input(self: &Arc<Self>, text: String) {
         let submission_id = Uuid::now_v7().to_string();
         let submission = handle(

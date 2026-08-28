@@ -42,7 +42,9 @@ use codex_api::MemorySummarizeInput as ApiMemorySummarizeInput;
 use codex_api::MemorySummarizeOutput as ApiMemorySummarizeOutput;
 use codex_api::Provider as ApiProvider;
 use codex_api::RawMemory as ApiRawMemory;
+#[cfg(feature = "realtime")]
 use codex_api::RealtimeCallClient as ApiRealtimeCallClient;
+#[cfg(feature = "realtime")]
 use codex_api::RealtimeSessionConfig as ApiRealtimeSessionConfig;
 use codex_api::Reasoning;
 use codex_api::ReasoningContext;
@@ -167,6 +169,7 @@ const WS_REQUEST_HEADER_RESPONSES_LITE_CLIENT_METADATA_KEY: &str =
 const RESPONSES_WEBSOCKETS_V2_BETA_HEADER_VALUE: &str = "responses_websockets=2026-02-06";
 const X_OPENAI_INTERNAL_CODEX_RESPONSES_LITE_HEADER: &str =
     "x-openai-internal-codex-responses-lite";
+#[cfg(feature = "realtime")]
 const REALTIME_CALLS_ENDPOINT: &str = "/realtime/calls";
 const RESPONSES_COMPACT_ENDPOINT: &str = "/responses/compact";
 // `/responses/compact` is unary, so the timeout covers the full response rather than one idle
@@ -446,6 +449,7 @@ enum WebsocketStreamOutcome {
 /// The SDP answer goes back to the client. The call id and auth headers stay on the server so the
 /// ordinary Realtime WebSocket machinery can join the same in-progress call as a sideband
 /// controller.
+#[cfg(feature = "realtime")]
 pub(crate) struct RealtimeWebrtcCallStart {
     pub(crate) sdp: String,
     pub(crate) call_id: String,
@@ -457,6 +461,7 @@ pub(crate) struct RealtimeWebrtcCallStart {
 /// API-key sessions send that API bearer. ChatGPT-auth sessions send their bearer plus account id;
 /// transceiver is responsible for accepting that same call-create identity on the direct
 /// `api.openai.com` sideband path.
+#[cfg(feature = "realtime")]
 fn sideband_websocket_auth_headers(api_auth: &dyn AuthProvider) -> ApiHeaderMap {
     let mut headers = ApiHeaderMap::new();
     api_auth.add_auth_headers(&mut headers);
@@ -563,6 +568,7 @@ impl ModelClient {
         }
     }
 
+    #[cfg(feature = "realtime")]
     pub(crate) fn auth_manager(&self) -> Option<Arc<AuthManager>> {
         self.state.provider.auth_manager()
     }
@@ -723,6 +729,7 @@ impl ModelClient {
         result
     }
 
+    #[cfg(feature = "realtime")]
     pub(crate) async fn create_realtime_call_with_headers(
         &self,
         sdp: String,
@@ -753,6 +760,7 @@ impl ModelClient {
         })
     }
 
+    #[cfg(feature = "realtime")]
     pub(crate) async fn realtime_sideband_headers(
         &self,
         mut extra_headers: ApiHeaderMap,

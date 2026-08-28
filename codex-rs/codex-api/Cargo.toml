@@ -4,8 +4,12 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[features]
+default = []
+realtime = ["dep:async-channel"]
+
 [dependencies]
-async-channel = { workspace = true }
+async-channel = { workspace = true, optional = true }
 base64 = { workspace = true }
 bytes = { workspace = true }
 chrono = { workspace = true }
@@ -36,6 +40,11 @@ assert_matches = { workspace = true }
 pretty_assertions = { workspace = true }
 tokio-test = { workspace = true }
 wiremock = { workspace = true }
+
+[[test]]
+name = "realtime_websocket_e2e"
+path = "tests/realtime_websocket_e2e.rs"
+required-features = ["realtime"]
 
 [lints]
 workspace = true

@@ -33,7 +33,9 @@ use codex_protocol::protocol::GuardianAssessmentEvent;
 use codex_protocol::protocol::GuardianAssessmentStatus;
 use codex_protocol::protocol::InterAgentCommunication;
 use codex_protocol::protocol::Op;
+#[cfg(feature = "realtime")]
 use codex_protocol::protocol::RealtimeConversationListVoicesResponseEvent;
+#[cfg(feature = "realtime")]
 use codex_protocol::protocol::RealtimeVoicesList;
 use codex_protocol::protocol::ReviewDecision;
 use codex_protocol::protocol::ReviewRequest;
@@ -64,6 +66,7 @@ pub async fn clean_background_terminals(sess: &Arc<Session>) {
     sess.close_unified_exec_processes().await;
 }
 
+#[cfg(feature = "realtime")]
 pub async fn realtime_conversation_list_voices(sess: &Session, sub_id: String) {
     sess.send_event_raw(Event {
         id: sub_id,
@@ -74,6 +77,11 @@ pub async fn realtime_conversation_list_voices(sess: &Session, sub_id: String) {
         ),
     })
     .await;
+}
+
+#[cfg(not(feature = "realtime"))]
+pub async fn realtime_conversation_list_voices(sess: &Session, sub_id: String) {
+    crate::realtime_conversation::send_realtime_unavailable(sess, sub_id).await;
 }
 
 /// Queues an inter-agent message, then lets the shared pending-work scheduler

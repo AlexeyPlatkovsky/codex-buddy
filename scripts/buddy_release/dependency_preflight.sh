@@ -149,3 +149,21 @@ if [[ "${buddy_mcp_features}" == *'codex-mcp-extension feature "plugin-runtime"'
   echo "${buddy_mcp_features}"
   exit 1
 fi
+
+for package in codex-app-server codex-core codex-api; do
+  buddy_features="$(cargo tree --locked -p codex-buddy -e features -i "${package}")"
+  if [[ "${buddy_features}" == *"${package} feature \"realtime\""* ]]; then
+    echo "codex-buddy unexpectedly enables ${package}/realtime"
+    echo "${buddy_features}"
+    exit 1
+  fi
+done
+
+for package in codex-app-server codex-core codex-api; do
+  full_cli_features="$(cargo tree --locked -p codex-cli -e features -i "${package}")"
+  if [[ "${full_cli_features}" != *"${package} feature \"realtime\""* ]]; then
+    echo "full codex-cli must enable ${package}/realtime"
+    echo "${full_cli_features}"
+    exit 1
+  fi
+done

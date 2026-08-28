@@ -32,6 +32,7 @@ mod node_repl_review_evidence;
 mod permissions_instructions;
 mod personality_spec_instructions;
 mod plugin_instructions;
+#[cfg(feature = "realtime")]
 mod realtime_delegation;
 mod realtime_end_instructions;
 mod realtime_start_instructions;
@@ -92,7 +93,9 @@ pub use permissions_instructions::ApprovalPromptContext;
 pub use permissions_instructions::PermissionsInstructions;
 pub(crate) use personality_spec_instructions::PersonalitySpecInstructions;
 pub(crate) use plugin_instructions::PluginInstructions;
+#[cfg(feature = "realtime")]
 pub(crate) use realtime_delegation::RealtimeDelegation;
+#[cfg(feature = "realtime")]
 pub(crate) use realtime_delegation::RealtimeDelegationSource;
 pub(crate) use realtime_end_instructions::RealtimeEndInstructions;
 pub(crate) use realtime_start_instructions::RealtimeStartInstructions;

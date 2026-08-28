@@ -16,6 +16,7 @@ use crate::detached_review::DetachedReviewRun;
 use crate::detached_review::DetachedReviewRunner;
 use crate::image_url::REMOTE_IMAGE_URL_ERROR;
 use crate::image_url::is_remote_image_url;
+use crate::realtime_runtime::RealtimeRuntime;
 
 pub(super) fn validate_user_input_image_urls(
     input: &[V2UserInput],
@@ -74,6 +75,7 @@ fn validate_response_item_image_urls(items: &[ResponseItem]) -> Result<(), JSONR
 #[derive(Clone)]
 pub(crate) struct TurnRequestProcessor {
     detached_review_runner: DetachedReviewRunner,
+    realtime_runtime: RealtimeRuntime,
     #[cfg(feature = "memories")]
     auth_manager: Arc<AuthManager>,
     thread_manager: Arc<ThreadManager>,
@@ -150,6 +152,7 @@ impl TurnRequestProcessor {
         let _ = auth_manager;
         Self {
             detached_review_runner,
+            realtime_runtime: RealtimeRuntime,
             #[cfg(feature = "memories")]
             auth_manager,
             thread_manager,
@@ -272,6 +275,7 @@ impl TurnRequestProcessor {
         request_id: &ConnectionRequestId,
         params: ThreadRealtimeStartParams,
     ) -> Result<Option<ClientResponsePayload>, JSONRPCErrorError> {
+        self.realtime_runtime.ensure_available()?;
         self.thread_realtime_start_inner(request_id, params)
             .await
             .map(|response| response.map(Into::into))
@@ -282,6 +286,7 @@ impl TurnRequestProcessor {
         request_id: &ConnectionRequestId,
         params: ThreadRealtimeAppendAudioParams,
     ) -> Result<Option<ClientResponsePayload>, JSONRPCErrorError> {
+        self.realtime_runtime.ensure_available()?;
         self.thread_realtime_append_audio_inner(request_id, params)
             .await
             .map(|response| response.map(Into::into))
@@ -292,6 +297,7 @@ impl TurnRequestProcessor {
         request_id: &ConnectionRequestId,
         params: ThreadRealtimeAppendTextParams,
     ) -> Result<Option<ClientResponsePayload>, JSONRPCErrorError> {
+        self.realtime_runtime.ensure_available()?;
         self.thread_realtime_append_text_inner(request_id, params)
             .await
             .map(|response| response.map(Into::into))
@@ -302,6 +308,7 @@ impl TurnRequestProcessor {
         request_id: &ConnectionRequestId,
         params: ThreadRealtimeAppendSpeechParams,
     ) -> Result<Option<ClientResponsePayload>, JSONRPCErrorError> {
+        self.realtime_runtime.ensure_available()?;
         self.thread_realtime_append_speech_inner(request_id, params)
             .await
             .map(|response| response.map(Into::into))
@@ -312,6 +319,7 @@ impl TurnRequestProcessor {
         request_id: &ConnectionRequestId,
         params: ThreadRealtimeStopParams,
     ) -> Result<Option<ClientResponsePayload>, JSONRPCErrorError> {
+        self.realtime_runtime.ensure_available()?;
         self.thread_realtime_stop_inner(request_id, params)
             .await
             .map(|response| response.map(Into::into))
@@ -320,6 +328,7 @@ impl TurnRequestProcessor {
     pub(crate) async fn thread_realtime_list_voices(
         &self,
     ) -> Result<Option<ClientResponsePayload>, JSONRPCErrorError> {
+        self.realtime_runtime.ensure_available()?;
         Ok(Some(
             ThreadRealtimeListVoicesResponse {
                 voices: RealtimeVoicesList::builtin(),

@@ -125,8 +125,12 @@ mod prompt_cache_key;
 mod prompt_caching;
 mod prompt_debug_tests;
 mod quota_exceeded;
+#[cfg(feature = "realtime")]
 mod realtime_conversation;
+#[cfg(feature = "realtime")]
 mod realtime_initial_items;
+#[cfg(not(feature = "realtime"))]
+mod realtime_unavailable;
 mod remote_env;
 mod remote_models;
 mod request_compression;
