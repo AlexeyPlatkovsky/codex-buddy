@@ -34,15 +34,13 @@ if [[ ! -d "${artifact_dir}" || -L "${artifact_dir}" ]]; then
   exit 2
 fi
 
-active_builds="$({
-  while read -r process_id process_command; do
-    case "${process_command##*/}" in
-      cargo|cargo-nextest|rustc|just|bazel|bazelisk)
-        echo "${process_id} ${process_command}"
-        ;;
-    esac
-  done < <(ps -axo pid=,comm=)
-} || true)"
+active_builds=""
+for process_name in cargo cargo-nextest rustc just bazel bazelisk; do
+  process_ids="$(pgrep -x "${process_name}" || true)"
+  if [[ -n "${process_ids}" ]]; then
+    active_builds="${active_builds}${process_name}: ${process_ids}"$'\n'
+  fi
+done
 
 if [[ -n "${active_builds}" ]]; then
   echo "refusing cleanup while Rust/Bazel validation processes are active:" >&2

@@ -3,6 +3,7 @@ import os
 import shlex
 import shutil
 import sys
+import time
 from pathlib import Path
 from typing import NoReturn
 
@@ -142,7 +143,18 @@ def delete_targets(targets: list[str], *, cwd: Path, workspace_root: Path) -> No
         if entry.is_symlink() or entry.is_file():
             entry.unlink()
         elif entry.is_dir():
-            shutil.rmtree(entry)
+            for attempt in range(3):
+                try:
+                    shutil.rmtree(entry)
+                    break
+                except FileNotFoundError:
+                    break
+                except OSError as error:
+                    if attempt == 2:
+                        raise PermanentDeleteError(
+                            f"failed to permanently delete directory: {entry}: {error}"
+                        ) from error
+                    time.sleep(0.05 * (attempt + 1))
         else:
             raise PermanentDeleteError(f"unsupported deletion target: {entry}")
         print(f"permanently deleted: {entry}")

@@ -1,7 +1,10 @@
+import errno
 import importlib.util
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 SCRIPT_PATH = Path(__file__).with_name("permanent_delete.py")
 SPEC = importlib.util.spec_from_file_location("permanent_delete", SCRIPT_PATH)
@@ -94,6 +97,38 @@ class DeleteTargetsTest(unittest.TestCase):
             self.assertFalse(directory.exists())
             self.assertFalse(link.exists())
             self.assertTrue(external.exists())
+
+    def test_retries_when_metadata_is_recreated_during_directory_removal(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace_dir:
+            workspace = Path(workspace_dir)
+            directory = workspace / "target"
+            directory.mkdir()
+            (directory / "artifact").write_text("content")
+            real_rmtree = shutil.rmtree
+            attempts = 0
+
+            def racing_rmtree(path: Path) -> None:
+                nonlocal attempts
+                attempts += 1
+                real_rmtree(path)
+                if attempts == 1:
+                    path.mkdir()
+                    (path / ".DS_Store").write_text("metadata")
+                    raise OSError(errno.ENOTEMPTY, "directory not empty", path)
+
+            with mock.patch.object(
+                permanent_delete.shutil,
+                "rmtree",
+                side_effect=racing_rmtree,
+            ):
+                permanent_delete.delete_targets(
+                    ["target"],
+                    cwd=workspace,
+                    workspace_root=workspace,
+                )
+
+            self.assertEqual(attempts, 2)
+            self.assertFalse(directory.exists())
 
     def test_refuses_workspace_root_and_outside_paths(self) -> None:
         with (
