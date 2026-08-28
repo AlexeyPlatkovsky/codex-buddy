@@ -62,11 +62,49 @@ for dependency in codex-agent-extension codex-queue-extension; do
   fi
 done
 
+for dependency in \
+  codex-utils-audio \
+  codex-memories-extension \
+  codex-memories-read \
+  codex-memories-write \
+  codex-image-generation-extension \
+  codex-cloud-tasks \
+  codex-cloud-tasks-client \
+  codex-cloud-tasks-mock-client; do
+  if grep -Eq "^${dependency} v" <<<"${buddy_tree}"; then
+    echo "codex-buddy unexpectedly depends on ${dependency}"
+    echo "${buddy_tree}"
+    exit 1
+  fi
+done
+
 full_app_server_tree="$(cargo tree --locked -p codex-app-server -e normal --prefix none)"
 for dependency in codex-agent-extension codex-queue-extension; do
   if ! grep -Eq "^${dependency} v" <<<"${full_app_server_tree}"; then
     echo "full codex-app-server must depend on ${dependency}"
     echo "${full_app_server_tree}"
+    exit 1
+  fi
+done
+
+for dependency in \
+  codex-utils-audio \
+  codex-memories-extension \
+  codex-memories-read \
+  codex-memories-write \
+  codex-image-generation-extension; do
+  if ! grep -Eq "^${dependency} v" <<<"${full_app_server_tree}"; then
+    echo "full codex-app-server must depend on ${dependency}"
+    echo "${full_app_server_tree}"
+    exit 1
+  fi
+done
+
+full_cli_tree="$(cargo tree --locked -p codex-cli -e normal --prefix none)"
+for dependency in codex-cloud-tasks codex-cloud-tasks-client codex-cloud-tasks-mock-client; do
+  if ! grep -Eq "^${dependency} v" <<<"${full_cli_tree}"; then
+    echo "full codex-cli must depend on ${dependency}"
+    echo "${full_cli_tree}"
     exit 1
   fi
 done
