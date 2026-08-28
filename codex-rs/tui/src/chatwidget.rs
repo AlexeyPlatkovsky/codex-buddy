@@ -186,16 +186,22 @@ const MULTI_AGENT_ENABLE_YES: &str = "Yes, enable";
 const MULTI_AGENT_ENABLE_NO: &str = "Not now";
 const MULTI_AGENT_ENABLE_NOTICE: &str = "Subagents will be enabled in the next session.";
 const TRUSTED_ACCESS_FOR_CYBER_VERIFICATION_WARNING: &str = "Your conversations have multiple flags for possible cybersecurity risk. Responses may take longer because extra safety checks are on. To get authorized for security work, join the Trusted Access for Cyber program: https://chatgpt.com/cyber";
+#[cfg(feature = "full-runtime-extensions")]
 const MEMORIES_DOC_URL: &str = "https://developers.openai.com/codex/memories";
+#[cfg(feature = "full-runtime-extensions")]
 const MEMORIES_ENABLE_TITLE: &str = "Enable memories?";
+#[cfg(feature = "full-runtime-extensions")]
 const MEMORIES_ENABLE_YES: &str = "Yes, enable";
+#[cfg(feature = "full-runtime-extensions")]
 const MEMORIES_ENABLE_NO: &str = "Not now";
 const MEMORIES_ENABLE_NOTICE: &str = "Memories will be enabled in the next session.";
 const PLAN_MODE_REASONING_SCOPE_TITLE: &str = "Apply reasoning change";
 const PLAN_MODE_REASONING_SCOPE_PLAN_ONLY: &str = "Apply to Plan mode override";
 const PLAN_MODE_REASONING_SCOPE_ALL_MODES: &str = "Apply to global default and Plan mode override";
 const CONNECTORS_SELECTION_VIEW_ID: &str = "connectors-selection";
+#[cfg(feature = "full-runtime-extensions")]
 const PET_SELECTION_LOADING_VIEW_ID: &str = "pet-selection-loading";
+#[cfg(feature = "full-runtime-extensions")]
 const AMBIENT_PET_WRAP_GAP_COLUMNS: u16 = 2;
 const TUI_STUB_MESSAGE: &str = "Not available in TUI yet.";
 const PARENT_OWNED_INPUT_MESSAGE: &str =
@@ -288,6 +294,7 @@ use crate::bottom_pane::InputResult;
 use crate::bottom_pane::LocalImageAttachment;
 use crate::bottom_pane::McpElicitationApprovalRequest;
 use crate::bottom_pane::McpServerElicitationFormRequest;
+#[cfg(feature = "full-runtime-extensions")]
 use crate::bottom_pane::MemoriesSettingsView;
 use crate::bottom_pane::MentionBinding;
 use crate::bottom_pane::PermissionsApprovalRequest;
@@ -365,6 +372,8 @@ mod keymap_picker;
 mod mcp_startup;
 use self::mcp_startup::McpStartupStatus;
 mod misalignment_policy;
+mod pet_layout;
+#[cfg(feature = "full-runtime-extensions")]
 mod pets;
 mod session_flow;
 mod session_header;
@@ -657,15 +666,22 @@ pub(crate) struct ChatWidget {
     // Active hook runs render in a dedicated live cell so they can run alongside tools.
     active_hook_cell: Option<HookCell>,
     // Reused for built-in pet CDN requests so redirects remain route-aware.
+    #[cfg(feature = "full-runtime-extensions")]
     pub(crate) pet_http_client: codex_http_client::RouteAwareClientPool,
     // Ambient companion rendered over the transcript area, never inside the footer rows.
+    #[cfg(feature = "full-runtime-extensions")]
     ambient_pet: Option<crate::pets::AmbientPet>,
+    #[cfg(feature = "full-runtime-extensions")]
     pet_picker_preview_state: crate::pets::PetPickerPreviewState,
+    #[cfg(feature = "full-runtime-extensions")]
     pet_picker_preview_pet: Option<crate::pets::AmbientPet>,
+    #[cfg(feature = "full-runtime-extensions")]
     pet_picker_preview_request_id: u64,
+    #[cfg(feature = "full-runtime-extensions")]
     pet_picker_preview_image_visible: std::cell::Cell<bool>,
+    #[cfg(feature = "full-runtime-extensions")]
     pet_selection_load_request_id: u64,
-    #[cfg(test)]
+    #[cfg(all(test, feature = "full-runtime-extensions"))]
     pet_image_support_override: Option<crate::pets::PetImageSupport>,
     thread_id: Option<ThreadId>,
     thread_name: Option<String>,
@@ -1086,6 +1102,7 @@ impl ChatWidget {
         });
     }
 
+    #[cfg(feature = "full-runtime-extensions")]
     pub(crate) fn open_memories_popup(&mut self) {
         if !self.config.features.enabled(Feature::MemoryTool) {
             self.open_memories_enable_prompt();
@@ -1101,6 +1118,7 @@ impl ChatWidget {
         self.bottom_pane.show_view(Box::new(view));
     }
 
+    #[cfg(feature = "full-runtime-extensions")]
     pub(crate) fn open_memories_enable_prompt(&mut self) {
         let items = vec![
             SelectionItem {
@@ -1205,6 +1223,7 @@ impl ChatWidget {
             self.flush_completed_command_activity();
         }
         self.bottom_pane.pre_draw_tick();
+        #[cfg(feature = "full-runtime-extensions")]
         if let Some(pet) = self.ambient_pet.as_ref() {
             pet.schedule_next_frame();
         }

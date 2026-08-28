@@ -646,25 +646,30 @@ pub(crate) enum AppEvent {
     },
 
     /// Persist a pet selection and reload the ambient pet.
+    #[cfg(feature = "full-runtime-extensions")]
     PetSelected {
         pet_id: String,
     },
 
     /// Persist terminal pets as disabled and remove the ambient pet.
+    #[cfg(feature = "full-runtime-extensions")]
     PetDisabled,
 
     /// Start loading the side preview for the pet picker.
+    #[cfg(feature = "full-runtime-extensions")]
     PetPreviewRequested {
         pet_id: String,
     },
 
     /// Result of loading the side preview for the pet picker.
+    #[cfg(feature = "full-runtime-extensions")]
     PetPreviewLoaded {
         request_id: u64,
         result: Result<crate::pets::AmbientPet, String>,
     },
 
     /// Result of loading the selected ambient pet before config persistence.
+    #[cfg(feature = "full-runtime-extensions")]
     PetSelectionLoaded {
         request_id: u64,
         pet_id: String,
@@ -672,6 +677,7 @@ pub(crate) enum AppEvent {
     },
 
     /// Result of restoring the configured ambient pet during startup.
+    #[cfg(feature = "full-runtime-extensions")]
     ConfiguredPetLoaded {
         pet_id: String,
         result: Result<Option<crate::pets::AmbientPet>, String>,
@@ -1112,12 +1118,14 @@ pub(crate) enum AppEvent {
     },
 
     /// Update memory settings and persist them to config.toml.
+    #[cfg(feature = "full-runtime-extensions")]
     UpdateMemorySettings {
         use_memories: bool,
         generate_memories: bool,
     },
 
     /// Clear all persisted local memory artifacts via the app-server.
+    #[cfg(feature = "full-runtime-extensions")]
     ResetMemories,
 
     /// Update whether the world-writable directories warning has been acknowledged.

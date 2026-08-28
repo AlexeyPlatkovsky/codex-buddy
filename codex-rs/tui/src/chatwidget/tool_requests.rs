@@ -302,6 +302,7 @@ impl ChatWidget {
         });
         self.bottom_pane
             .push_approval_request(request, &self.config.features);
+        #[cfg(feature = "full-runtime-extensions")]
         self.set_ambient_pet_notification(
             crate::pets::PetNotificationKind::Waiting,
             /*body*/ None,
@@ -324,6 +325,7 @@ impl ChatWidget {
         });
         self.bottom_pane
             .push_approval_request(request, &self.config.features);
+        #[cfg(feature = "full-runtime-extensions")]
         self.set_ambient_pet_notification(
             crate::pets::PetNotificationKind::Waiting,
             /*body*/ None,
@@ -389,6 +391,7 @@ impl ChatWidget {
                 }
             }
         }
+        #[cfg(feature = "full-runtime-extensions")]
         self.set_ambient_pet_notification(
             crate::pets::PetNotificationKind::Waiting,
             /*body*/ None,
@@ -400,6 +403,7 @@ impl ChatWidget {
         self.flush_completed_command_activity();
         self.bottom_pane
             .push_approval_request(request, &self.config.features);
+        #[cfg(feature = "full-runtime-extensions")]
         self.set_ambient_pet_notification(
             crate::pets::PetNotificationKind::Waiting,
             /*body*/ None,
@@ -414,6 +418,7 @@ impl ChatWidget {
         self.flush_completed_command_activity();
         self.bottom_pane
             .push_mcp_server_elicitation_request(request);
+        #[cfg(feature = "full-runtime-extensions")]
         self.set_ambient_pet_notification(
             crate::pets::PetNotificationKind::Waiting,
             /*body*/ None,
@@ -433,6 +438,7 @@ impl ChatWidget {
         };
         self.notify(Notification::PlanModePrompt { title });
         self.bottom_pane.push_user_input_request(ev);
+        #[cfg(feature = "full-runtime-extensions")]
         self.set_ambient_pet_notification(
             crate::pets::PetNotificationKind::Waiting,
             /*body*/ None,
@@ -453,6 +459,7 @@ impl ChatWidget {
         });
         self.bottom_pane
             .push_approval_request(request, &self.config.features);
+        #[cfg(feature = "full-runtime-extensions")]
         self.set_ambient_pet_notification(
             crate::pets::PetNotificationKind::Waiting,
             /*body*/ None,

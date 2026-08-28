@@ -3,9 +3,9 @@ id: CB-49
 title: Compile decorative TUI only in Full
 priority: normal
 type: task
-status: in_progress
+status: done
 created_at: '2026-08-28T15:35:28Z'
-updated_at: '2026-08-28T17:14:56Z'
+updated_at: '2026-08-28T17:37:36Z'
 parent_id: CB-18
 tags:
 - tui

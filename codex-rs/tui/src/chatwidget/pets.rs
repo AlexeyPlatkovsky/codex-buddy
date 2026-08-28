@@ -105,23 +105,6 @@ impl ChatWidget {
             .draw_request(area, anchor_bottom_y)
     }
 
-    pub(super) fn ambient_pet_wrap_reserved_cols(&self) -> u16 {
-        self.ambient_pet
-            .as_ref()
-            .filter(|pet| pet.image_enabled())
-            .map(|pet| {
-                pet.image_columns()
-                    .saturating_add(AMBIENT_PET_WRAP_GAP_COLUMNS)
-            })
-            .unwrap_or(0)
-    }
-
-    pub(crate) fn history_wrap_width(&self, width: u16) -> u16 {
-        width
-            .saturating_sub(self.ambient_pet_wrap_reserved_cols())
-            .max(1)
-    }
-
     pub(crate) fn pet_picker_preview_draw(&self) -> Option<crate::pets::AmbientPetDraw> {
         self.bottom_pane
             .selected_index_for_active_view(crate::pets::PET_PICKER_VIEW_ID)?;

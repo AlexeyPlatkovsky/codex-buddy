@@ -335,6 +335,12 @@ App-server must remain for now, but its unconditional extension dependencies sho
 - This applies only when constructing new Coding configuration. Stored rollout base instructions and resumed historical context are not rewritten.
 - A configuration test proves Full/Coding resolution, and a captured outbound request proves Coding sends neither Friendly/Pragmatic instructions nor a personality update fragment. Both focused Core tests passed; scoped fix, final formatting, and diff checks passed afterward.
 
+### Decorative TUI completion record
+
+- `820c16b71f` compiles pet assets/image runtime/events and the memories settings UI only with the existing Full TUI composition. Coding keeps config/protocol/remote rendering and unconditional slash parsing.
+- A small always-compiled layout facade reserves zero pet columns in Coding, while typed `/pets` and `/memories` commands keep the existing unavailable response.
+- Coding and Full TUI checks, the Coding hidden-affordance test, five focused Full pet/memory snapshot tests, and pending-snapshot review passed. Scoped fix and final formatting passed afterward. The broad Coding TUI run reached 334 passes before unrelated existing plugin/reset-memory failures and lifecycle timeouts; no CB-49-focused test failed.
+
 Current unconditional or broadly included candidates include:
 
 - `codex-agent-extension`

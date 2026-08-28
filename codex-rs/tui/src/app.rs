@@ -227,6 +227,7 @@ mod input;
 mod loaded_threads;
 mod pending_interactive_replay;
 mod permission_shortcuts;
+#[cfg(feature = "full-runtime-extensions")]
 mod pets;
 mod platform_actions;
 mod plugin_mentions;
@@ -859,7 +860,10 @@ impl App {
                     // Allow widgets to process any pending timers before rendering.
                     let had_active_view = self.chat_widget.has_active_view();
                     self.chat_widget.pre_draw_tick();
+                    #[cfg(feature = "full-runtime-extensions")]
                     let rendered_area = self.render_chat_widget_frame(tui, screen_size)?;
+                    #[cfg(not(feature = "full-runtime-extensions"))]
+                    self.render_chat_widget_frame(tui, screen_size)?;
                     if !had_active_view
                         && self.chat_widget.has_active_view()
                         && self.startup_protected_input_boundary
@@ -867,6 +871,7 @@ impl App {
                         tui.discard_pending_input_before_interactive_screen()?;
                         self.startup_pending_protected_request = false;
                     }
+                    #[cfg(feature = "full-runtime-extensions")]
                     if self.should_render_ambient_pet(screen_size) {
                         let ambient_pet_area = Rect::new(
                             /*x*/ 0,
@@ -885,6 +890,7 @@ impl App {
                     {
                         tracing::warn!(%error, "failed to clear ambient pet behind agent tree panel");
                     }
+                    #[cfg(feature = "full-runtime-extensions")]
                     if let Some(request) = self.chat_widget.pet_picker_preview_draw() {
                         if let Err(err) = tui.draw_pet_picker_preview_image(Some(request)) {
                             self.handle_pet_picker_preview_image_render_error(tui, err)?;
@@ -907,6 +913,7 @@ impl App {
     }
 
     pub(super) fn show_shutdown_feedback(&mut self, tui: &mut tui::Tui) -> Result<()> {
+        #[cfg(feature = "full-runtime-extensions")]
         self.disable_ambient_pet_before_shutdown(tui)?;
         self.chat_widget.show_shutdown_in_progress();
         let screen_size = tui.terminal.last_known_screen_size;
@@ -1023,6 +1030,7 @@ impl App {
             .has_non_primary_thread(self.primary_thread_id)
     }
 
+    #[cfg(feature = "full-runtime-extensions")]
     fn should_render_ambient_pet(&self, screen_size: Size) -> bool {
         self.chat_widget.ambient_pet_image_enabled()
             && self
