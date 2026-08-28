@@ -3,9 +3,9 @@ id: CB-50
 title: Extract transport-neutral code-mode types
 priority: high
 type: task
-status: in_progress
+status: done
 created_at: '2026-08-28T15:35:28Z'
-updated_at: '2026-08-28T17:37:37Z'
+updated_at: '2026-08-28T18:01:54Z'
 parent_id: CB-18
 tags:
 - code-mode

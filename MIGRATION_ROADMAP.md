@@ -341,6 +341,23 @@ App-server must remain for now, but its unconditional extension dependencies sho
 - A small always-compiled layout facade reserves zero pet columns in Coding, while typed `/pets` and `/memories` commands keep the existing unavailable response.
 - Coding and Full TUI checks, the Coding hidden-affordance test, five focused Full pet/memory snapshot tests, and pending-snapshot review passed. Scoped fix and final formatting passed afterward. The broad Coding TUI run reached 334 passes before unrelated existing plugin/reset-memory failures and lifecycle timeouts; no CB-49-focused test failed.
 
+### Code-mode neutral contracts completion record
+
+- `bc31f45c2f` adds the private-module `codex-code-mode-types` crate for code-cell DTOs,
+  constants, tool definitions, and session/provider/delegate contracts. The protocol and executable
+  code-mode crates retain compatibility reexports.
+- Core contracts and tools now consume the neutral types directly. Rollout tracing no longer depends
+  on the executable code-mode crate, while historical serialization and execution behavior remain
+  unchanged. No path-bearing type, model-visible path, or persisted wire shape changed.
+- Targeted checks for the five affected crates passed; focused types/protocol/code-mode/tools/rollout
+  tests passed 260/260, focused Core contract tests passed 5/5, and all four affected Bazel targets
+  built. Bazel lock refresh produced no lockfile diff. Scoped fix, final formatting, and diff checks
+  passed afterward.
+- A broad Core `code_mode` name filter is not a valid Coding-profile gate: 43 tests passed and 102
+  existing host/policy cases failed because sidecar/test binaries or `exec` are unavailable. The
+  migration-specific focused contract coverage is green; the broad filtered run is not reported as
+  green.
+
 ### Build artifact cleanup guard
 
 - On 2026-08-28, migration validation was paused until the active Bazel build finished, then the
