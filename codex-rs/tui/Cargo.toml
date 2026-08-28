@@ -24,9 +24,11 @@ workspace = true
 [features]
 default = ["full-runtime-extensions"]
 coding-runtime-extensions = ["codex-app-server-client/coding-runtime-extensions"]
+code-mode = ["codex-app-server-client/code-mode"]
 full-runtime-extensions = [
     "coding-runtime-extensions",
     "codex-app-server-client/full-runtime-extensions",
+    "code-mode",
     "realtime",
 ]
 realtime = ["codex-app-server-client/realtime"]

@@ -148,6 +148,7 @@ pub type NewConversation = NewThread;
 pub type CodexConversation = CodexThread;
 pub(crate) mod agents_md;
 mod agents_md_manager;
+mod code_mode_runtime;
 pub use agents_md::DEFAULT_AGENTS_MD_FILENAME;
 pub use agents_md::LOCAL_AGENTS_MD_FILENAME;
 pub use agents_md::LoadedAgentsMd;

@@ -2013,6 +2013,7 @@ dependencies = [
  "codex-chatgpt",
  "codex-cloud-config",
  "codex-code-mode",
+ "codex-code-mode-types",
  "codex-config",
  "codex-connectors",
  "codex-core",

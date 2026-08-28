@@ -601,8 +601,8 @@ async fn internal_guardian_sessions_respect_managed_shell_restrictions() {
                 .map(codex_tools::ToolSpec::name)
                 .collect::<Vec<_>>(),
             vec![
-                codex_code_mode::PUBLIC_TOOL_NAME,
-                codex_code_mode::WAIT_TOOL_NAME,
+                codex_code_mode_types::PUBLIC_TOOL_NAME,
+                codex_code_mode_types::WAIT_TOOL_NAME,
                 "view_image",
             ],
             "disabled feature: {disabled_feature:?}, shell type: {shell_type:?}"
@@ -634,13 +634,13 @@ async fn internal_guardian_sessions_preserve_code_mode() {
         router
             .model_visible_specs()
             .iter()
-            .any(|tool| tool.name() == codex_code_mode::PUBLIC_TOOL_NAME)
+            .any(|tool| tool.name() == codex_code_mode_types::PUBLIC_TOOL_NAME)
     );
     assert!(
         router
             .model_visible_specs()
             .iter()
-            .any(|tool| tool.name() == codex_code_mode::WAIT_TOOL_NAME)
+            .any(|tool| tool.name() == codex_code_mode_types::WAIT_TOOL_NAME)
     );
 }
 
@@ -974,8 +974,8 @@ async fn request_user_input_stays_direct_in_code_mode_only() {
 
     plan.assert_visible_contains(&[
         "request_user_input",
-        codex_code_mode::PUBLIC_TOOL_NAME,
-        codex_code_mode::WAIT_TOOL_NAME,
+        codex_code_mode_types::PUBLIC_TOOL_NAME,
+        codex_code_mode_types::WAIT_TOOL_NAME,
     ]);
     plan.assert_registered_contains(&["request_user_input"]);
     assert_eq!(
@@ -983,7 +983,8 @@ async fn request_user_input_stays_direct_in_code_mode_only() {
         ToolExposure::DirectModelOnly
     );
 
-    let ToolSpec::Freeform(exec) = plan.visible_spec(codex_code_mode::PUBLIC_TOOL_NAME) else {
+    let ToolSpec::Freeform(exec) = plan.visible_spec(codex_code_mode_types::PUBLIC_TOOL_NAME)
+    else {
         panic!("expected code mode exec tool");
     };
     assert!(!exec.description.contains("request_user_input"));
@@ -1425,7 +1426,8 @@ async fn sleep_tool_stays_direct_and_outside_code_mode() {
         );
         plan.assert_registered_lacks(&[wait_agent_tool_name.as_str()]);
 
-        let ToolSpec::Freeform(exec) = plan.visible_spec(codex_code_mode::PUBLIC_TOOL_NAME) else {
+        let ToolSpec::Freeform(exec) = plan.visible_spec(codex_code_mode_types::PUBLIC_TOOL_NAME)
+        else {
             panic!("expected code mode exec tool");
         };
         if code_mode_only {
@@ -1887,7 +1889,7 @@ async fn strict_tool_collisions_reject_external_and_synthetic_duplicates() {
             ToolPlanInputs {
                 dynamic_tools: vec![dynamic_tool(
                     /*namespace*/ None,
-                    codex_code_mode::PUBLIC_TOOL_NAME,
+                    codex_code_mode_types::PUBLIC_TOOL_NAME,
                     /*defer_loading*/ false,
                 )],
                 ..ToolPlanInputs::default()
@@ -2207,7 +2209,8 @@ async fn code_mode_uses_the_first_normalized_tool_identity() {
             assert_eq!(shadow.description, "lookup dynamic tool");
         }
 
-        let ToolSpec::Freeform(exec) = plan.visible_spec(codex_code_mode::PUBLIC_TOOL_NAME) else {
+        let ToolSpec::Freeform(exec) = plan.visible_spec(codex_code_mode_types::PUBLIC_TOOL_NAME)
+        else {
             panic!("expected code mode exec tool");
         };
         assert!(!exec.description.contains("lookup dynamic tool"));
@@ -2559,8 +2562,8 @@ async fn code_mode_only_exposes_code_executor_and_hides_nested_tools() {
         &["lookup".to_string()]
     );
     plain.assert_visible_lacks(&[
-        codex_code_mode::PUBLIC_TOOL_NAME,
-        codex_code_mode::WAIT_TOOL_NAME,
+        codex_code_mode_types::PUBLIC_TOOL_NAME,
+        codex_code_mode_types::WAIT_TOOL_NAME,
     ]);
     assert_eq!(
         (plain.tool_mode, plain.requires_code_mode_worker),
@@ -2582,8 +2585,8 @@ async fn code_mode_only_exposes_code_executor_and_hides_nested_tools() {
     )
     .await;
     code_mode_only.assert_visible_contains(&[
-        codex_code_mode::PUBLIC_TOOL_NAME,
-        codex_code_mode::WAIT_TOOL_NAME,
+        codex_code_mode_types::PUBLIC_TOOL_NAME,
+        codex_code_mode_types::WAIT_TOOL_NAME,
     ]);
     assert_eq!(
         (
@@ -2613,7 +2616,8 @@ async fn code_mode_config_updates_exec_description() {
         })
         .await;
 
-        let ToolSpec::Freeform(exec) = plan.visible_spec(codex_code_mode::PUBLIC_TOOL_NAME) else {
+        let ToolSpec::Freeform(exec) = plan.visible_spec(codex_code_mode_types::PUBLIC_TOOL_NAME)
+        else {
             panic!("expected code mode exec tool");
         };
         assert!(
@@ -2647,8 +2651,8 @@ async fn code_mode_only_exposes_configured_dynamic_namespace_directly() {
     .await;
 
     plan.assert_visible_contains(&[
-        codex_code_mode::PUBLIC_TOOL_NAME,
-        codex_code_mode::WAIT_TOOL_NAME,
+        codex_code_mode_types::PUBLIC_TOOL_NAME,
+        codex_code_mode_types::WAIT_TOOL_NAME,
         "direct_only",
     ]);
     plan.assert_visible_lacks(&["tool_search"]);
@@ -2663,7 +2667,8 @@ async fn code_mode_only_exposes_configured_dynamic_namespace_directly() {
         panic!("expected direct-only namespace function tool");
     };
     assert_eq!(tool.defer_loading, None);
-    let ToolSpec::Freeform(exec) = plan.visible_spec(codex_code_mode::PUBLIC_TOOL_NAME) else {
+    let ToolSpec::Freeform(exec) = plan.visible_spec(codex_code_mode_types::PUBLIC_TOOL_NAME)
+    else {
         panic!("expected code mode exec tool");
     };
     assert!(!exec.description.contains("direct_only_lookup(args:"));
@@ -2682,7 +2687,8 @@ async fn code_mode_only_exposes_default_namespace_tools_directly() {
     plan.assert_visible_contains(&["update_plan"]);
     assert_eq!(plan.exposure("update_plan"), ToolExposure::DirectModelOnly);
 
-    let ToolSpec::Freeform(exec) = plan.visible_spec(codex_code_mode::PUBLIC_TOOL_NAME) else {
+    let ToolSpec::Freeform(exec) = plan.visible_spec(codex_code_mode_types::PUBLIC_TOOL_NAME)
+    else {
         panic!("expected code mode exec tool");
     };
     assert!(!exec.description.contains("update_plan(args:"));
@@ -2712,7 +2718,8 @@ async fn excluded_deferred_namespaces_do_not_enable_nested_tool_guidance() {
     )
     .await;
 
-    let ToolSpec::Freeform(exec) = plan.visible_spec(codex_code_mode::PUBLIC_TOOL_NAME) else {
+    let ToolSpec::Freeform(exec) = plan.visible_spec(codex_code_mode_types::PUBLIC_TOOL_NAME)
+    else {
         panic!("expected code mode exec tool");
     };
     assert!(
@@ -2740,7 +2747,8 @@ async fn code_mode_excludes_default_namespace_tools() {
     plan.assert_registered_contains(&["update_plan"]);
     assert_eq!(plan.exposure("update_plan"), ToolExposure::Direct);
 
-    let ToolSpec::Freeform(exec) = plan.visible_spec(codex_code_mode::PUBLIC_TOOL_NAME) else {
+    let ToolSpec::Freeform(exec) = plan.visible_spec(codex_code_mode_types::PUBLIC_TOOL_NAME)
+    else {
         panic!("expected code mode exec tool");
     };
     assert!(!exec.description.contains("update_plan(args:"));
@@ -2959,8 +2967,8 @@ async fn tool_mode_selector_overrides_feature_flags() {
     })
     .await;
     direct.assert_visible_lacks(&[
-        codex_code_mode::PUBLIC_TOOL_NAME,
-        codex_code_mode::WAIT_TOOL_NAME,
+        codex_code_mode_types::PUBLIC_TOOL_NAME,
+        codex_code_mode_types::WAIT_TOOL_NAME,
     ]);
 }
 
@@ -3326,8 +3334,8 @@ async fn hosted_web_search_and_standalone_image_generation_follow_runtime_gates(
         code_mode_only.visible_names,
         vec![
             // Code-mode entrypoints.
-            codex_code_mode::PUBLIC_TOOL_NAME,
-            codex_code_mode::WAIT_TOOL_NAME,
+            codex_code_mode_types::PUBLIC_TOOL_NAME,
+            codex_code_mode_types::WAIT_TOOL_NAME,
             "request_user_input",
             // Multi-agent v2 tools.
             MULTI_AGENT_V2_NAMESPACE,

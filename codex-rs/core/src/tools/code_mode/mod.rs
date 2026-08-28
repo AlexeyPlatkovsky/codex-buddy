@@ -1,9 +1,13 @@
 mod delegate;
+#[cfg(feature = "code-mode")]
 mod execute_handler;
+#[cfg(feature = "code-mode")]
 pub(crate) mod execute_spec;
 mod response_adapter;
 mod telemetry;
+#[cfg(feature = "code-mode")]
 mod wait_handler;
+#[cfg(feature = "code-mode")]
 pub(crate) mod wait_spec;
 
 use std::sync::Arc;
@@ -47,8 +51,10 @@ use codex_utils_output_truncation::truncate_function_output_items_with_policy;
 
 use delegate::CodeModeDispatchBroker;
 use delegate::CodeModeDispatchWorker;
+#[cfg(feature = "code-mode")]
 pub(crate) use execute_handler::CodeModeExecuteHandler;
 use response_adapter::into_function_call_output_content_items;
+#[cfg(feature = "code-mode")]
 pub(crate) use wait_handler::CodeModeWaitHandler;
 
 pub(crate) const PUBLIC_TOOL_NAME: &str = codex_code_mode_types::PUBLIC_TOOL_NAME;

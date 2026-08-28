@@ -13,6 +13,7 @@ codex_rust_crate(
     ),
     crate_features = [
         "audio-input",
+        "code-mode",
         "connectors",
         "plugins",
         "realtime",
