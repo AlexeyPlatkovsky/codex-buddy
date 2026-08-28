@@ -300,6 +300,14 @@ Do not rerun tests after the final `fix`/`fmt`. Do not run the complete workspac
 
 App-server must remain for now, but its unconditional extension dependencies should be reviewed and made composition features where appropriate.
 
+### Composition spine completion record
+
+- `90401379fc` adds explicit `coding-runtime-extensions` propagation from app-server through app-server-client, Exec/TUI, and Buddy; Full implies Coding at every layer.
+- Buddy now selects Coding explicitly. Full CLI and Bazel targets explicitly retain Full features.
+- Coding/Full app-server checks, Coding client/Exec/TUI checks, Buddy and Full CLI checks, app-server composition tests, the Slim external-agent JSON-RPC test, and Buddy tests passed.
+- Buddy remains at 1,289 unique normal nodes with plugins/connectors absent; Full retains them. `Cargo.lock` and `MODULE.bazel.lock` did not change.
+- `8fac8bd7aa` moves the existing Slim dependency assertions into `scripts/buddy_release/dependency_preflight.sh`; the reusable preflight passes locally with locked Cargo operations.
+
 Current unconditional or broadly included candidates include:
 
 - `codex-agent-extension`

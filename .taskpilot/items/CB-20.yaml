@@ -3,9 +3,9 @@ id: CB-20
 title: Define coding and Full runtime compositions
 priority: high
 type: task
-status: in_progress
+status: done
 created_at: '2026-08-27T14:14:33Z'
-updated_at: '2026-08-28T15:35:59Z'
+updated_at: '2026-08-28T16:10:31Z'
 parent_id: CB-18
 tags:
 - cargo
