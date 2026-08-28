@@ -59,7 +59,10 @@ jobs:
   # --- Fast Cargo-native PR checks -------------------------------------------
   general:
     name: Format / etc
-    runs-on: ubuntu-24.04
+    # Never execute untrusted fork PR code on persistent repository runners.
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","Linux","X64"]') || 'ubuntu-24.04' }}
+    env:
+      CARGO_BUILD_JOBS: "2"
     needs: changed
     if: ${{ needs.changed.outputs.codex == 'true' || needs.changed.outputs.workflows == 'true' }}
     defaults:
@@ -84,7 +87,7 @@ jobs:
 
   cargo_shear:
     name: cargo shear
-    runs-on: ubuntu-24.04
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","Linux","X64"]') || 'ubuntu-24.04' }}
     needs: changed
     if: ${{ needs.changed.outputs.codex == 'true' || needs.changed.outputs.workflows == 'true' }}
     defaults:
@@ -108,7 +111,9 @@ jobs:
 
   buddy_slim:
     name: Codex Buddy slim boundary
-    runs-on: ubuntu-24.04
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","Linux","X64"]') || 'ubuntu-24.04' }}
+    env:
+      CARGO_BUILD_JOBS: "2"
     needs: changed
     if: ${{ needs.changed.outputs.codex == 'true' || needs.changed.outputs.workflows == 'true' }}
     defaults:
@@ -146,10 +151,11 @@ jobs:
 
   argument_comment_lint_package:
     name: Argument comment lint package
-    runs-on: ubuntu-24.04
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","Linux","X64"]') || 'ubuntu-24.04' }}
     needs: changed
     if: ${{ needs.changed.outputs.argument_comment_lint_package == 'true' }}
     env:
+      CARGO_BUILD_JOBS: "2"
       CARGO_DYLINT_VERSION: 5.0.0
       DYLINT_LINK_VERSION: 5.0.0
     steps:
