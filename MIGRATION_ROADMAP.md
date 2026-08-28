@@ -329,6 +329,12 @@ App-server must remain for now, but its unconditional extension dependencies sho
 - Slim public RPC and historical timeline tests passed 2/2; Core Slim/Full representative tests passed; `codex-api` Slim passed 103/103 and Full passed 180/180. Buddy and Full CLI checks, scoped lint, formatting, Bazel lock refresh, and the reciprocal feature-graph preflight passed.
 - The Buddy normal graph remains 1,287 nodes because the shared WebSocket/channel crates are still used elsewhere; this stage removes realtime executable code through feature selection rather than claiming a package-count reduction.
 
+### Coding personality completion record
+
+- `c09a15e5bc` resolves Coding configuration to the explicit `Personality::None` value, even when a user configured another personality. Full keeps its configured/default behavior.
+- This applies only when constructing new Coding configuration. Stored rollout base instructions and resumed historical context are not rewritten.
+- A configuration test proves Full/Coding resolution, and a captured outbound request proves Coding sends neither Friendly/Pragmatic instructions nor a personality update fragment. Both focused Core tests passed; scoped fix, final formatting, and diff checks passed afterward.
+
 Current unconditional or broadly included candidates include:
 
 - `codex-agent-extension`

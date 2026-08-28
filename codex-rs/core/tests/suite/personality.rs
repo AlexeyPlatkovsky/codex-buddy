@@ -335,6 +335,55 @@ async fn default_personality_is_pragmatic_without_config_toml() -> anyhow::Resul
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn coding_runtime_profile_omits_configured_personality() -> anyhow::Result<()> {
+    skip_if_no_network!(Ok(()));
+
+    let server = start_mock_server().await;
+    let resp_mock = mount_sse_once(&server, sse_completed("resp-1")).await;
+    let mut builder = test_codex().with_model("gpt-5.4").with_config(|config| {
+        config
+            .features
+            .enable(Feature::Personality)
+            .expect("test config should allow feature update");
+        // Config resolution maps Coding to this effective value. Keep the
+        // request assertion separate from the resolver assertion in config tests.
+        config.personality = Some(Personality::None);
+    });
+    let test = builder.build(&server).await?;
+
+    test.codex
+        .start_or_steer_turn(read_only_text_turn(
+            &test,
+            "hello",
+            test.session_configured.model.clone(),
+            test.config.permissions.approval_policy.value(),
+        ))
+        .await?;
+
+    wait_for_event(&test.codex, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
+
+    let request = resp_mock.single_request();
+    let instructions_text = request.instructions_text();
+    assert!(
+        !instructions_text.contains(LOCAL_FRIENDLY_TEMPLATE),
+        "expected Coding to omit the configured friendly personality, got: {instructions_text:?}"
+    );
+    assert!(
+        !instructions_text.contains(LOCAL_PRAGMATIC_TEMPLATE),
+        "expected Coding to omit the default pragmatic personality, got: {instructions_text:?}"
+    );
+    assert!(
+        request
+            .message_input_texts("developer")
+            .iter()
+            .all(|text| !text.contains("<personality_spec>")),
+        "expected Coding to omit personality update fragments"
+    );
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn user_turn_personality_some_adds_update_message() -> anyhow::Result<()> {
     skip_if_no_network!(Ok(()));
 
