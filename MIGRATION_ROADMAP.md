@@ -160,8 +160,16 @@ The migration uses the following fixed roster. No nested or additional agent may
 | Execution | `tui_migration_owner` | TUI feature gates and snapshots | `gpt-5.6-terra` | high |
 | Execution | `measurement_release_owner` | Dependency evidence, benchmarks, and platform CI | `gpt-5.6-terra` | high |
 | Review | `final_migration_audit` | Final compatibility and breaking-change audit | `gpt-5.6-sol` | xhigh |
+| Review (interrupted) | `app_server_compatibility_owner/cb51_breaking_review` | Read-only CB-51 breaking-change review; `default`, `fork_turns: 3`; interrupted before completion | `gpt-5.6-sol` (inherited) | high (inherited) |
+| Review (interrupted) | `app_server_compatibility_owner/cb51_testing_review` | Read-only CB-51 testing review; `default`, `fork_turns: 3`; interrupted before completion | `gpt-5.6-sol` (inherited) | high (inherited) |
 
 At most three subagents run concurrently, with non-overlapping ownership.
+
+On 2026-08-28 the app-server compatibility owner spawned the two nested read-only CB-51 reviewers
+above while applying the local code-review skill, without first updating this fixed roster. The
+root agent interrupted both before completion; neither changed files and neither produced findings
+used by the migration. Their attempted use remains recorded for full subagent accounting. No
+further nested reviewer was used; the compatibility owner completed the review directly.
 
 ## Stage 1: gate the core plugin runtime
 
@@ -357,6 +365,28 @@ App-server must remain for now, but its unconditional extension dependencies sho
   existing host/policy cases failed because sidecar/test binaries or `exec` are unavailable. The
   migration-specific focused contract coverage is green; the broad filtered run is not reported as
   green.
+
+### Code-mode runtime boundary completion record
+
+- `61af7c0113` makes executable Code Mode an explicit Full feature across Core, shared tools,
+  app-server, app-server-client, Exec, TUI, CLI, Cargo, and Bazel. Coding retains neutral contracts
+  and historical DTOs but excludes `codex-code-mode`, protocol, host/runtime, and V8 from its normal
+  dependency graph.
+- Private Core and app-server facades keep provider selection out of composition call sites. Coding
+  forces config- and model-selected `CodeMode`/`CodeModeOnly` turns to Direct tools, never advertises
+  `exec`/`wait`, never constructs a process provider, and rejects a valid explicit remote host before
+  config loading with `InvalidInput: code mode is unavailable in this build`.
+- CLI arguments, configuration/schema types, app-server v2 thread/turn and dynamic-tool variants,
+  rollout projection, and historical custom tool replay remain unchanged. A Slim integration test
+  resumes historical `exec` call/output items and completes a direct follow-up turn without a host.
+- Slim Core/app-server checks, explicit-host and invalid-URL coverage, the four-case Slim selector
+  table, historical replay, Full selector preservation, six Full shared-tool tests, reciprocal graph
+  preflight, Bazel lock refresh, scoped fix, final formatting, and diff checks passed. The Full
+  app-server host test compiled but could not reach assertions because package-scoped Cargo did not
+  stage the existing `codex-code-mode-host` binary fixture; no runtime assertion failed.
+- Final review found no P0/P1 or compatibility issue. The generated target tree is 26 GiB and remains
+  queued for permanent cleanup because an unrelated active Cargo feature-tree process correctly
+  triggers the cleanup guard.
 
 ### Build artifact cleanup guard
 
