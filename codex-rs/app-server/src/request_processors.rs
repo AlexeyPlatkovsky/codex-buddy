@@ -214,11 +214,14 @@ use codex_app_server_protocol::ThreadForkParams;
 use codex_app_server_protocol::ThreadForkResponse;
 use codex_app_server_protocol::ThreadGoal;
 use codex_app_server_protocol::ThreadGoalClearParams;
+#[cfg(feature = "goals")]
 use codex_app_server_protocol::ThreadGoalClearResponse;
 use codex_app_server_protocol::ThreadGoalClearedNotification;
 use codex_app_server_protocol::ThreadGoalGetParams;
+#[cfg(feature = "goals")]
 use codex_app_server_protocol::ThreadGoalGetResponse;
 use codex_app_server_protocol::ThreadGoalSetParams;
+#[cfg(feature = "goals")]
 use codex_app_server_protocol::ThreadGoalSetResponse;
 use codex_app_server_protocol::ThreadGoalStatus;
 use codex_app_server_protocol::ThreadGoalUpdatedNotification;
@@ -476,6 +479,7 @@ use codex_rollout::ResumedHistory;
 use codex_rollout::RolloutItem;
 use codex_rollout::is_persisted_rollout_item;
 use codex_rollout::state_db::StateDbHandle;
+#[cfg(feature = "goals")]
 use codex_rollout::state_db::reconcile_rollout;
 use codex_state::ThreadMetadata;
 use codex_state::log_db::LogDbLayer;

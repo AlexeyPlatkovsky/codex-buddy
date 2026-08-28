@@ -72,8 +72,10 @@ pub(crate) enum ThreadListenerCommand {
         message: String,
     },
     // EmitThreadGoalCleared is used to order app-server goal clears with running-thread resume responses.
+    #[cfg_attr(not(feature = "goals"), allow(dead_code))]
     EmitThreadGoalCleared,
     // EmitThreadGoalSnapshot is used to read and emit the latest goal state in the listener order.
+    #[cfg_attr(not(feature = "goals"), allow(dead_code))]
     EmitThreadGoalSnapshot {
         state_db: StateDbHandle,
     },

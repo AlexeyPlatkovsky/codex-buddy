@@ -2,6 +2,7 @@ use std::sync::Arc;
 use std::sync::Weak;
 use std::time::Duration;
 
+#[cfg(any(feature = "goals", test))]
 use codex_analytics::AnalyticsEventsClient;
 use codex_app_server_protocol::ServerNotification;
 use codex_app_server_protocol::ThreadGoal;
@@ -21,7 +22,9 @@ use codex_extension_api::ExtensionRegistryBuilder;
 use codex_extension_api::ExtensionWarning;
 use codex_extension_api::InternalSessionSpawnFuture;
 use codex_extension_api::InternalSessionSpawner;
+#[cfg(feature = "goals")]
 use codex_goal_extension::GoalExtensionConfig;
+#[cfg(feature = "goals")]
 use codex_goal_extension::GoalService;
 use codex_http_client::HttpClientFactory;
 use codex_login::AuthManager;
@@ -30,6 +33,7 @@ use codex_protocol::error::CodexErr;
 use codex_protocol::protocol::Event;
 use codex_protocol::protocol::EventMsg;
 use codex_queue_extension::QueuedItemService;
+#[cfg(feature = "goals")]
 use codex_rollout::state_db::StateDbHandle;
 
 use crate::extension_composition::ExtensionComponent;
@@ -42,9 +46,12 @@ use crate::thread_state::ThreadStateManager;
 pub(crate) struct ThreadExtensionDependencies {
     pub(crate) event_sink: Arc<dyn ExtensionEventSink>,
     pub(crate) auth_manager: Arc<AuthManager>,
+    #[cfg(feature = "goals")]
     pub(crate) state_db: Option<StateDbHandle>,
+    #[cfg(feature = "goals")]
     pub(crate) analytics_events_client: AnalyticsEventsClient,
     pub(crate) thread_manager: Weak<ThreadManager>,
+    #[cfg(feature = "goals")]
     pub(crate) goal_service: Option<Arc<GoalService>>,
     pub(crate) environment_manager: Arc<EnvironmentManager>,
     pub(crate) executor_skill_provider: Option<Arc<dyn codex_skills_extension::SkillProvider>>,
@@ -65,9 +72,12 @@ where
     let ThreadExtensionDependencies {
         event_sink,
         auth_manager,
+        #[cfg(feature = "goals")]
         state_db,
+        #[cfg(feature = "goals")]
         analytics_events_client,
         thread_manager,
+        #[cfg(feature = "goals")]
         goal_service,
         environment_manager,
         executor_skill_provider,
@@ -86,6 +96,7 @@ where
     if composition.installs(ExtensionComponent::HistoryNotes) {
         codex_history_notes_extension::install(&mut builder, auth_manager.clone());
     }
+    #[cfg(feature = "goals")]
     if composition.installs(ExtensionComponent::Goals)
         && let (Some(state_db), Some(goal_service)) = (state_db, goal_service)
     {

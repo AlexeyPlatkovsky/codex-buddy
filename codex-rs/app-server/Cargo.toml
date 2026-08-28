@@ -30,10 +30,12 @@ full-runtime-extensions = [
     "codex-core/audio-input",
     "codex-core/memories",
     "codex-external-agent-migration/memories",
+    "goals",
     "history-notes",
     "image-generation",
     "memories",
 ]
+goals = ["dep:codex-goal-extension"]
 history-notes = ["dep:codex-history-notes-extension"]
 image-generation = ["dep:codex-image-generation-extension"]
 memories = ["dep:codex-memories-extension", "dep:codex-memories-write"]
@@ -63,7 +65,7 @@ codex-exec-server = { workspace = true }
 codex-extension-api = { workspace = true }
 codex-external-agent-migration = { workspace = true }
 codex-features = { workspace = true }
-codex-goal-extension = { workspace = true }
+codex-goal-extension = { workspace = true, optional = true }
 codex-git-attribution = { workspace = true }
 codex-guardian-v2 = { workspace = true }
 codex-git-utils = { workspace = true }

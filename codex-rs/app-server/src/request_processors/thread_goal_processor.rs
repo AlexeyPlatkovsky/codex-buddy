@@ -1,23 +1,38 @@
+#[cfg(feature = "goals")]
 use super::thread_input::DIRECT_INPUT_TO_MULTI_AGENT_V2_SUBAGENT_ERROR;
+#[cfg(feature = "goals")]
 use super::thread_input::can_accept_direct_input;
+#[cfg(feature = "goals")]
 use super::thread_input::ensure_direct_input_allowed;
 use super::*;
+#[cfg(feature = "goals")]
 use codex_goal_extension::GoalObjectiveUpdate;
+#[cfg(feature = "goals")]
 use codex_goal_extension::GoalService;
+#[cfg(feature = "goals")]
 use codex_goal_extension::GoalServiceError;
+#[cfg(feature = "goals")]
 use codex_goal_extension::GoalSetRequest;
+#[cfg(feature = "goals")]
 use codex_goal_extension::GoalTokenBudgetUpdate;
+#[cfg(feature = "goals")]
 use codex_protocol::protocol::SessionSource;
+#[cfg(feature = "goals")]
 use codex_protocol::protocol::SubAgentSource;
+#[cfg(feature = "goals")]
 use codex_protocol::protocol::ThreadSettingsAppliedEvent;
+#[cfg(feature = "goals")]
 use codex_protocol::protocol::ThreadSettingsSnapshot;
+#[cfg(feature = "goals")]
 use codex_rollout::RolloutRecorder;
 
+#[cfg(feature = "goals")]
 enum GoalAccess {
     Read,
     Mutate,
 }
 
+#[cfg(feature = "goals")]
 #[derive(Clone)]
 pub(crate) struct ThreadGoalRequestProcessor {
     thread_manager: Arc<ThreadManager>,
@@ -28,6 +43,7 @@ pub(crate) struct ThreadGoalRequestProcessor {
     goal_service: Option<Arc<GoalService>>,
 }
 
+#[cfg(feature = "goals")]
 impl ThreadGoalRequestProcessor {
     pub(crate) fn new(
         thread_manager: Arc<ThreadManager>,
@@ -489,6 +505,63 @@ impl ThreadGoalRequestProcessor {
     }
 }
 
+#[cfg(not(feature = "goals"))]
+#[derive(Clone)]
+pub(crate) struct ThreadGoalRequestProcessor;
+
+#[cfg(not(feature = "goals"))]
+impl ThreadGoalRequestProcessor {
+    pub(crate) fn new() -> Self {
+        Self
+    }
+
+    pub(crate) async fn thread_goal_set(
+        &self,
+        _: ConnectionRequestId,
+        _: ThreadGoalSetParams,
+    ) -> Result<Option<ClientResponsePayload>, JSONRPCErrorError> {
+        Err(goals_unavailable())
+    }
+
+    pub(crate) async fn thread_goal_get(
+        &self,
+        _: ThreadGoalGetParams,
+    ) -> Result<Option<ClientResponsePayload>, JSONRPCErrorError> {
+        Err(goals_unavailable())
+    }
+
+    pub(crate) async fn thread_goal_clear(
+        &self,
+        _: ConnectionRequestId,
+        _: ThreadGoalClearParams,
+    ) -> Result<Option<ClientResponsePayload>, JSONRPCErrorError> {
+        Err(goals_unavailable())
+    }
+
+    pub(crate) async fn emit_resume_goal_snapshot(&self, _: ThreadId) {}
+
+    pub(crate) async fn pending_resume_goal_state(
+        &self,
+        _: &CodexThread,
+    ) -> (bool, Option<StateDbHandle>) {
+        (false, None)
+    }
+
+    pub(crate) async fn restore_inherited_goal_runtime(&self, _: ThreadId) {}
+
+    pub(crate) async fn flush_goal_progress_for_fork(&self, _: ThreadId) -> Result<(), String> {
+        Ok(())
+    }
+
+    pub(crate) async fn emit_thread_goal_snapshot(&self, _: ThreadId) {}
+}
+
+#[cfg(not(feature = "goals"))]
+fn goals_unavailable() -> JSONRPCErrorError {
+    invalid_request("goals are unavailable in this Codex runtime")
+}
+
+#[cfg(feature = "goals")]
 fn thread_settings_applied_item(thread_settings: ThreadSettingsSnapshot) -> RolloutItem {
     RolloutItem::EventMsg(EventMsg::ThreadSettingsApplied(
         ThreadSettingsAppliedEvent { thread_settings },
@@ -519,6 +592,7 @@ fn api_thread_goal_status_from_state(status: codex_state::ThreadGoalStatus) -> T
     }
 }
 
+#[cfg(feature = "goals")]
 fn goal_service_error(err: GoalServiceError) -> JSONRPCErrorError {
     match err {
         GoalServiceError::InvalidRequest(message) => invalid_request(message),
@@ -526,7 +600,12 @@ fn goal_service_error(err: GoalServiceError) -> JSONRPCErrorError {
     }
 }
 
+#[cfg(feature = "goals")]
 fn parse_thread_id_for_request(thread_id: &str) -> Result<ThreadId, JSONRPCErrorError> {
     ThreadId::from_string(thread_id)
         .map_err(|err| invalid_request(format!("invalid thread id: {err}")))
 }
+
+#[cfg(all(test, not(feature = "goals")))]
+#[path = "thread_goal_processor_tests.rs"]
+mod tests;

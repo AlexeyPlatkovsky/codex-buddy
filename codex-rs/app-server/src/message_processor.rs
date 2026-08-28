@@ -78,6 +78,7 @@ use codex_core::config::Config;
 use codex_core::config::ThreadStoreConfig;
 use codex_exec_server::EnvironmentManager;
 use codex_feedback::CodexFeedback;
+#[cfg(feature = "goals")]
 use codex_goal_extension::GoalService;
 use codex_home::CodexHomeUserInstructionsProvider;
 use codex_login::AuthManager;
@@ -319,6 +320,7 @@ impl MessageProcessor {
                         ),
                     ) as Arc<dyn codex_skills_extension::SkillProvider>
                 });
+        #[cfg(feature = "goals")]
         let goal_service = extension_composition
             .installs(ExtensionComponent::Goals)
             .then(|| Arc::new(GoalService::new()));
@@ -345,9 +347,12 @@ impl MessageProcessor {
                     ThreadExtensionDependencies {
                         event_sink: Arc::clone(&extension_event_sink),
                         auth_manager: auth_manager.clone(),
+                        #[cfg(feature = "goals")]
                         state_db: state_db.clone(),
+                        #[cfg(feature = "goals")]
                         analytics_events_client: analytics_events_client.clone(),
                         thread_manager: thread_manager.clone(),
+                        #[cfg(feature = "goals")]
                         goal_service: goal_service.clone(),
                         environment_manager: Arc::clone(&environment_manager_for_extensions),
                         executor_skill_provider: executor_skill_provider.clone(),
@@ -490,6 +495,7 @@ impl MessageProcessor {
         });
         let remote_control_processor = RemoteControlRequestProcessor::new(remote_control_handle);
         let search_processor = SearchRequestProcessor::new(outgoing.clone());
+        #[cfg(feature = "goals")]
         let thread_goal_processor = ThreadGoalRequestProcessor::new(
             Arc::clone(&thread_manager),
             outgoing.clone(),
@@ -498,6 +504,8 @@ impl MessageProcessor {
             state_db.clone(),
             goal_service,
         );
+        #[cfg(not(feature = "goals"))]
+        let thread_goal_processor = ThreadGoalRequestProcessor::new();
         let thread_queue_processor = ThreadQueueRequestProcessor::new(
             Arc::clone(&thread_manager),
             Arc::clone(&thread_store),

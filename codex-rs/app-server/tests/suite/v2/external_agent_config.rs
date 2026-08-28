@@ -960,6 +960,7 @@ async fn external_agent_config_detects_non_memory_items_when_config_reload_fails
     Ok(())
 }
 
+#[cfg(feature = "memories")]
 #[tokio::test]
 async fn external_agent_config_detects_and_imports_project_memory_files() -> Result<()> {
     let codex_home = TempDir::new()?;

@@ -335,9 +335,12 @@ enabled = false
                     ThreadExtensionDependencies {
                         event_sink: Arc::new(NoopExtensionEventSink),
                         auth_manager: auth_manager.clone(),
+                        #[cfg(feature = "goals")]
                         state_db: Some(state_db.clone()),
+                        #[cfg(feature = "goals")]
                         analytics_events_client: codex_analytics::AnalyticsEventsClient::disabled(),
                         thread_manager: thread_manager.clone(),
+                        #[cfg(feature = "goals")]
                         goal_service: Some(Arc::new(codex_goal_extension::GoalService::new())),
                         environment_manager: Arc::clone(&environment_manager),
                         executor_skill_provider: Some(Arc::clone(&executor_skill_provider)),
