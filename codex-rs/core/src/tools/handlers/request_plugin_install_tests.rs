@@ -14,6 +14,7 @@ use codex_core_plugins::PluginInstallRequest;
 use codex_core_plugins::startup_sync::curated_plugins_repo_path;
 use codex_login::test_support::auth_manager_from_optional_auth;
 use codex_rmcp_client::ElicitationResponse;
+use codex_tools::DiscoverableConnectorInfo;
 use codex_tools::DiscoverablePluginInfo;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use core_test_support::PathExt;
@@ -241,21 +242,11 @@ id = "slack@openai-curated"
 }
 
 fn connector_tool(id: &str, name: &str) -> DiscoverableTool {
-    DiscoverableTool::Connector(Box::new(AppInfo {
+    DiscoverableTool::Connector(Box::new(DiscoverableConnectorInfo {
         id: id.to_string(),
         name: name.to_string(),
         description: None,
-        logo_url: None,
-        logo_url_dark: None,
-        icon_assets: None,
-        icon_dark_assets: None,
-        distribution_channel: None,
-        branding: None,
-        app_metadata: None,
-        labels: None,
         install_url: None,
         is_accessible: false,
-        is_enabled: true,
-        plugin_display_names: Vec::new(),
     }))
 }

@@ -553,9 +553,7 @@ discoverables = [
 
     assert_eq!(
         discoverable_tools,
-        vec![DiscoverableTool::from(plugin_connector_to_app_info(
-            "connector_gmail".to_string(),
-        ))]
+        vec![discoverable_plugin_connector("connector_gmail")]
     );
 }
 
@@ -592,8 +590,19 @@ apps = true
 
     assert_eq!(
         discoverable_tools,
-        vec![DiscoverableTool::from(plugin_connector_to_app_info(
-            "asdk_app_databricks_workspace".to_string(),
-        ))]
+        vec![discoverable_plugin_connector(
+            "asdk_app_databricks_workspace"
+        )]
     );
+}
+
+fn discoverable_plugin_connector(id: &str) -> DiscoverableTool {
+    let connector = plugin_connector_to_app_info(id.to_string());
+    DiscoverableTool::from(DiscoverableConnectorInfo {
+        id: connector.id,
+        name: connector.name,
+        description: connector.description,
+        install_url: connector.install_url,
+        is_accessible: connector.is_accessible,
+    })
 }

@@ -1,9 +1,9 @@
-use codex_connectors::AppInfo;
 use codex_protocol::approvals::ElicitationRequest;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::json;
 
+use crate::DiscoverableConnectorInfo;
 use crate::DiscoverableTool;
 use crate::DiscoverableToolAction;
 use crate::DiscoverableToolType;
@@ -73,7 +73,7 @@ pub fn build_request_plugin_install_elicitation_request(
 
 pub fn all_requested_connectors_picked_up(
     expected_connector_ids: &[String],
-    accessible_connectors: &[AppInfo],
+    accessible_connectors: &[DiscoverableConnectorInfo],
 ) -> bool {
     expected_connector_ids.iter().all(|connector_id| {
         verified_connector_install_completed(connector_id, accessible_connectors)
@@ -82,7 +82,7 @@ pub fn all_requested_connectors_picked_up(
 
 pub fn verified_connector_install_completed(
     tool_id: &str,
-    accessible_connectors: &[AppInfo],
+    accessible_connectors: &[DiscoverableConnectorInfo],
 ) -> bool {
     accessible_connectors
         .iter()

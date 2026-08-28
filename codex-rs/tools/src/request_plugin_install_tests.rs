@@ -1,29 +1,20 @@
 use super::*;
+use crate::DiscoverableConnectorInfo;
 use crate::DiscoverablePluginInfo;
 use pretty_assertions::assert_eq;
 use serde_json::json;
 
 #[test]
 fn build_request_plugin_install_elicitation_request_uses_expected_shape() {
-    let connector = DiscoverableTool::Connector(Box::new(AppInfo {
+    let connector = DiscoverableTool::Connector(Box::new(DiscoverableConnectorInfo {
         id: "connector_2128aebfecb84f64a069897515042a44".to_string(),
         name: "Google Calendar".to_string(),
         description: Some("Plan events and schedules.".to_string()),
-        logo_url: None,
-        logo_url_dark: None,
-        icon_assets: None,
-        icon_dark_assets: None,
-        distribution_channel: None,
-        branding: None,
-        app_metadata: None,
-        labels: None,
         install_url: Some(
             "https://chatgpt.com/apps/google-calendar/connector_2128aebfecb84f64a069897515042a44"
                 .to_string(),
         ),
         is_accessible: false,
-        is_enabled: true,
-        plugin_display_names: Vec::new(),
     }));
 
     let request = build_request_plugin_install_elicitation_request(
@@ -104,24 +95,14 @@ fn build_request_plugin_install_elicitation_request_injects_plugin_metadata() {
 
 #[test]
 fn build_request_plugin_install_meta_uses_expected_shape() {
-    let connector = DiscoverableTool::Connector(Box::new(AppInfo {
+    let connector = DiscoverableTool::Connector(Box::new(DiscoverableConnectorInfo {
         id: "connector_68df038e0ba48191908c8434991bbac2".to_string(),
         name: "Gmail".to_string(),
         description: None,
-        logo_url: None,
-        logo_url_dark: None,
-        icon_assets: None,
-        icon_dark_assets: None,
-        distribution_channel: None,
-        branding: None,
-        app_metadata: None,
-        labels: None,
         install_url: Some(
             "https://chatgpt.com/apps/gmail/connector_68df038e0ba48191908c8434991bbac2".to_string(),
         ),
         is_accessible: false,
-        is_enabled: true,
-        plugin_display_names: Vec::new(),
     }));
     let meta = build_request_plugin_install_meta(
         "Find and reference emails from your inbox",
@@ -151,22 +132,12 @@ fn build_request_plugin_install_meta_uses_expected_shape() {
 
 #[test]
 fn verified_connector_install_completed_requires_accessible_connector() {
-    let accessible_connectors = vec![AppInfo {
+    let accessible_connectors = vec![DiscoverableConnectorInfo {
         id: "calendar".to_string(),
         name: "Google Calendar".to_string(),
         description: None,
-        logo_url: None,
-        logo_url_dark: None,
-        icon_assets: None,
-        icon_dark_assets: None,
-        distribution_channel: None,
-        branding: None,
-        app_metadata: None,
-        labels: None,
         install_url: None,
         is_accessible: true,
-        is_enabled: false,
-        plugin_display_names: Vec::new(),
     }];
 
     assert!(verified_connector_install_completed(
@@ -181,22 +152,12 @@ fn verified_connector_install_completed_requires_accessible_connector() {
 
 #[test]
 fn all_requested_connectors_picked_up_requires_every_expected_connector() {
-    let accessible_connectors = vec![AppInfo {
+    let accessible_connectors = vec![DiscoverableConnectorInfo {
         id: "calendar".to_string(),
         name: "Google Calendar".to_string(),
         description: None,
-        logo_url: None,
-        logo_url_dark: None,
-        icon_assets: None,
-        icon_dark_assets: None,
-        distribution_channel: None,
-        branding: None,
-        app_metadata: None,
-        labels: None,
         install_url: None,
         is_accessible: true,
-        is_enabled: false,
-        plugin_display_names: Vec::new(),
     }];
 
     assert!(all_requested_connectors_picked_up(

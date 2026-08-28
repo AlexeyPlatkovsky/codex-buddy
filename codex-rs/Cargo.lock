@@ -4414,7 +4414,6 @@ version = "0.0.0"
 dependencies = [
  "bitflags 2.13.1",
  "codex-code-mode",
- "codex-connectors",
  "codex-extension-items",
  "codex-features",
  "codex-file-system",

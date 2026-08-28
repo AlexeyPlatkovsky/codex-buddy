@@ -1,4 +1,3 @@
-use codex_connectors::AppInfo;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -12,6 +11,16 @@ pub const REQUEST_PLUGIN_INSTALL_TOOL_NAME: &str = "request_plugin_install";
 pub struct ToolSearchSourceInfo {
     pub name: String,
     pub description: Option<String>,
+}
+
+/// Connector metadata needed by tool discovery and install verification.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DiscoverableConnectorInfo {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub install_url: Option<String>,
+    pub is_accessible: bool,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -30,7 +39,7 @@ pub enum DiscoverableToolAction {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum DiscoverableTool {
-    Connector(Box<AppInfo>),
+    Connector(Box<DiscoverableConnectorInfo>),
     Plugin(Box<DiscoverablePluginInfo>),
 }
 
@@ -64,8 +73,8 @@ impl DiscoverableTool {
     }
 }
 
-impl From<AppInfo> for DiscoverableTool {
-    fn from(value: AppInfo) -> Self {
+impl From<DiscoverableConnectorInfo> for DiscoverableTool {
+    fn from(value: DiscoverableConnectorInfo) -> Self {
         Self::Connector(Box::new(value))
     }
 }

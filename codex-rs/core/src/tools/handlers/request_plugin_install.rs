@@ -10,6 +10,7 @@ use codex_core_plugins::remote::REMOTE_GLOBAL_MARKETPLACE_NAME;
 use codex_mcp::CODEX_APPS_MCP_SERVER_NAME;
 use codex_rmcp_client::ElicitationAction;
 use codex_rmcp_client::ElicitationResponse;
+use codex_tools::DiscoverableConnectorInfo;
 use codex_tools::DiscoverableTool;
 use codex_tools::DiscoverableToolAction;
 use codex_tools::DiscoverableToolType;
@@ -388,6 +389,19 @@ fn disabled_install_request(tool: &DiscoverableTool) -> ToolSuggestDisabledTool 
     }
 }
 
+fn discoverable_connector_infos(connectors: &[AppInfo]) -> Vec<DiscoverableConnectorInfo> {
+    connectors
+        .iter()
+        .map(|connector| DiscoverableConnectorInfo {
+            id: connector.id.clone(),
+            name: connector.name.clone(),
+            description: connector.description.clone(),
+            install_url: connector.install_url.clone(),
+            is_accessible: connector.is_accessible,
+        })
+        .collect()
+}
+
 async fn verify_request_plugin_install_completed(
     session: &Arc<crate::session::session::Session>,
     turn: &crate::session::turn_context::TurnContext,
@@ -406,6 +420,7 @@ async fn verify_request_plugin_install_completed(
         )
         .await
         .is_some_and(|accessible_connectors| {
+            let accessible_connectors = discoverable_connector_infos(&accessible_connectors);
             verified_connector_install_completed(connector.id.as_str(), &accessible_connectors)
         }),
         DiscoverableTool::Plugin(plugin) => {
@@ -427,6 +442,8 @@ async fn verify_request_plugin_install_completed(
                     )
                 );
                 return accessible_connectors.is_some_and(|accessible_connectors| {
+                    let accessible_connectors =
+                        discoverable_connector_infos(&accessible_connectors);
                     all_requested_connectors_picked_up(
                         &plugin.app_connector_ids,
                         &accessible_connectors,
@@ -498,7 +515,8 @@ async fn refresh_missing_requested_connectors(
 
     let mcp_tools = mcp.tools();
     let accessible_connectors = connectors::accessible_connectors_from_mcp_tools(mcp_tools);
-    if all_requested_connectors_picked_up(expected_connector_ids, &accessible_connectors) {
+    let discoverable_connectors = discoverable_connector_infos(&accessible_connectors);
+    if all_requested_connectors_picked_up(expected_connector_ids, &discoverable_connectors) {
         return Some(accessible_connectors);
     }
 
