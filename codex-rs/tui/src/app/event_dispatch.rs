@@ -852,18 +852,23 @@ impl App {
             AppEvent::OpenDesktopThread { thread_id } => {
                 self.open_desktop_thread(thread_id);
             }
+            #[cfg(feature = "full-runtime-extensions")]
             AppEvent::PetSelected { pet_id } => {
                 self.handle_pet_selected(tui, pet_id);
             }
+            #[cfg(feature = "full-runtime-extensions")]
             AppEvent::PetDisabled => {
                 self.handle_pet_disabled(tui).await;
             }
+            #[cfg(feature = "full-runtime-extensions")]
             AppEvent::PetPreviewRequested { pet_id } => {
                 self.chat_widget.start_pet_picker_preview(pet_id);
             }
+            #[cfg(feature = "full-runtime-extensions")]
             AppEvent::PetPreviewLoaded { request_id, result } => {
                 self.handle_pet_preview_loaded(tui, request_id, result);
             }
+            #[cfg(feature = "full-runtime-extensions")]
             AppEvent::PetSelectionLoaded {
                 request_id,
                 pet_id,
@@ -873,6 +878,7 @@ impl App {
                     .handle_pet_selection_loaded(tui, request_id, pet_id, result)
                     .await;
             }
+            #[cfg(feature = "full-runtime-extensions")]
             AppEvent::ConfiguredPetLoaded { pet_id, result } => {
                 self.handle_configured_pet_loaded(tui, pet_id, result);
             }
@@ -2328,6 +2334,7 @@ impl App {
             AppEvent::UpdateFeatureFlags { updates } => {
                 self.update_feature_flags(app_server, updates).await;
             }
+            #[cfg(feature = "full-runtime-extensions")]
             AppEvent::UpdateMemorySettings {
                 use_memories,
                 generate_memories,
@@ -2339,6 +2346,7 @@ impl App {
                 )
                 .await;
             }
+            #[cfg(feature = "full-runtime-extensions")]
             AppEvent::ResetMemories => {
                 self.reset_memories_with_app_server(app_server).await;
             }

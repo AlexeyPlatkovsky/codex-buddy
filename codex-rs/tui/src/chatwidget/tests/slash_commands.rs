@@ -1,26 +1,31 @@
 use super::*;
 use crate::bottom_pane::slash_commands::ServiceTierCommand;
 use pretty_assertions::assert_eq;
+#[cfg(feature = "full-runtime-extensions")]
 use serial_test::serial;
 
+#[cfg(feature = "full-runtime-extensions")]
 fn force_pet_image_support(chat: &mut ChatWidget) {
     chat.set_pet_image_support_for_tests(crate::pets::PetImageSupport::Supported(
         crate::pets::ImageProtocol::Kitty,
     ));
 }
 
+#[cfg(feature = "full-runtime-extensions")]
 fn force_tmux_pet_image_unsupported(chat: &mut ChatWidget) {
     chat.set_pet_image_support_for_tests(crate::pets::PetImageSupport::Unsupported(
         crate::pets::PetImageUnsupportedReason::Tmux,
     ));
 }
 
+#[cfg(feature = "full-runtime-extensions")]
 fn force_terminal_pet_image_unsupported(chat: &mut ChatWidget) {
     chat.set_pet_image_support_for_tests(crate::pets::PetImageSupport::Unsupported(
         crate::pets::PetImageUnsupportedReason::Terminal,
     ));
 }
 
+#[cfg(feature = "full-runtime-extensions")]
 fn force_old_iterm2_pet_image_unsupported(chat: &mut ChatWidget) {
     chat.set_pet_image_support_for_tests(crate::pets::PetImageSupport::Unsupported(
         crate::pets::PetImageUnsupportedReason::Iterm2TooOld,
@@ -2773,6 +2778,7 @@ async fn slash_mcp_invalid_args_show_usage() {
 }
 
 #[tokio::test]
+#[cfg(feature = "full-runtime-extensions")]
 async fn slash_memories_opens_memory_menu() {
     let (mut chat, mut rx, mut op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
     chat.set_feature_enabled(Feature::MemoryTool, /*enabled*/ true);
@@ -2883,6 +2889,7 @@ async fn slash_resume_with_arg_requests_named_session_while_mcp_startup_is_runni
 
 #[tokio::test]
 #[serial]
+#[cfg(feature = "full-runtime-extensions")]
 async fn slash_pets_opens_picker() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
     force_pet_image_support(&mut chat);
@@ -2898,6 +2905,7 @@ async fn slash_pets_opens_picker() {
 
 #[tokio::test]
 #[serial]
+#[cfg(feature = "full-runtime-extensions")]
 async fn slash_pets_with_arg_selects_named_pet() {
     let (mut chat, mut rx, mut op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
     force_pet_image_support(&mut chat);
@@ -2915,6 +2923,7 @@ async fn slash_pets_with_arg_selects_named_pet() {
 
 #[tokio::test]
 #[serial]
+#[cfg(feature = "full-runtime-extensions")]
 async fn slash_pets_disable_disables_pets_even_on_unsupported_terminal() {
     let (mut chat, mut rx, mut op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
     force_tmux_pet_image_unsupported(&mut chat);
@@ -2930,6 +2939,7 @@ async fn slash_pets_disable_disables_pets_even_on_unsupported_terminal() {
 
 #[tokio::test]
 #[serial]
+#[cfg(feature = "full-runtime-extensions")]
 async fn slash_pet_hide_disables_pets_even_on_unsupported_terminal() {
     let (mut chat, mut rx, mut op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
     force_tmux_pet_image_unsupported(&mut chat);
@@ -2945,6 +2955,7 @@ async fn slash_pet_hide_disables_pets_even_on_unsupported_terminal() {
 
 #[tokio::test]
 #[serial]
+#[cfg(feature = "full-runtime-extensions")]
 async fn slash_pets_on_unsupported_terminal_warns_without_picker() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
     force_tmux_pet_image_unsupported(&mut chat);
@@ -2964,6 +2975,7 @@ async fn slash_pets_on_unsupported_terminal_warns_without_picker() {
 
 #[tokio::test]
 #[serial]
+#[cfg(feature = "full-runtime-extensions")]
 async fn slash_pets_with_arg_on_unsupported_terminal_warns_without_selection() {
     let (mut chat, mut rx, mut op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
     force_tmux_pet_image_unsupported(&mut chat);
@@ -2985,6 +2997,7 @@ async fn slash_pets_with_arg_on_unsupported_terminal_warns_without_selection() {
 
 #[tokio::test]
 #[serial]
+#[cfg(feature = "full-runtime-extensions")]
 async fn slash_pets_on_unsupported_terminal_shows_terminal_warning() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
     force_terminal_pet_image_unsupported(&mut chat);
@@ -3004,6 +3017,7 @@ async fn slash_pets_on_unsupported_terminal_shows_terminal_warning() {
 
 #[tokio::test]
 #[serial]
+#[cfg(feature = "full-runtime-extensions")]
 async fn slash_pets_on_old_iterm2_shows_upgrade_warning() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
     force_old_iterm2_pet_image_unsupported(&mut chat);

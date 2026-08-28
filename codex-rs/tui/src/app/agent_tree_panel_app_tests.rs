@@ -35,6 +35,7 @@ async fn panel_appears_and_reflows_the_chat_width_at_the_responsive_threshold() 
 }
 
 #[tokio::test]
+#[cfg(feature = "full-runtime-extensions")]
 async fn ambient_pet_is_suppressed_while_the_panel_is_visible() {
     let mut app = make_test_app().await;
     let primary_thread_id = ThreadId::new();

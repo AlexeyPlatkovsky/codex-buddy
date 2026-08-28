@@ -424,9 +424,12 @@ impl ChatWidget {
             SlashCommand::AutoReview => {
                 self.open_auto_review_denials_popup();
             }
+            #[cfg(feature = "full-runtime-extensions")]
             SlashCommand::Memories => {
                 self.open_memories_popup();
             }
+            #[cfg(not(feature = "full-runtime-extensions"))]
+            SlashCommand::Memories => unreachable!("Coding commands return before UI dispatch"),
             SlashCommand::Quit | SlashCommand::Exit => {
                 self.request_quit_without_confirmation();
             }
@@ -526,9 +529,12 @@ impl ChatWidget {
             SlashCommand::Theme => {
                 self.open_theme_picker();
             }
+            #[cfg(feature = "full-runtime-extensions")]
             SlashCommand::Pets => {
                 self.open_pets_picker();
             }
+            #[cfg(not(feature = "full-runtime-extensions"))]
+            SlashCommand::Pets => unreachable!("Coding commands return before UI dispatch"),
             SlashCommand::Ps => {
                 self.add_ps_output();
             }
@@ -991,6 +997,7 @@ impl ChatWidget {
                 self.app_event_tx
                     .send(AppEvent::BeginWindowsSandboxGrantReadRoot { path: args });
             }
+            #[cfg(feature = "full-runtime-extensions")]
             SlashCommand::Pets
                 if matches!(
                     args.trim().to_ascii_lowercase().as_str(),
@@ -999,9 +1006,12 @@ impl ChatWidget {
             {
                 self.app_event_tx.send(AppEvent::PetDisabled);
             }
+            #[cfg(feature = "full-runtime-extensions")]
             SlashCommand::Pets if !trimmed.is_empty() => {
                 self.select_pet_by_id(args);
             }
+            #[cfg(not(feature = "full-runtime-extensions"))]
+            SlashCommand::Pets => unreachable!("Coding commands return before UI dispatch"),
             _ => self.dispatch_command(cmd),
         }
         if source == SlashCommandDispatchSource::Live && cmd != SlashCommand::Goal {

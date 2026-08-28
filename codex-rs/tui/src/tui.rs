@@ -103,6 +103,7 @@ fn should_emit_notification(condition: NotificationCondition, terminal_focused: 
     }
 }
 
+#[cfg(feature = "full-runtime-extensions")]
 impl Drop for Tui {
     fn drop(&mut self) {
         if let Err(err) = self.clear_ambient_pet_image() {
@@ -589,7 +590,9 @@ pub struct Tui {
     pub(crate) terminal: Terminal,
     pending_history_lines: Vec<PendingHistoryLines>,
     screen_size: ScreenSizePolicy,
+    #[cfg(feature = "full-runtime-extensions")]
     ambient_pet_image_state: crate::pets::PetImageRenderState,
+    #[cfg(feature = "full-runtime-extensions")]
     pet_picker_preview_image_state: crate::pets::PetImageRenderState,
     alt_saved_viewport: Option<ratatui::layout::Rect>,
     #[cfg(unix)]
@@ -646,7 +649,9 @@ impl Tui {
             terminal,
             pending_history_lines: vec![],
             screen_size: ScreenSizePolicy::default(),
+            #[cfg(feature = "full-runtime-extensions")]
             ambient_pet_image_state: crate::pets::PetImageRenderState::default(),
+            #[cfg(feature = "full-runtime-extensions")]
             pet_picker_preview_image_state: crate::pets::PetImageRenderState::default(),
             alt_saved_viewport: None,
             #[cfg(unix)]
@@ -1048,6 +1053,7 @@ impl Tui {
         })?
     }
 
+    #[cfg(feature = "full-runtime-extensions")]
     pub fn draw_ambient_pet_image(
         &mut self,
         request: Option<crate::pets::AmbientPetDraw>,
@@ -1067,6 +1073,7 @@ impl Tui {
         })??
     }
 
+    #[cfg(feature = "full-runtime-extensions")]
     pub fn draw_pet_picker_preview_image(
         &mut self,
         request: Option<crate::pets::AmbientPetDraw>,
@@ -1090,6 +1097,7 @@ impl Tui {
         })??
     }
 
+    #[cfg(feature = "full-runtime-extensions")]
     pub fn clear_ambient_pet_image(
         &mut self,
     ) -> std::result::Result<(), crate::pets::PetImageRenderError> {

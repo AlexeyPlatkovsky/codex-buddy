@@ -7,8 +7,10 @@ use codex_app_server_protocol::SpendControlLimitSnapshot;
 use codex_app_server_protocol::ThreadUsage;
 use pretty_assertions::assert_eq;
 use ratatui::backend::TestBackend;
+#[cfg(feature = "full-runtime-extensions")]
 use serial_test::serial;
 
+#[cfg(feature = "full-runtime-extensions")]
 fn enable_test_ambient_pet(chat: &mut ChatWidget) {
     chat.set_pet_image_support_for_tests(crate::pets::PetImageSupport::Supported(
         crate::pets::ImageProtocol::Kitty,
@@ -480,6 +482,7 @@ async fn completed_plan_table_tail_skips_provisional_history_insert() {
 
 #[tokio::test]
 #[cfg_attr(target_os = "windows", ignore = "disabled on windows")]
+#[cfg(feature = "full-runtime-extensions")]
 async fn configured_pet_load_is_deferred_until_after_construction() {
     let (tx_raw, mut rx) = unbounded_channel::<AppEvent>();
     let tx = AppEventSender::new(tx_raw);
@@ -2355,6 +2358,7 @@ async fn ui_snapshots_small_heights_task_running() {
 
 #[tokio::test]
 #[serial]
+#[cfg(feature = "full-runtime-extensions")]
 async fn ambient_pet_stays_hidden_until_a_pet_is_selected() {
     use ratatui::layout::Rect;
 
@@ -2396,6 +2400,7 @@ async fn ambient_pet_stays_hidden_until_a_pet_is_selected() {
 
 #[tokio::test]
 #[serial]
+#[cfg(feature = "full-runtime-extensions")]
 async fn ambient_pet_screen_bottom_anchor_uses_terminal_bottom() {
     use codex_config::types::TuiPetAnchor;
     use ratatui::layout::Rect;
@@ -2421,6 +2426,7 @@ async fn ambient_pet_screen_bottom_anchor_uses_terminal_bottom() {
 
 #[tokio::test]
 #[serial]
+#[cfg(feature = "full-runtime-extensions")]
 async fn ambient_pet_can_be_disabled() {
     let (mut chat, _rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
 
@@ -2430,6 +2436,7 @@ async fn ambient_pet_can_be_disabled() {
 }
 
 #[tokio::test]
+#[cfg(feature = "full-runtime-extensions")]
 async fn added_history_uses_pet_adjusted_terminal_width() {
     #[derive(Debug)]
     struct WidthCell(std::sync::Arc<std::sync::atomic::AtomicU16>);
@@ -2486,6 +2493,7 @@ width-sensitive history
 
 #[tokio::test]
 #[serial]
+#[cfg(feature = "full-runtime-extensions")]
 async fn ambient_pet_reserves_history_wrap_width() {
     let (mut chat, _rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
     enable_test_ambient_pet(&mut chat);
@@ -2499,6 +2507,7 @@ async fn ambient_pet_reserves_history_wrap_width() {
 
 #[tokio::test]
 #[serial]
+#[cfg(feature = "full-runtime-extensions")]
 async fn ambient_pet_reduces_stream_width_and_composer_text_width() {
     use ratatui::Terminal;
 
@@ -2554,6 +2563,7 @@ async fn ambient_pet_reduces_stream_width_and_composer_text_width() {
     assert!(!row_tail_is_blank(&disabled_row, /*start_col*/ 69));
 }
 
+#[cfg(feature = "full-runtime-extensions")]
 fn buffer_row_containing(buffer: &ratatui::buffer::Buffer, text: &str) -> Option<String> {
     (0..buffer.area.height)
         .map(|y| {
@@ -2564,12 +2574,14 @@ fn buffer_row_containing(buffer: &ratatui::buffer::Buffer, text: &str) -> Option
         .find(|row| row.contains(text))
 }
 
+#[cfg(feature = "full-runtime-extensions")]
 fn row_tail_is_blank(row: &str, start_col: usize) -> bool {
     row.chars().skip(start_col).all(char::is_whitespace)
 }
 
 #[tokio::test]
 #[serial]
+#[cfg(feature = "full-runtime-extensions")]
 async fn ambient_pet_draw_uses_terminal_screen_area_not_short_inline_viewport() {
     use ratatui::layout::Rect;
 
@@ -2601,6 +2613,7 @@ async fn ambient_pet_draw_uses_terminal_screen_area_not_short_inline_viewport() 
 
 #[tokio::test]
 #[serial]
+#[cfg(feature = "full-runtime-extensions")]
 async fn ambient_pet_hides_notification_text_overlay() {
     use ratatui::Terminal;
     use ratatui::backend::TestBackend;

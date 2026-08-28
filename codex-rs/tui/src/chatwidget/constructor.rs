@@ -83,10 +83,12 @@ impl ChatWidget {
             runtime_keymap.as_ref().unwrap_or(&default_keymap),
             current_terminal_info,
         );
+        #[cfg(feature = "full-runtime-extensions")]
         let pet_http_client = codex_http_client::RouteAwareClientPool::new(
             config.http_client_factory(),
             codex_http_client::ClientRouteClass::Other,
         );
+        #[cfg(feature = "full-runtime-extensions")]
         pets::start_configured_pet_load_if_needed(
             &config,
             /*ambient_pet_missing*/ true,
@@ -188,14 +190,21 @@ impl ChatWidget {
             status_state: StatusState::default(),
             review: ReviewState::default(),
             active_hook_cell: None,
+            #[cfg(feature = "full-runtime-extensions")]
             pet_http_client,
+            #[cfg(feature = "full-runtime-extensions")]
             ambient_pet: None,
+            #[cfg(feature = "full-runtime-extensions")]
             pet_picker_preview_state: crate::pets::PetPickerPreviewState::default(),
+            #[cfg(feature = "full-runtime-extensions")]
             pet_picker_preview_pet: None,
+            #[cfg(feature = "full-runtime-extensions")]
             pet_picker_preview_request_id: 0,
+            #[cfg(feature = "full-runtime-extensions")]
             pet_picker_preview_image_visible: std::cell::Cell::new(/*value*/ false),
+            #[cfg(feature = "full-runtime-extensions")]
             pet_selection_load_request_id: 0,
-            #[cfg(test)]
+            #[cfg(all(test, feature = "full-runtime-extensions"))]
             pet_image_support_override: None,
             thread_id: None,
             thread_name: None,

@@ -118,6 +118,7 @@ mod collaboration_modes;
 mod color;
 mod config_update;
 pub(crate) mod custom_terminal;
+#[cfg(feature = "full-runtime-extensions")]
 mod pets;
 mod plugin_models;
 pub use custom_terminal::Terminal;

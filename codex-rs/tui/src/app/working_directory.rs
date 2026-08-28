@@ -194,6 +194,7 @@ impl App {
             .update_search_dir(self.config.cwd.to_path_buf());
         let notify = &self.config.tui_notifications;
         tui.set_notification_settings(notify.method, notify.condition);
+        #[cfg(feature = "full-runtime-extensions")]
         if let Err(error) = tui.clear_ambient_pet_image() {
             tracing::warn!(%error, "failed to clear ambient pet image");
         }

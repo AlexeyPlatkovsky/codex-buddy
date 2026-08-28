@@ -3132,6 +3132,7 @@ async fn multi_agent_enable_prompt_updates_feature_and_emits_notice() {
 }
 
 #[tokio::test]
+#[cfg(feature = "full-runtime-extensions")]
 async fn memories_enable_prompt_snapshot() {
     let (mut chat, _rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
     chat.set_feature_enabled(Feature::MemoryTool, /*enabled*/ false);
@@ -3143,6 +3144,7 @@ async fn memories_enable_prompt_snapshot() {
 }
 
 #[tokio::test]
+#[cfg(feature = "full-runtime-extensions")]
 async fn memories_enable_prompt_updates_feature_without_notice() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
     chat.set_feature_enabled(Feature::MemoryTool, /*enabled*/ false);
@@ -3161,6 +3163,7 @@ async fn memories_enable_prompt_updates_feature_without_notice() {
 }
 
 #[tokio::test]
+#[cfg(feature = "full-runtime-extensions")]
 async fn memories_settings_popup_snapshot() {
     let (mut chat, _rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
     chat.set_feature_enabled(Feature::MemoryTool, /*enabled*/ true);
@@ -3174,6 +3177,7 @@ async fn memories_settings_popup_snapshot() {
 }
 
 #[tokio::test]
+#[cfg(feature = "full-runtime-extensions")]
 async fn memories_reset_confirmation_snapshot() {
     let (mut chat, _rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
     chat.set_feature_enabled(Feature::MemoryTool, /*enabled*/ true);
@@ -3190,6 +3194,7 @@ async fn memories_reset_confirmation_snapshot() {
 }
 
 #[tokio::test]
+#[cfg(feature = "full-runtime-extensions")]
 async fn memories_settings_toggle_saves_on_enter() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
     chat.set_feature_enabled(Feature::MemoryTool, /*enabled*/ true);
@@ -3211,6 +3216,7 @@ async fn memories_settings_toggle_saves_on_enter() {
 }
 
 #[tokio::test]
+#[cfg(feature = "full-runtime-extensions")]
 async fn memories_reset_confirmation_sends_event_on_confirm() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
     chat.set_feature_enabled(Feature::MemoryTool, /*enabled*/ true);

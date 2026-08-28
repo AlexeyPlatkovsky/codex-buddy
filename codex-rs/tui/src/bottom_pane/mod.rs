@@ -109,6 +109,7 @@ mod experimental_features_view;
 mod file_search_popup;
 mod footer;
 mod list_selection_view;
+#[cfg(feature = "full-runtime-extensions")]
 mod memories_settings_view;
 mod mentions_v2;
 pub(crate) mod prompt_args;
@@ -121,6 +122,7 @@ pub(crate) use footer::GoalStatusIndicator;
 pub(crate) use footer::goal_status_indicator_line;
 pub(crate) use list_selection_view::ColumnWidthMode;
 pub(crate) use list_selection_view::ListSelectionView;
+#[cfg(feature = "full-runtime-extensions")]
 pub(crate) use list_selection_view::OnSelectionChangedCallback;
 pub(crate) use list_selection_view::SelectionDescriptionLayout;
 pub(crate) use list_selection_view::SelectionRowDisplay;
@@ -129,6 +131,7 @@ pub(crate) use list_selection_view::SelectionViewParams;
 pub(crate) use list_selection_view::SideContentWidth;
 pub(crate) use list_selection_view::popup_content_width;
 pub(crate) use list_selection_view::side_by_side_layout_widths;
+#[cfg(feature = "full-runtime-extensions")]
 pub(crate) use memories_settings_view::MemoriesSettingsView;
 use slash_commands::ServiceTierCommand;
 mod feedback_view;
@@ -1327,6 +1330,7 @@ impl BottomPane {
         changed
     }
 
+    #[cfg(feature = "full-runtime-extensions")]
     pub(crate) fn dismiss_active_view_if_id(&mut self, view_id: &'static str) -> bool {
         let is_match = self
             .view_stack
