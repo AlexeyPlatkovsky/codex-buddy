@@ -2,6 +2,7 @@ use codex_core::config::Config;
 use codex_http_client::HttpClient;
 use codex_http_client::HttpClientFactory;
 use codex_login::AuthManager;
+#[cfg(feature = "connectors")]
 use codex_login::CodexAuth;
 use codex_login::default_client::RESIDENCY_HEADER_NAME;
 use codex_login::default_client::create_client;
@@ -9,6 +10,7 @@ use codex_login::default_client::create_client_with_chatgpt_cookies;
 use codex_login::default_client::default_headers;
 
 use anyhow::Context;
+#[cfg(feature = "connectors")]
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use std::sync::LazyLock;
@@ -120,6 +122,7 @@ pub(crate) async fn chatgpt_get_request_with_timeout<T: DeserializeOwned>(
 ///
 /// Callers that bind other state to the auth snapshot should pass that same snapshot here rather
 /// than reacquiring auth while the request is in flight.
+#[cfg(feature = "connectors")]
 pub(crate) async fn chatgpt_post_request_with_timeout<
     TResponse: DeserializeOwned,
     TRequest: Serialize + ?Sized,

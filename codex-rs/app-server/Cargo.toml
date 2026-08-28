@@ -31,11 +31,13 @@ full-runtime-extensions = [
     "codex-core/memories",
     "dep:codex-external-agent-migration",
     "codex-external-agent-migration/memories",
+    "connectors",
     "goals",
     "history-notes",
     "image-generation",
     "memories",
 ]
+connectors = ["codex-chatgpt/connectors"]
 goals = ["dep:codex-goal-extension"]
 history-notes = ["dep:codex-history-notes-extension"]
 image-generation = ["dep:codex-image-generation-extension"]

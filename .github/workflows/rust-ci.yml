@@ -106,6 +106,37 @@ jobs:
         if: always() && !cancelled()
         uses: ./.github/actions/check-clean-worktree
 
+  buddy_slim:
+    name: Codex Buddy slim boundary
+    runs-on: ubuntu-24.04
+    needs: changed
+    if: ${{ needs.changed.outputs.codex == 'true' || needs.changed.outputs.workflows == 'true' }}
+    defaults:
+      run:
+        working-directory: codex-rs
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-ci
+      - uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582 # 1.95.0
+      - name: Check connector-disabled targets
+        run: |
+          cargo check -p codex-chatgpt --no-default-features
+          cargo check -p codex-app-server --no-default-features
+          cargo check -p codex-buddy
+
+          buddy_chatgpt_features="$(cargo tree -p codex-buddy -e features -i codex-chatgpt)"
+          if [[ "$buddy_chatgpt_features" == *'codex-chatgpt feature "connectors"'* ]]; then
+            echo 'codex-buddy unexpectedly enables codex-chatgpt/connectors'
+            echo "$buddy_chatgpt_features"
+            exit 1
+          fi
+
+      - name: Check for a clean worktree
+        if: always() && !cancelled()
+        uses: ./.github/actions/check-clean-worktree
+
   argument_comment_lint_package:
     name: Argument comment lint package
     runs-on: ubuntu-24.04
@@ -223,6 +254,7 @@ jobs:
         changed,
         general,
         cargo_shear,
+        buddy_slim,
         argument_comment_lint_package,
         argument_comment_lint_prebuilt,
       ]
@@ -234,6 +266,7 @@ jobs:
         run: |
           echo "argpkg : ${{ needs.argument_comment_lint_package.result }}"
           echo "arglint: ${{ needs.argument_comment_lint_prebuilt.result }}"
+          echo "buddy  : ${{ needs.buddy_slim.result }}"
           echo "general: ${{ needs.general.result }}"
           echo "shear  : ${{ needs.cargo_shear.result }}"
 
@@ -253,6 +286,7 @@ jobs:
           fi
 
           if [[ "${NEEDS_CHANGED_OUTPUTS_CODEX}" == 'true' || "${NEEDS_CHANGED_OUTPUTS_WORKFLOWS}" == 'true' ]]; then
+            [[ '${{ needs.buddy_slim.result }}' == 'success' ]] || { echo 'buddy_slim failed'; exit 1; }
             [[ '${{ needs.general.result }}' == 'success' ]] || { echo 'general failed'; exit 1; }
             [[ '${{ needs.cargo_shear.result }}' == 'success' ]] || { echo 'cargo_shear failed'; exit 1; }
           fi

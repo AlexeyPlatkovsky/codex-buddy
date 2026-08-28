@@ -7,16 +7,20 @@ license.workspace = true
 [lints]
 workspace = true
 
+[features]
+default = ["connectors"]
+connectors = ["dep:codex-connectors", "dep:codex-plugin"]
+
 [dependencies]
 anyhow = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
-codex-connectors = { workspace = true }
+codex-connectors = { workspace = true, optional = true }
 codex-core = { workspace = true }
 codex-git-utils = { workspace = true }
 codex-http-client = { workspace = true }
 codex-login = { workspace = true }
 codex-model-provider = { workspace = true }
-codex-plugin = { workspace = true }
+codex-plugin = { workspace = true, optional = true }
 codex-utils-cli = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 tokio = { workspace = true, features = ["full"] }

@@ -331,6 +331,7 @@ use codex_backend_client::RateLimitResetCreditDetails as BackendRateLimitResetCr
 use codex_backend_client::RateLimitResetCreditsDetails as BackendRateLimitResetCreditsDetails;
 use codex_backend_client::RequestError as BackendRequestError;
 use codex_backend_client::TokenUsageProfile;
+#[cfg(feature = "connectors")]
 use codex_chatgpt::connectors;
 use codex_config::CloudConfigBundleLoadError;
 use codex_config::CloudConfigBundleLoadErrorCode;
@@ -511,6 +512,8 @@ use codex_thread_store::ThreadStore;
 use codex_thread_store::ThreadStoreError;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use codex_utils_pty::DEFAULT_OUTPUT_BYTES_CAP;
+#[cfg(not(feature = "connectors"))]
+use connectors_disabled as connectors;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -546,6 +549,8 @@ mod bedrock_auth;
 mod catalog_processor;
 mod command_exec_processor;
 mod config_processor;
+#[cfg(not(feature = "connectors"))]
+mod connectors_disabled;
 mod diagnostics;
 mod environment_processor;
 mod feedback_doctor_report;

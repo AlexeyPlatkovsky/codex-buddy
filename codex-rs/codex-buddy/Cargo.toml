@@ -15,7 +15,7 @@ workspace = true
 anyhow = { workspace = true }
 clap = { workspace = true }
 codex-arg0 = { workspace = true }
-codex-chatgpt = { workspace = true }
+codex-chatgpt = { workspace = true, default-features = false }
 codex-cli = { workspace = true }
 codex-config = { workspace = true }
 codex-exec = { path = "../exec", default-features = false }
