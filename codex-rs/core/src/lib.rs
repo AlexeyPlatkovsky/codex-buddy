@@ -6,6 +6,7 @@
 #![deny(clippy::print_stdout, clippy::print_stderr)]
 
 mod apply_patch;
+#[cfg(feature = "connectors")]
 mod apps;
 mod client;
 mod client_common;
@@ -55,6 +56,7 @@ mod audio_input;
 mod codex_delegate;
 mod command_canonicalization;
 pub mod config;
+#[cfg(feature = "connectors")]
 pub mod connectors;
 pub mod context;
 mod context_manager;
@@ -81,6 +83,7 @@ pub use mcp::McpManager;
 mod original_image_detail;
 pub use codex_mcp::CodexAppsToolsCache;
 pub use codex_mcp::SandboxState;
+mod mcp_approval_policy;
 mod mcp_openai_file;
 mod mcp_tool_call;
 pub(crate) mod mention_syntax;
@@ -95,7 +98,9 @@ pub(crate) mod prompt_debug;
 #[doc(hidden)]
 pub use prompt_debug::build_prompt_input;
 pub(crate) mod mentions {
+    #[cfg(feature = "connectors")]
     pub(crate) use crate::plugins::build_connector_slug_counts;
+    #[cfg(feature = "connectors")]
     pub(crate) use crate::plugins::collect_explicit_app_ids;
     pub(crate) use crate::plugins::collect_explicit_plugin_mentions;
     pub(crate) use crate::plugins::collect_tool_mentions_from_messages;

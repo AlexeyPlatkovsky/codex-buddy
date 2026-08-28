@@ -145,6 +145,13 @@ jobs:
             exit 1
           fi
 
+          buddy_tree="$(cargo tree -p codex-buddy -e normal --prefix none)"
+          if grep -Eq '^codex-connectors v' <<<"$buddy_tree"; then
+            echo 'codex-buddy unexpectedly depends on codex-connectors'
+            echo "$buddy_tree"
+            exit 1
+          fi
+
           app_server_metadata="$(cargo metadata --no-deps --format-version=1)"
           for dependency in codex-connectors codex-core-plugins codex-plugin; do
             if ! jq -e --arg dependency "$dependency" '

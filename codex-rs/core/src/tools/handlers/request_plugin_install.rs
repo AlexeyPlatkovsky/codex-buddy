@@ -10,6 +10,7 @@ use codex_core_plugins::remote::REMOTE_GLOBAL_MARKETPLACE_NAME;
 use codex_mcp::CODEX_APPS_MCP_SERVER_NAME;
 use codex_rmcp_client::ElicitationAction;
 use codex_rmcp_client::ElicitationResponse;
+#[cfg(feature = "connectors")]
 use codex_tools::DiscoverableConnectorInfo;
 use codex_tools::DiscoverableTool;
 use codex_tools::DiscoverableToolAction;
@@ -22,9 +23,11 @@ use codex_tools::RequestPluginInstallArgs;
 use codex_tools::RequestPluginInstallResult;
 use codex_tools::ToolName;
 use codex_tools::ToolSpec;
+#[cfg(feature = "connectors")]
 use codex_tools::all_requested_connectors_picked_up;
 use codex_tools::build_request_plugin_install_elicitation_request;
 use codex_tools::filter_request_plugin_install_discoverable_tools_for_client;
+#[cfg(feature = "connectors")]
 use codex_tools::verified_connector_install_completed;
 use rmcp::model::RequestId;
 use serde::Deserialize;
@@ -33,7 +36,9 @@ use tracing::warn;
 
 use crate::config::edit::ConfigEdit;
 use crate::config::edit::ConfigEditsBuilder;
+#[cfg(feature = "connectors")]
 use crate::connectors;
+#[cfg(feature = "connectors")]
 use crate::connectors::AppInfo;
 use crate::function_tool::FunctionCallError;
 use crate::tools::context::FunctionToolOutput;
@@ -389,6 +394,7 @@ fn disabled_install_request(tool: &DiscoverableTool) -> ToolSuggestDisabledTool 
     }
 }
 
+#[cfg(feature = "connectors")]
 fn discoverable_connector_infos(connectors: &[AppInfo]) -> Vec<DiscoverableConnectorInfo> {
     connectors
         .iter()
@@ -402,6 +408,7 @@ fn discoverable_connector_infos(connectors: &[AppInfo]) -> Vec<DiscoverableConne
         .collect()
 }
 
+#[cfg(feature = "connectors")]
 async fn verify_request_plugin_install_completed(
     session: &Arc<crate::session::session::Session>,
     turn: &crate::session::turn_context::TurnContext,
@@ -472,6 +479,37 @@ async fn verify_request_plugin_install_completed(
     }
 }
 
+#[cfg(not(feature = "connectors"))]
+async fn verify_request_plugin_install_completed(
+    session: &Arc<crate::session::session::Session>,
+    turn: &crate::session::turn_context::TurnContext,
+    _mcp: &codex_mcp::McpBinding,
+    tool: &DiscoverableTool,
+    auth: Option<&codex_login::CodexAuth>,
+) -> bool {
+    let DiscoverableTool::Plugin(plugin) = tool else {
+        return false;
+    };
+
+    if is_remote_plugin_install_suggestion(&plugin.id) {
+        refresh_remote_installed_plugins_cache_after_install(
+            session,
+            turn,
+            auth,
+            plugin.id.as_str(),
+        )
+        .await;
+    } else {
+        session.reload_user_config_layer().await;
+    }
+    let config = session.get_config().await;
+    verified_plugin_install_completed(
+        plugin.id.as_str(),
+        config.as_ref(),
+        session.services.plugins_manager.as_ref(),
+    )
+}
+
 async fn refresh_remote_installed_plugins_cache_after_install(
     session: &crate::session::session::Session,
     turn: &crate::session::turn_context::TurnContext,
@@ -501,6 +539,7 @@ fn is_remote_plugin_install_suggestion(plugin_id: &str) -> bool {
         .is_some_and(|(_, marketplace_name)| marketplace_name == REMOTE_GLOBAL_MARKETPLACE_NAME)
 }
 
+#[cfg(feature = "connectors")]
 async fn refresh_missing_requested_connectors(
     session: &Arc<crate::session::session::Session>,
     turn: &crate::session::turn_context::TurnContext,

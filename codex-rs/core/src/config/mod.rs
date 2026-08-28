@@ -1781,7 +1781,8 @@ impl Config {
             server_permission_profiles: HashMap::new(),
             codex_linux_sandbox_exe: self.codex_linux_sandbox_exe.clone(),
             use_legacy_landlock: self.features.use_legacy_landlock(),
-            apps_enabled: mcp_source_policy == ExternalSourcePolicy::Automatic
+            apps_enabled: cfg!(feature = "connectors")
+                && mcp_source_policy == ExternalSourcePolicy::Automatic
                 && self.features.enabled(Feature::Apps),
             prefix_mcp_tool_names: self.prefix_mcp_tool_names(),
             non_prefixed_mcp_tool_servers: if self
@@ -1805,7 +1806,9 @@ impl Config {
                 ElicitationCapability::default()
             },
             mcp_server_catalog: catalog.build(),
-            connector_snapshot: if mcp_source_policy == ExternalSourcePolicy::Automatic {
+            connector_snapshot: if cfg!(feature = "connectors")
+                && mcp_source_policy == ExternalSourcePolicy::Automatic
+            {
                 codex_plugin::ConnectorSnapshot::from_plugin_capability_summaries(
                     loaded_plugins.capability_summaries(),
                 )

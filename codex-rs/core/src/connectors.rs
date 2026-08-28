@@ -5,7 +5,6 @@ use std::sync::Mutex as StdMutex;
 use std::time::Duration;
 use std::time::Instant;
 
-use codex_config::apps_config_from_layer_stack;
 pub use codex_connectors::AppBranding;
 pub use codex_connectors::AppInfo;
 pub use codex_connectors::AppMetadata;
@@ -21,10 +20,11 @@ use tracing::warn;
 
 use crate::config::Config;
 use crate::mcp::McpManager;
+#[cfg(test)]
+use crate::mcp_approval_policy::mcp_approvals_reviewer_from_layers;
 use crate::plugins::list_tool_suggest_discoverable_plugins;
 use crate::plugins::plugins_manager_for_config;
 use crate::session::INITIAL_SUBMIT_ID;
-use codex_config::types::ApprovalsReviewer;
 use codex_config::types::ToolSuggestDiscoverableType;
 use codex_core_plugins::PluginsManager;
 use codex_features::Feature;
@@ -518,42 +518,6 @@ pub fn with_app_plugin_sources(
             .to_vec();
     }
     connectors
-}
-
-pub(crate) fn mcp_approvals_reviewer_from_layers(
-    config_layer_stack: &codex_config::ConfigLayerStack,
-    default_reviewer: ApprovalsReviewer,
-    model: Option<&str>,
-    server_name: &str,
-    connector_id: Option<&str>,
-) -> ApprovalsReviewer {
-    let requirements = config_layer_stack.requirements();
-    if model.is_some_and(|model| requirements.auto_review_required_for_model(model)) {
-        return ApprovalsReviewer::AutoReview;
-    }
-
-    let app_reviewer = if server_name == CODEX_APPS_MCP_SERVER_NAME {
-        apps_config_from_layer_stack(config_layer_stack).and_then(|apps_config| {
-            connector_id
-                .and_then(|connector_id| apps_config.apps.get(connector_id))
-                .and_then(|app| app.approvals_reviewer)
-                .or_else(|| {
-                    apps_config
-                        .default
-                        .and_then(|defaults| defaults.approvals_reviewer)
-                })
-        })
-    } else {
-        None
-    };
-
-    if let Some(reviewer) = app_reviewer
-        && requirements.approvals_reviewer.can_set(&reviewer).is_ok()
-    {
-        return reviewer;
-    }
-
-    default_reviewer
 }
 
 #[cfg(test)]

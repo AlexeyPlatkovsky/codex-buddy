@@ -1,8 +1,10 @@
+#[cfg(feature = "connectors")]
 use std::collections::HashSet;
 
 use codex_protocol::user_input::UserInput;
 use pretty_assertions::assert_eq;
 
+#[cfg(feature = "connectors")]
 use super::collect_explicit_app_ids;
 use super::collect_explicit_plugin_mentions;
 use crate::plugins::PluginCapabilitySummary;
@@ -27,6 +29,7 @@ fn plugin(config_name: &str, display_name: &str) -> PluginCapabilitySummary {
 }
 
 #[test]
+#[cfg(feature = "connectors")]
 fn collect_explicit_app_ids_from_linked_text_mentions() {
     let input = vec![text_input("use [$calendar](app://calendar)")];
 
@@ -36,6 +39,7 @@ fn collect_explicit_app_ids_from_linked_text_mentions() {
 }
 
 #[test]
+#[cfg(feature = "connectors")]
 fn collect_explicit_app_ids_dedupes_structured_and_linked_mentions() {
     let input = vec![
         text_input("use [$calendar](app://calendar)"),
@@ -51,6 +55,7 @@ fn collect_explicit_app_ids_dedupes_structured_and_linked_mentions() {
 }
 
 #[test]
+#[cfg(feature = "connectors")]
 fn collect_explicit_app_ids_ignores_non_app_paths() {
     let input = vec![
         text_input(

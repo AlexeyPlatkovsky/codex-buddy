@@ -787,7 +787,7 @@ async fn review_guardian_mcp_elicitation(
                 .approvals_reviewer
                 .can_set(&ApprovalsReviewer::AutoReview)
                 .is_err()
-            || crate::connectors::mcp_approvals_reviewer_from_layers(
+            || crate::mcp_approval_policy::mcp_approvals_reviewer_from_layers(
                 &mcp_config.config_layer_stack,
                 ApprovalsReviewer::AutoReview,
                 Some(turn_context.model_info().slug.as_str()),
@@ -871,7 +871,7 @@ async fn review_guardian_mcp_elicitation(
         }
     }
 
-    let approvals_reviewer = crate::connectors::mcp_approvals_reviewer_from_layers(
+    let approvals_reviewer = crate::mcp_approval_policy::mcp_approvals_reviewer_from_layers(
         &mcp_config.config_layer_stack,
         mcp_config.approvals_reviewer,
         Some(turn_context.model_info().slug.as_str()),

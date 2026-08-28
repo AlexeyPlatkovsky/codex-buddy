@@ -257,7 +257,7 @@ pub(crate) use self::session::SessionSettingsUpdate;
 #[cfg(test)]
 use self::turn::AssistantMessageStreamParsers;
 use self::turn::agent_message_text;
-#[cfg(test)]
+#[cfg(all(test, feature = "connectors"))]
 use self::turn::collect_explicit_app_ids_from_skill_items;
 use self::turn::realtime_text_for_event;
 use self::turn_context::TurnContext;

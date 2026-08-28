@@ -5,6 +5,7 @@ use std::time::Instant;
 use crate::config::Config;
 use crate::config::edit::ConfigEdit;
 use crate::config::edit::ConfigEditsBuilder;
+#[cfg(feature = "connectors")]
 use crate::connectors;
 use crate::guardian::GuardianApprovalRequest;
 use crate::guardian::GuardianMcpAnnotations;
@@ -704,12 +705,15 @@ async fn maybe_request_codex_apps_auth_elicitation(
 
     let connector_id = metadata.and_then(|metadata| metadata.connector_id.as_deref());
     let connector_name = metadata.and_then(|metadata| metadata.connector_name.as_deref());
+    #[cfg(feature = "connectors")]
     let install_url = connector_id.map(|connector_id| {
         codex_connectors::metadata::connector_install_url(
             connector_name.unwrap_or(connector_id),
             connector_id,
         )
     });
+    #[cfg(not(feature = "connectors"))]
+    let install_url = None;
     let Some(plan) =
         build_auth_elicitation_plan(call_id, &result, connector_id, connector_name, install_url)
     else {
@@ -748,12 +752,17 @@ async fn refresh_codex_apps_after_connector_auth(sess: &Arc<Session>, turn_conte
 
     match mcp_tools_result {
         Ok(mcp_tools) => {
-            let auth = sess.services.auth_manager.auth().await;
-            connectors::refresh_accessible_connectors_cache_from_mcp_tools(
-                &turn_context.config,
-                auth.as_ref(),
-                &mcp_tools,
-            );
+            #[cfg(feature = "connectors")]
+            {
+                let auth = sess.services.auth_manager.auth().await;
+                connectors::refresh_accessible_connectors_cache_from_mcp_tools(
+                    &turn_context.config,
+                    auth.as_ref(),
+                    &mcp_tools,
+                );
+            }
+            #[cfg(not(feature = "connectors"))]
+            let _ = (mcp_tools, turn_context);
         }
         Err(err) => {
             tracing::warn!("failed to refresh Codex Apps tools after connector auth: {err:#}");
@@ -1367,7 +1376,7 @@ async fn maybe_request_mcp_tool_approval(
         Some(turn_state) => turn_state.lock().await.strict_auto_review_enabled(),
         None => false,
     };
-    let approvals_reviewer = connectors::mcp_approvals_reviewer_from_layers(
+    let approvals_reviewer = crate::mcp_approval_policy::mcp_approvals_reviewer_from_layers(
         &config.config_layer_stack,
         config.approvals_reviewer,
         Some(turn_context.model_info().slug.as_str()),

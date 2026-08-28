@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use super::session::Session;
 use super::step_context::StepContext;
+#[cfg(feature = "connectors")]
 use crate::connectors;
 use crate::context::ApprovalPromptContext;
 use crate::context::TokenBudgetContext;
@@ -23,6 +24,7 @@ use crate::context::world_state::PluginsInstructionsState;
 use crate::context::world_state::RealtimeState;
 use crate::context::world_state::ToolsState;
 use crate::context::world_state::WorldState;
+#[cfg(feature = "connectors")]
 use codex_connectors::AppToolPolicyEvaluator;
 use codex_extension_api::WorldStateContributionInput;
 use codex_features::Feature;
@@ -237,6 +239,7 @@ impl Session {
                     .features
                     .enabled(Feature::DeferredExecutor),
         ));
+        #[cfg(feature = "connectors")]
         let apps_available =
             if turn_context.config.include_apps_instructions && turn_context.apps_enabled() {
                 AppToolPolicyEvaluator::new(&turn_context.config.config_layer_stack)
@@ -248,6 +251,8 @@ impl Session {
             } else {
                 false
             };
+        #[cfg(not(feature = "connectors"))]
+        let apps_available = false;
         let apps_usage_instructions_available =
             apps_available && turn_context.model_info().include_apps_usage_instructions;
         world_state.add_section(AppsInstructionsState::new(

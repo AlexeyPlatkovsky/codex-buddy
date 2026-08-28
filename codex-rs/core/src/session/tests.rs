@@ -90,6 +90,7 @@ use codex_utils_path_uri::PathUri;
 use std::collections::BTreeMap;
 use tracing::Span;
 
+#[cfg(feature = "connectors")]
 use crate::connectors::AppInfo;
 use crate::rollout::recorder::RolloutRecorder;
 use crate::state::ActiveTurn;
@@ -544,6 +545,7 @@ async fn world_state_extension_metrics_follow_turn_model_switch() {
     );
 }
 
+#[cfg(feature = "connectors")]
 fn skill_message(text: &str) -> ResponseItem {
     ResponseItem::Message {
         id: None,
@@ -906,6 +908,7 @@ fn test_tool_runtime(session: Arc<Session>, turn_context: Arc<TurnContext>) -> T
     ToolCallRuntime::new(session, step_context, tracker)
 }
 
+#[cfg(feature = "connectors")]
 fn make_connector(id: &str, name: &str) -> AppInfo {
     AppInfo {
         id: id.to_string(),
@@ -2099,6 +2102,7 @@ async fn refresh_mcp_config_replaces_managed_server_and_plugin_requirements() {
     assert!(plugin_servers["beta"].enabled);
 }
 
+#[cfg(feature = "connectors")]
 #[test]
 fn collect_explicit_app_ids_from_skill_items_includes_linked_mentions() {
     let connectors = vec![make_connector("calendar", "Calendar")];
@@ -2112,6 +2116,7 @@ fn collect_explicit_app_ids_from_skill_items_includes_linked_mentions() {
     assert_eq!(connector_ids, HashSet::from(["calendar".to_string()]));
 }
 
+#[cfg(feature = "connectors")]
 #[test]
 fn collect_explicit_app_ids_from_skill_items_resolves_unambiguous_plain_mentions() {
     let connectors = vec![make_connector("calendar", "Calendar")];
@@ -2125,6 +2130,7 @@ fn collect_explicit_app_ids_from_skill_items_resolves_unambiguous_plain_mentions
     assert_eq!(connector_ids, HashSet::from(["calendar".to_string()]));
 }
 
+#[cfg(feature = "connectors")]
 #[test]
 fn collect_explicit_app_ids_from_skill_items_skips_plain_mentions_with_skill_conflicts() {
     let connectors = vec![make_connector("calendar", "Calendar")];

@@ -1,14 +1,18 @@
-use std::collections::HashMap;
 use std::collections::HashSet;
 
+#[cfg(feature = "connectors")]
 use codex_connectors::metadata::connector_mention_slug;
 use codex_protocol::user_input::UserInput;
 use codex_skills::ToolMentionKind;
+#[cfg(feature = "connectors")]
 use codex_skills::app_id_from_path;
 use codex_skills::extract_tool_mentions_with_sigil;
 use codex_skills::plugin_config_name_from_path;
 use codex_skills::tool_kind_for_path;
+#[cfg(feature = "connectors")]
+use std::collections::HashMap;
 
+#[cfg(feature = "connectors")]
 use crate::connectors;
 use crate::mention_syntax::PLUGIN_TEXT_MENTION_SIGIL;
 use crate::mention_syntax::TOOL_MENTION_SIGIL;
@@ -16,6 +20,7 @@ use crate::mention_syntax::TOOL_MENTION_SIGIL;
 use super::PluginCapabilitySummary;
 
 pub(crate) struct CollectedToolMentions {
+    #[cfg_attr(not(feature = "connectors"), allow(dead_code))]
     pub(crate) plain_names: HashSet<String>,
     pub(crate) paths: HashSet<String>,
 }
@@ -38,6 +43,7 @@ fn collect_tool_mentions_from_messages_with_sigil(
     CollectedToolMentions { plain_names, paths }
 }
 
+#[cfg(feature = "connectors")]
 pub(crate) fn collect_explicit_app_ids(input: &[UserInput]) -> HashSet<String> {
     let messages = input
         .iter()
@@ -102,6 +108,7 @@ pub(crate) fn collect_explicit_plugin_mentions(
         .collect()
 }
 
+#[cfg(feature = "connectors")]
 pub(crate) fn build_connector_slug_counts(
     connectors: &[connectors::AppInfo],
 ) -> HashMap<String, usize> {
