@@ -90,6 +90,7 @@ fn is_unsupported_untrusted_approval_policy_error(err: &std::io::Error) -> bool 
 }
 
 mod analytics_utils;
+#[cfg(feature = "connectors")]
 mod app_info;
 mod app_server_tracing;
 mod attestation;
@@ -104,6 +105,7 @@ mod connection_cleanup;
 mod connection_rpc_gate;
 mod current_time;
 mod dynamic_tools;
+#[cfg(feature = "connectors")]
 mod effective_plugin_change;
 mod error_code;
 mod extension_composition;

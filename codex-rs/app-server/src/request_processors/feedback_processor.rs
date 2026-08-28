@@ -1,8 +1,13 @@
 use super::*;
+#[cfg(feature = "connectors")]
 use codex_connectors::ConnectorDirectoryCacheContext;
+#[cfg(feature = "connectors")]
 use codex_connectors::ConnectorDirectoryCacheKey;
+#[cfg(feature = "connectors")]
 use codex_connectors::connector_runtime_cache_path;
+#[cfg(feature = "connectors")]
 use codex_feedback::CODEX_APP_DIRECTORY_CACHE_ATTACHMENT_FILENAME;
+#[cfg(feature = "connectors")]
 use codex_feedback::CODEX_APPS_TOOLS_CACHE_ATTACHMENT_FILENAME;
 #[cfg(target_os = "windows")]
 use codex_feedback::WINDOWS_SANDBOX_LOG_ATTACHMENT_FILENAME;
@@ -410,6 +415,7 @@ fn normalized_prompt_hash(prompt: &str) -> String {
     format!("{:x}", Sha256::digest(normalized_prompt.as_bytes()))
 }
 
+#[cfg(feature = "connectors")]
 fn tool_cache_feedback_attachments(
     codex_home: &Path,
     chatgpt_base_url: &str,
@@ -451,6 +457,15 @@ fn tool_cache_feedback_attachments(
     attachments
 }
 
+#[cfg(not(feature = "connectors"))]
+fn tool_cache_feedback_attachments(
+    _codex_home: &Path,
+    _chatgpt_base_url: &str,
+    _auth: Option<&CodexAuth>,
+) -> Vec<FeedbackAttachmentPath> {
+    Vec::new()
+}
+
 fn auto_review_rollout_filename(thread_id: ThreadId) -> String {
     format!("auto-review-rollout-{thread_id}.jsonl")
 }
@@ -478,6 +493,7 @@ mod tests {
     use codex_rollout::RolloutLine;
     use core_test_support::responses::start_mock_server;
     use core_test_support::test_codex::test_codex;
+    #[cfg(feature = "connectors")]
     use http::HeaderMap;
     use pretty_assertions::assert_eq;
 
@@ -737,6 +753,7 @@ mod tests {
         (tempdir, rollout_path)
     }
 
+    #[cfg(feature = "connectors")]
     #[test]
     fn tool_cache_feedback_attachments_include_existing_active_cache_files() {
         let codex_home = tempfile::tempdir().expect("create tempdir");
@@ -789,6 +806,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "connectors")]
     #[test]
     fn tool_cache_feedback_attachments_include_directory_cache_without_account_id() {
         let codex_home = tempfile::tempdir().expect("create tempdir");

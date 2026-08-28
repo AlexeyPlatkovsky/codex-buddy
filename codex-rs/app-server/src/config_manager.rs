@@ -154,6 +154,7 @@ impl ConfigManager {
 
     /// Loads system, user, and runtime settings without discovering a project
     /// from the app-server process's working directory.
+    #[cfg(feature = "connectors")]
     pub(crate) async fn load_non_project_config(&self) -> std::io::Result<Config> {
         let mut manager = self.clone();
         manager.loader_overrides.ignore_project_config = true;

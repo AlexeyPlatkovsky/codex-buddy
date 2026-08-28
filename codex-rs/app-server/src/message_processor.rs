@@ -27,6 +27,7 @@ use crate::outgoing_message::ConnectionRequestId;
 use crate::outgoing_message::OutgoingMessageSender;
 use crate::outgoing_message::RequestContext;
 use crate::request_processors::AccountRequestProcessor;
+#[cfg(feature = "connectors")]
 use crate::request_processors::AppsRequestProcessor;
 use crate::request_processors::CatalogRequestProcessor;
 use crate::request_processors::CommandExecRequestProcessor;
@@ -36,10 +37,12 @@ use crate::request_processors::FeedbackRequestProcessor;
 use crate::request_processors::FsRequestProcessor;
 use crate::request_processors::GitRequestProcessor;
 use crate::request_processors::InitializeRequestProcessor;
+#[cfg(feature = "connectors")]
 use crate::request_processors::MarketplaceRequestProcessor;
 use crate::request_processors::McpEventStreamReady;
 use crate::request_processors::McpEventStreams;
 use crate::request_processors::McpRequestProcessor;
+#[cfg(feature = "connectors")]
 use crate::request_processors::PluginRequestProcessor;
 use crate::request_processors::ProcessExecRequestProcessor;
 use crate::request_processors::ProjectRequestProcessor;
@@ -99,6 +102,7 @@ use tokio::sync::broadcast;
 use tokio::sync::watch;
 use tokio::time::Duration;
 use tokio::time::timeout;
+#[cfg(feature = "connectors")]
 use tokio_util::sync::CancellationToken;
 use tracing::Instrument;
 
@@ -143,6 +147,7 @@ pub(crate) struct MessageProcessor {
     turn_cost_worker: Option<TurnCostWorker>,
     skills_watcher: Arc<SkillsWatcher>,
     account_processor: AccountRequestProcessor,
+    #[cfg(feature = "connectors")]
     apps_processor: Option<AppsRequestProcessor>,
     catalog_processor: CatalogRequestProcessor,
     command_exec_processor: CommandExecRequestProcessor,
@@ -155,8 +160,10 @@ pub(crate) struct MessageProcessor {
     fs_processor: FsRequestProcessor,
     git_processor: GitRequestProcessor,
     initialize_processor: InitializeRequestProcessor,
+    #[cfg(feature = "connectors")]
     marketplace_processor: Option<MarketplaceRequestProcessor>,
     mcp_processor: McpRequestProcessor,
+    #[cfg(feature = "connectors")]
     plugin_processor: Option<PluginRequestProcessor>,
     project_processor: ProjectRequestProcessor,
     remote_control_processor: RemoteControlRequestProcessor,
@@ -290,6 +297,8 @@ impl MessageProcessor {
             remote_control_handle,
             plugin_startup_tasks,
         } = args;
+        #[cfg(not(feature = "connectors"))]
+        let _ = plugin_startup_tasks;
         let thread_state_manager = ThreadStateManager::new();
         // The thread store is intentionally process-scoped. Config reloads can
         // affect per-thread behavior, but they must not move newly started,
@@ -407,12 +416,14 @@ impl MessageProcessor {
         let thread_watch_manager =
             crate::thread_status::ThreadWatchManager::new_with_outgoing(outgoing.clone());
         let thread_list_state_permit = Arc::new(Semaphore::new(/*permits*/ 1));
+        #[cfg(feature = "connectors")]
         let app_list_shutdown_token = CancellationToken::new();
         let request_serialization_queues = RequestSerializationQueues::default();
         let config_processor = ConfigRequestProcessor::new(
             outgoing.clone(),
             config_manager.clone(),
             thread_manager.clone(),
+            #[cfg(feature = "connectors")]
             analytics_events_client.clone(),
         );
         let account_processor = AccountRequestProcessor::new(
@@ -422,6 +433,7 @@ impl MessageProcessor {
             Arc::clone(&config),
             config_manager.clone(),
         );
+        #[cfg(feature = "connectors")]
         let apps_processor = extension_composition.constructs_apps_service().then(|| {
             AppsRequestProcessor::new(
                 auth_manager.clone(),
@@ -465,6 +477,7 @@ impl MessageProcessor {
             config_warnings.clone(),
             rpc_transport,
         );
+        #[cfg(feature = "connectors")]
         let marketplace_processor = extension_composition.starts_plugin_tasks().then(|| {
             MarketplaceRequestProcessor::new(
                 Arc::clone(&config),
@@ -479,6 +492,7 @@ impl MessageProcessor {
             outgoing.clone(),
             config_manager.clone(),
         );
+        #[cfg(feature = "connectors")]
         let plugin_processor = extension_composition.starts_plugin_tasks().then(|| {
             let on_effective_plugins_changed =
                 crate::effective_plugin_change::effective_plugins_changed_callback(
@@ -555,6 +569,7 @@ impl MessageProcessor {
             Arc::clone(&skills_watcher),
             turn_cost_worker.as_ref().map(TurnCostWorker::handle),
         );
+        #[cfg(feature = "connectors")]
         if matches!(plugin_startup_tasks, crate::PluginStartupTasks::Start)
             && let Some(plugin_processor) = plugin_processor.as_ref()
         {
@@ -599,6 +614,7 @@ impl MessageProcessor {
             turn_cost_worker,
             skills_watcher,
             account_processor,
+            #[cfg(feature = "connectors")]
             apps_processor,
             catalog_processor,
             command_exec_processor,
@@ -611,8 +627,10 @@ impl MessageProcessor {
             fs_processor,
             git_processor,
             initialize_processor,
+            #[cfg(feature = "connectors")]
             marketplace_processor,
             mcp_processor,
+            #[cfg(feature = "connectors")]
             plugin_processor,
             project_processor,
             remote_control_processor,
@@ -628,6 +646,7 @@ impl MessageProcessor {
 
     pub(crate) fn clear_runtime_references(&self) {
         self.account_processor.clear_external_auth();
+        #[cfg(feature = "connectors")]
         if let Some(apps_processor) = &self.apps_processor {
             apps_processor.shutdown();
         }
@@ -635,22 +654,32 @@ impl MessageProcessor {
         self.skills_watcher.shutdown();
     }
 
+    #[cfg(feature = "connectors")]
     fn apps_processor(&self) -> Result<&AppsRequestProcessor, JSONRPCErrorError> {
         self.apps_processor
             .as_ref()
             .ok_or_else(|| invalid_request("apps are unavailable in this runtime profile"))
     }
 
+    #[cfg(feature = "connectors")]
     fn marketplace_processor(&self) -> Result<&MarketplaceRequestProcessor, JSONRPCErrorError> {
         self.marketplace_processor.as_ref().ok_or_else(|| {
             invalid_request("plugin marketplaces are unavailable in this runtime profile")
         })
     }
 
+    #[cfg(feature = "connectors")]
     fn plugin_processor(&self) -> Result<&PluginRequestProcessor, JSONRPCErrorError> {
         self.plugin_processor
             .as_ref()
             .ok_or_else(|| invalid_request("plugins are unavailable in this runtime profile"))
+    }
+
+    #[cfg(not(feature = "connectors"))]
+    fn connectors_unavailable(&self) -> Result<Option<ClientResponsePayload>, JSONRPCErrorError> {
+        Err(invalid_request(
+            "Apps and plugins are unavailable in this runtime",
+        ))
     }
 
     pub(crate) async fn process_request(
@@ -1430,57 +1459,92 @@ impl MessageProcessor {
             ClientRequest::HooksList { params, .. } => {
                 self.catalog_processor.hooks_list(params).await
             }
+            #[cfg(feature = "connectors")]
             ClientRequest::MarketplaceAdd { params, .. } => {
                 self.marketplace_processor()?.marketplace_add(params).await
             }
+            #[cfg(feature = "connectors")]
             ClientRequest::MarketplaceRemove { params, .. } => {
                 self.marketplace_processor()?
                     .marketplace_remove(params)
                     .await
             }
+            #[cfg(feature = "connectors")]
             ClientRequest::MarketplaceUpgrade { params, .. } => {
                 self.marketplace_processor()?
                     .marketplace_upgrade(params)
                     .await
             }
+            #[cfg(not(feature = "connectors"))]
+            ClientRequest::MarketplaceAdd { .. }
+            | ClientRequest::MarketplaceRemove { .. }
+            | ClientRequest::MarketplaceUpgrade { .. }
+            | ClientRequest::PluginList { .. }
+            | ClientRequest::PluginSearch { .. }
+            | ClientRequest::PluginInstalled { .. }
+            | ClientRequest::PluginRead { .. }
+            | ClientRequest::PluginSkillRead { .. }
+            | ClientRequest::PluginShareSave { .. }
+            | ClientRequest::PluginShareUpdateTargets { .. }
+            | ClientRequest::PluginShareList { .. }
+            | ClientRequest::PluginShareCheckout { .. }
+            | ClientRequest::PluginShareDelete { .. }
+            | ClientRequest::AppsRead { .. }
+            | ClientRequest::AppsList { .. }
+            | ClientRequest::AppsInstalled { .. }
+            | ClientRequest::PluginInstall { .. }
+            | ClientRequest::PluginUninstall { .. } => self.connectors_unavailable(),
+            #[cfg(feature = "connectors")]
             ClientRequest::PluginList { params, .. } => {
                 self.plugin_processor()?.plugin_list(params).await
             }
+            #[cfg(feature = "connectors")]
             ClientRequest::PluginSearch { params, .. } => {
                 self.plugin_processor()?.plugin_search(params).await
             }
+            #[cfg(feature = "connectors")]
             ClientRequest::PluginInstalled { params, .. } => {
                 self.plugin_processor()?.plugin_installed(params).await
             }
+            #[cfg(feature = "connectors")]
             ClientRequest::PluginRead { params, .. } => {
                 self.plugin_processor()?.plugin_read(params).await
             }
+            #[cfg(feature = "connectors")]
             ClientRequest::PluginSkillRead { params, .. } => {
                 self.plugin_processor()?.plugin_skill_read(params).await
             }
+            #[cfg(feature = "connectors")]
             ClientRequest::PluginShareSave { params, .. } => {
                 self.plugin_processor()?.plugin_share_save(params).await
             }
+            #[cfg(feature = "connectors")]
             ClientRequest::PluginShareUpdateTargets { params, .. } => {
                 self.plugin_processor()?
                     .plugin_share_update_targets(params)
                     .await
             }
+            #[cfg(feature = "connectors")]
             ClientRequest::PluginShareList { params, .. } => {
                 self.plugin_processor()?.plugin_share_list(params).await
             }
+            #[cfg(feature = "connectors")]
             ClientRequest::PluginShareCheckout { params, .. } => {
                 self.plugin_processor()?.plugin_share_checkout(params).await
             }
+            #[cfg(feature = "connectors")]
             ClientRequest::PluginShareDelete { params, .. } => {
                 self.plugin_processor()?.plugin_share_delete(params).await
             }
+            #[cfg(feature = "connectors")]
             ClientRequest::AppsRead { params, .. } => {
                 self.apps_processor()?.apps_read(params).await
             }
+            #[cfg(feature = "connectors")]
             ClientRequest::AppsList { params, .. } => {
                 self.apps_processor()?.apps_list(&request_id, params).await
             }
+            #[cfg(feature = "connectors")]
             ClientRequest::AppsInstalled { params, .. } => self
                 .apps_processor()?
                 .apps_installed(params)
@@ -1489,9 +1553,11 @@ impl MessageProcessor {
             ClientRequest::SkillsConfigWrite { params, .. } => {
                 self.catalog_processor.skills_config_write(params).await
             }
+            #[cfg(feature = "connectors")]
             ClientRequest::PluginInstall { params, .. } => {
                 self.plugin_processor()?.plugin_install(params).await
             }
+            #[cfg(feature = "connectors")]
             ClientRequest::PluginUninstall { params, .. } => {
                 self.plugin_processor()?.plugin_uninstall(params).await
             }

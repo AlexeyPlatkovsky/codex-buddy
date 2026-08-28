@@ -592,6 +592,7 @@ impl CatalogRequestProcessor {
             cwds
         };
 
+        #[cfg(feature = "connectors")]
         let plugins_manager = self.thread_manager.plugins_manager();
         let mut data = Vec::new();
         for cwd in cwds {
@@ -620,6 +621,7 @@ impl CatalogRequestProcessor {
                 }
             };
             let hooks_enabled = config.features.enabled(Feature::CodexHooks);
+            #[cfg(feature = "connectors")]
             let plugin_hooks = if hooks_enabled && config.features.enabled(Feature::Plugins) {
                 let plugins_input = config.plugins_config_input();
                 let plugin_outcome = plugins_manager.plugins_for_config(&plugins_input).await;
@@ -630,12 +632,20 @@ impl CatalogRequestProcessor {
             } else {
                 codex_core_plugins::PluginHookLoadOutcome::default()
             };
+            #[cfg(feature = "connectors")]
             let hooks = codex_hooks::list_hooks(codex_hooks::HooksConfig {
                 feature_enabled: hooks_enabled,
                 bypass_hook_trust: config.bypass_hook_trust,
                 config_layer_stack: Some(config.config_layer_stack),
                 plugin_hook_sources: plugin_hooks.hook_sources,
                 plugin_hook_load_warnings: plugin_hooks.hook_load_warnings,
+                ..Default::default()
+            });
+            #[cfg(not(feature = "connectors"))]
+            let hooks = codex_hooks::list_hooks(codex_hooks::HooksConfig {
+                feature_enabled: hooks_enabled,
+                bypass_hook_trust: config.bypass_hook_trust,
+                config_layer_stack: Some(config.config_layer_stack),
                 ..Default::default()
             });
             data.push(codex_app_server_protocol::HooksListEntry {

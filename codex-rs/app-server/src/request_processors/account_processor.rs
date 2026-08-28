@@ -222,6 +222,7 @@ impl AccountRequestProcessor {
         }
     }
 
+    #[cfg(feature = "connectors")]
     async fn maybe_refresh_plugin_caches_for_current_config(
         config_manager: &ConfigManager,
         thread_manager: &Arc<ThreadManager>,
@@ -273,6 +274,15 @@ impl AccountRequestProcessor {
         }
     }
 
+    #[cfg(not(feature = "connectors"))]
+    async fn maybe_refresh_plugin_caches_for_current_config(
+        _config_manager: &ConfigManager,
+        _thread_manager: &Arc<ThreadManager>,
+        _auth: Option<CodexAuth>,
+    ) {
+    }
+
+    #[cfg(feature = "connectors")]
     fn spawn_effective_plugins_changed_task(
         thread_manager: Arc<ThreadManager>,
         config_manager: ConfigManager,

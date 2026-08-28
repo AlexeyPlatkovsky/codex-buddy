@@ -125,6 +125,7 @@ impl QueuedInitializedRequest {
         }
     }
 
+    #[cfg(feature = "connectors")]
     fn new_background(future: impl Future<Output = ()> + Send + 'static) -> Self {
         Self {
             gate: None,
@@ -159,6 +160,7 @@ pub(crate) struct RequestSerializationQueues {
 
 impl RequestSerializationQueues {
     /// Enqueue app-owned work alongside RPCs that mutate the same serialized resource.
+    #[cfg(feature = "connectors")]
     pub(crate) async fn enqueue_background(
         &self,
         key: RequestSerializationQueueKey,
