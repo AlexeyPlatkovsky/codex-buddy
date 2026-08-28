@@ -7,28 +7,26 @@ pub use codex_skills::mention_syntax;
 mod load_outcome;
 pub mod manifest;
 mod plugin_app_config;
-mod plugin_id;
 mod provider;
 
-use codex_config::HookEventsToml;
-use codex_utils_absolute_path::AbsolutePathBuf;
-use codex_utils_path_uri::PathUri;
+pub use codex_plugin_types::AppConnectorId;
+pub use codex_plugin_types::ExecutorPluginHookSource;
+pub use codex_plugin_types::PluginCapabilitySummary;
+pub use codex_plugin_types::PluginHookSource;
+pub use codex_plugin_types::PluginId;
+pub use codex_plugin_types::PluginIdError;
+pub use codex_plugin_types::PluginTelemetryMetadata;
+pub use codex_plugin_types::validate_plugin_segment;
 pub use load_outcome::LoadedPlugin;
 pub use load_outcome::PluginLoadOutcome;
 pub use load_outcome::prompt_safe_plugin_description;
 pub use plugin_app_config::parse_plugin_app_config;
 pub use plugin_app_config::parse_plugin_app_config_value;
-pub use plugin_id::PluginId;
-pub use plugin_id::PluginIdError;
-pub use plugin_id::validate_plugin_segment;
 pub use provider::PluginProvider;
 pub use provider::PluginResourceLocator;
 pub use provider::ResolvedPlugin;
 pub use provider::ResolvedPluginError;
 pub use provider::ResolvedPluginLocation;
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct AppConnectorId(pub String);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AppDeclaration {
@@ -48,46 +46,4 @@ pub fn app_connector_ids_from_declarations<'a>(
         }
     }
     connector_ids
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct PluginCapabilitySummary {
-    pub config_name: String,
-    pub display_name: String,
-    pub plugin_namespace: Option<String>,
-    pub description: Option<String>,
-    pub has_skills: bool,
-    pub mcp_server_names: Vec<String>,
-    pub app_connector_ids: Vec<AppConnectorId>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PluginHookSource {
-    pub plugin_id: PluginId,
-    pub plugin_root: AbsolutePathBuf,
-    pub plugin_data_root: AbsolutePathBuf,
-    pub source_path: AbsolutePathBuf,
-    pub source_relative_path: String,
-    pub hooks: HookEventsToml,
-}
-
-/// Inline plugin hooks whose paths and MCP target belong to an executor environment.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExecutorPluginHookSource {
-    pub plugin_id: PluginId,
-    pub environment_id: String,
-    pub plugin_root: PathUri,
-    pub manifest_path: PathUri,
-    pub source_relative_path: String,
-    pub hooks: HookEventsToml,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PluginTelemetryMetadata {
-    /// Local plugin identifier used by Codex configuration and the plugin cache,
-    /// when it has been resolved.
-    pub plugin_id: Option<PluginId>,
-    /// Optional backend identifier for remote plugins.
-    pub remote_plugin_id: Option<String>,
-    pub capability_summary: Option<PluginCapabilitySummary>,
 }

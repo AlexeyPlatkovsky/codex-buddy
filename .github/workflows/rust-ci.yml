@@ -151,6 +151,15 @@ jobs:
             exit 1
           fi
 
+          for package in codex-analytics codex-hooks; do
+            package_tree="$(cargo tree -p "$package" -e normal --prefix none)"
+            if grep -Eq '^codex-plugin v' <<<"$package_tree"; then
+              echo "$package unexpectedly depends on codex-plugin"
+              echo "$package_tree"
+              exit 1
+            fi
+          done
+
           buddy_tree="$(cargo tree -p codex-buddy -e normal --prefix none)"
           if grep -Eq '^codex-connectors v' <<<"$buddy_tree"; then
             echo 'codex-buddy unexpectedly depends on codex-connectors'

@@ -1936,7 +1936,7 @@ dependencies = [
  "codex-git-utils",
  "codex-login",
  "codex-model-provider",
- "codex-plugin",
+ "codex-plugin-types",
  "codex-protocol",
  "codex-state",
  "codex-utils-absolute-path",
@@ -3419,7 +3419,7 @@ dependencies = [
  "async-channel",
  "chrono",
  "codex-config",
- "codex-plugin",
+ "codex-plugin-types",
  "codex-protocol",
  "codex-utils-absolute-path",
  "codex-utils-output-truncation",
@@ -3942,6 +3942,7 @@ name = "codex-plugin"
 version = "0.0.0"
 dependencies = [
  "codex-config",
+ "codex-plugin-types",
  "codex-protocol",
  "codex-skills",
  "codex-utils-absolute-path",
@@ -3950,6 +3951,16 @@ dependencies = [
  "pretty_assertions",
  "serde",
  "serde_json",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "codex-plugin-types"
+version = "0.0.0"
+dependencies = [
+ "codex-config",
+ "codex-utils-absolute-path",
+ "codex-utils-path-uri",
  "thiserror 2.0.18",
 ]
 

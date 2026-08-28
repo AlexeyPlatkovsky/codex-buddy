@@ -16,7 +16,7 @@ use codex_config::MatcherGroup;
 use codex_config::RequirementSource;
 use codex_config::TomlValue;
 use codex_config::version_for_toml;
-use codex_plugin::PluginHookSource;
+use codex_plugin_types::PluginHookSource;
 use codex_protocol::protocol::HookEventName;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use serde::Deserialize;

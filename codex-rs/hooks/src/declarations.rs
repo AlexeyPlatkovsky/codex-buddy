@@ -1,4 +1,4 @@
-use codex_plugin::PluginHookSource;
+use codex_plugin_types::PluginHookSource;
 use codex_protocol::protocol::HookEventName;
 
 /// Minimal declaration metadata for one bundled plugin hook handler.
@@ -41,7 +41,7 @@ mod tests {
     use codex_config::HookEventsToml;
     use codex_config::HookHandlerConfig;
     use codex_config::MatcherGroup;
-    use codex_plugin::PluginId;
+    use codex_plugin_types::PluginId;
     use codex_utils_absolute_path::test_support::PathBufExt;
     use codex_utils_absolute_path::test_support::test_path_buf;
     use pretty_assertions::assert_eq;
