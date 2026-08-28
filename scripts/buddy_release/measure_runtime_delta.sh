@@ -240,6 +240,7 @@ measure_revision() {
   local target_dir="${measurement_root}/${label}-target"
   local graph_json="${measurement_root}/${label}-graph.json"
   local probe_json="${measurement_root}/${label}-probe.json"
+  local probe_home="${measurement_root}/${label}-codex-home"
   local binary binary_copy stripped_bytes strip_status graph profile
 
   git -C "${repo_root}" worktree add --detach "${worktree}" "${revision}" >/dev/null
@@ -247,6 +248,7 @@ measure_revision() {
     echo "refusing unsafe worktree or target directory for ${label}" >&2
     exit 2
   fi
+  mkdir -m 700 "${probe_home}"
 
   require_no_active_builds
   graph_forbidden_json "${worktree}" "${measurement_root}/${label}-graph.txt" "${measurement_root}/${label}-forbidden.txt" >"${graph_json}"
@@ -275,7 +277,7 @@ measure_revision() {
     stripped_bytes=""
     strip_status="unavailable or unsupported on this host"
   fi
-  python3 "${probe}" --binary "${binary}" >"${probe_json}"
+  python3 "${probe}" --binary "${binary}" --codex-home "${probe_home}" >"${probe_json}"
   graph="$(cat "${graph_json}")"
   profile="$(release_profile_json "${worktree}/codex-rs/Cargo.toml")"
   jq -n \

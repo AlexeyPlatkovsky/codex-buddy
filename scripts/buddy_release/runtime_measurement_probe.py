@@ -23,12 +23,13 @@ ANSI_SEQUENCE = re.compile(rb"\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1b\
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--binary", type=Path, required=True)
+    parser.add_argument("--codex-home", type=Path, required=True)
     parser.add_argument("--warm-runs", type=int, default=5)
     parser.add_argument("--tui-timeout-seconds", type=float, default=8.0)
     return parser.parse_args()
 
 
-def run_version(binary: Path) -> dict[str, object]:
+def run_version(binary: Path, environment: dict[str, str]) -> dict[str, object]:
     started = time.perf_counter_ns()
     completed = subprocess.run(
         [str(binary), "--version"],
@@ -36,6 +37,7 @@ def run_version(binary: Path) -> dict[str, object]:
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         check=False,
+        env=environment,
         timeout=30,
     )
     return {
@@ -102,34 +104,56 @@ def wait_for_exit(pid: int, timeout_seconds: float) -> int | None:
 
 def terminate(pid: int) -> int | None:
     try:
-        os.kill(pid, signal.SIGINT)
+        process_group = os.getpgid(pid)
+    except ProcessLookupError:
+        return None
+    signal_target = -process_group if process_group == pid else pid
+    try:
+        os.kill(signal_target, signal.SIGINT)
     except ProcessLookupError:
         return None
     status = wait_for_exit(pid, 1.0)
     if status is not None:
         return status
     try:
-        os.kill(pid, signal.SIGTERM)
+        os.kill(signal_target, signal.SIGTERM)
     except ProcessLookupError:
         return None
     status = wait_for_exit(pid, 1.0)
     if status is not None:
         return status
     try:
-        os.kill(pid, signal.SIGKILL)
+        os.kill(signal_target, signal.SIGKILL)
     except ProcessLookupError:
         return None
     return wait_for_exit(pid, 1.0)
 
 
-def tui_first_frame(binary: Path, timeout_seconds: float) -> dict[str, object]:
+def frame_evidence(captured: bytes) -> tuple[bool, int]:
+    rendered_text = ANSI_SEQUENCE.sub(b"", captured)
+    rendered_text = bytes(
+        byte for byte in rendered_text if byte in (9, 10, 13) or 32 <= byte <= 126
+    )
+    has_screen_control = any(
+        marker in captured
+        for marker in (b"\x1b[?1049h", b"\x1b[2J", b"\x1b[H", b"\x1b[1;1H")
+    )
+    return has_screen_control, len(rendered_text.strip())
+
+
+def tui_first_frame(
+    binary: Path, timeout_seconds: float, environment: dict[str, str]
+) -> dict[str, object]:
     pid, master_fd = pty.fork()
     if pid == 0:
+        os.environ.clear()
+        os.environ.update(environment)
         os.environ["TERM"] = "xterm-256color"
         os.execv(str(binary), [str(binary)])
 
     captured = bytearray()
     first_output_ns: int | None = None
+    first_verified_frame_ns: int | None = None
     first_frame_rss_kib: int | None = None
     descendants_at_first_output: list[dict[str, object]] = []
     started = time.perf_counter_ns()
@@ -160,6 +184,10 @@ def tui_first_frame(binary: Path, timeout_seconds: float) -> dict[str, object]:
                 first_frame_rss_kib = rss_kib(pid)
                 descendants_at_first_output = descendant_processes(pid)
             captured.extend(data)
+            if first_verified_frame_ns is None:
+                has_screen_control, rendered_text_bytes = frame_evidence(bytes(captured))
+                if has_screen_control and rendered_text_bytes >= 20:
+                    first_verified_frame_ns = time.perf_counter_ns()
             if len(captured) == 4096:
                 break
     finally:
@@ -168,15 +196,7 @@ def tui_first_frame(binary: Path, timeout_seconds: float) -> dict[str, object]:
         exit_status = terminate(pid)
         os.close(master_fd)
 
-    rendered_text = ANSI_SEQUENCE.sub(b"", bytes(captured))
-    rendered_text = bytes(
-        byte for byte in rendered_text if byte in (9, 10, 13) or 32 <= byte <= 126
-    )
-    substantive_text_bytes = len(rendered_text.strip())
-    has_ansi_screen_control = any(
-        marker in captured
-        for marker in (b"\x1b[?1049h", b"\x1b[2J", b"\x1b[H", b"\x1b[1;1H")
-    )
+    has_ansi_screen_control, substantive_text_bytes = frame_evidence(bytes(captured))
 
     result: dict[str, object] = {
         "pty": True,
@@ -186,6 +206,7 @@ def tui_first_frame(binary: Path, timeout_seconds: float) -> dict[str, object]:
         "capture_prefix_base64": base64.b64encode(captured[:128]).decode("ascii"),
         "exit_status": exit_status,
         "first_output_elapsed_ms": None,
+        "first_verified_frame_elapsed_ms": None,
         "has_ansi_screen_control": has_ansi_screen_control,
         "substantive_rendered_text_bytes": substantive_text_bytes,
         "frame_verified": False,
@@ -198,34 +219,45 @@ def tui_first_frame(binary: Path, timeout_seconds: float) -> dict[str, object]:
             "No stable idle-ready signal is available locally; RSS is sampled at first PTY output "
             "and is not reported as idle memory."
         ),
-        "runtime_process_trace": {
+        "runtime_process_observation": {
             "descendants_at_first_output": descendants_at_first_output,
             "descendants_before_exit": descendants_before_exit,
             "cap": 64,
             "limitation": (
-                "This traces child processes only; services initialized in-process and a model "
-                "first-turn scenario require separate instrumentation."
+                "Two bounded child-process snapshots are a lower bound; transient, reparented, "
+                "and in-process services plus a model first-turn scenario require separate "
+                "instrumentation."
             ),
         },
     }
     if first_output_ns is not None:
         result["first_output_elapsed_ms"] = (first_output_ns - started) / 1_000_000
-    if has_ansi_screen_control and substantive_text_bytes >= 20 and first_output_ns is not None:
+    if first_verified_frame_ns is not None:
         result["frame_verified"] = True
         result["frame_verification_limitation"] = None
+        result["first_verified_frame_elapsed_ms"] = (
+            first_verified_frame_ns - started
+        ) / 1_000_000
     return result
 
 
 def main() -> None:
     args = parse_args()
     binary = args.binary.resolve()
+    codex_home = args.codex_home.resolve()
     if not binary.is_file() or binary.is_symlink():
         raise SystemExit(f"refusing probe: binary is not a regular file: {binary}")
+    if not codex_home.is_dir() or codex_home.is_symlink():
+        raise SystemExit(f"refusing probe: CODEX_HOME is not a regular directory: {codex_home}")
     if args.warm_runs < 1 or args.tui_timeout_seconds <= 0:
         raise SystemExit("warm runs and TUI timeout must be positive")
 
-    first_process_launch = run_version(binary)
-    warm_runs = [run_version(binary) for _ in range(args.warm_runs)]
+    environment = os.environ.copy()
+    environment["CODEX_HOME"] = str(codex_home)
+    for credential_variable in ("OPENAI_API_KEY", "CODEX_API_KEY"):
+        environment.pop(credential_variable, None)
+    first_process_launch = run_version(binary, environment)
+    warm_runs = [run_version(binary, environment) for _ in range(args.warm_runs)]
     print(
         json.dumps(
             {
@@ -240,7 +272,13 @@ def main() -> None:
                     "first_measured_process_launch": first_process_launch,
                     "warm_cache_process_runs": warm_runs,
                 },
-                "tui_first_frame": tui_first_frame(binary, args.tui_timeout_seconds),
+                "probe_environment": {
+                    "codex_home": str(codex_home),
+                    "credential_variables_removed": ["OPENAI_API_KEY", "CODEX_API_KEY"],
+                },
+                "tui_first_frame": tui_first_frame(
+                    binary, args.tui_timeout_seconds, environment
+                ),
             },
             sort_keys=True,
         )
