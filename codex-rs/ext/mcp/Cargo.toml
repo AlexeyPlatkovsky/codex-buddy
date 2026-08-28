@@ -12,27 +12,46 @@ doctest = false
 [lints]
 workspace = true
 
+[features]
+default = ["plugin-runtime"]
+plugin-runtime = [
+    "dep:codex-config",
+    "dep:codex-connectors",
+    "dep:codex-connectors-extension",
+    "dep:codex-core-plugins",
+    "dep:codex-exec-server",
+    "dep:codex-features",
+    "dep:codex-mcp",
+    "dep:codex-plugin",
+    "dep:codex-protocol",
+    "dep:codex-utils-path-uri",
+    "dep:serde_json",
+    "dep:thiserror",
+    "dep:tokio",
+    "dep:tracing",
+]
+
 [dependencies]
 codex-core = { workspace = true }
-codex-core-plugins = { workspace = true }
-codex-config = { workspace = true }
-codex-connectors = { workspace = true }
-codex-connectors-extension = { workspace = true }
-codex-exec-server = { workspace = true }
+codex-core-plugins = { workspace = true, optional = true }
+codex-config = { workspace = true, optional = true }
+codex-connectors = { workspace = true, optional = true }
+codex-connectors-extension = { workspace = true, optional = true }
+codex-exec-server = { workspace = true, optional = true }
 codex-extension-api = { workspace = true }
-codex-features = { workspace = true }
-codex-mcp = { workspace = true }
-codex-plugin = { workspace = true }
-codex-protocol = { workspace = true }
-codex-utils-absolute-path = { workspace = true }
-codex-utils-path-uri = { workspace = true }
-serde_json = { workspace = true }
-thiserror = { workspace = true }
-tracing = { workspace = true }
-tokio = { workspace = true, features = ["sync"] }
+codex-features = { workspace = true, optional = true }
+codex-mcp = { workspace = true, optional = true }
+codex-plugin = { workspace = true, optional = true }
+codex-protocol = { workspace = true, optional = true }
+codex-utils-path-uri = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+thiserror = { workspace = true, optional = true }
+tracing = { workspace = true, optional = true }
+tokio = { workspace = true, features = ["sync"], optional = true }
 
 [dev-dependencies]
 codex-login = { workspace = true }
+codex-utils-absolute-path = { workspace = true }
 pretty_assertions = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

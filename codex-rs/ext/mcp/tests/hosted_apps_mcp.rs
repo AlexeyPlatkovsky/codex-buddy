@@ -1,3 +1,5 @@
+#![cfg(feature = "plugin-runtime")]
+
 use std::sync::Arc;
 
 use codex_config::McpServerTransportConfig;

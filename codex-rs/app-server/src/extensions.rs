@@ -13,6 +13,7 @@ use codex_core::NewThread;
 use codex_core::StartThreadOptions;
 use codex_core::ThreadManager;
 use codex_core::config::Config;
+#[cfg(feature = "connectors")]
 use codex_exec_server::EnvironmentManager;
 use codex_extension_api::AgentSpawnFuture;
 use codex_extension_api::AgentSpawner;
@@ -53,6 +54,7 @@ pub(crate) struct ThreadExtensionDependencies {
     pub(crate) thread_manager: Weak<ThreadManager>,
     #[cfg(feature = "goals")]
     pub(crate) goal_service: Option<Arc<GoalService>>,
+    #[cfg(feature = "connectors")]
     pub(crate) environment_manager: Arc<EnvironmentManager>,
     pub(crate) executor_skill_provider: Option<Arc<dyn codex_skills_extension::SkillProvider>>,
     pub(crate) git_attribution_base_url: String,
@@ -79,6 +81,7 @@ where
         thread_manager,
         #[cfg(feature = "goals")]
         goal_service,
+        #[cfg(feature = "connectors")]
         environment_manager,
         executor_skill_provider,
         git_attribution_base_url,
@@ -137,6 +140,7 @@ where
     if composition.installs(ExtensionComponent::Mcp) {
         codex_mcp_extension::install(&mut builder);
     }
+    #[cfg(feature = "connectors")]
     if composition.installs(ExtensionComponent::ExecutorPlugins) {
         codex_mcp_extension::install_executor_plugins(&mut builder, environment_manager);
     }

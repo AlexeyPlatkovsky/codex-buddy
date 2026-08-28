@@ -342,6 +342,7 @@ enabled = false
                         thread_manager: thread_manager.clone(),
                         #[cfg(feature = "goals")]
                         goal_service: Some(Arc::new(codex_goal_extension::GoalService::new())),
+                        #[cfg(feature = "connectors")]
                         environment_manager: Arc::clone(&environment_manager),
                         executor_skill_provider: Some(Arc::clone(&executor_skill_provider)),
                         git_attribution_base_url: good_config.chatgpt_base_url.clone(),

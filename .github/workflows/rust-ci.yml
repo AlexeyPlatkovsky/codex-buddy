@@ -133,6 +133,13 @@ jobs:
             exit 1
           fi
 
+          buddy_mcp_features="$(cargo tree -p codex-buddy -e features -i codex-mcp-extension)"
+          if [[ "$buddy_mcp_features" == *'codex-mcp-extension feature "plugin-runtime"'* ]]; then
+            echo 'codex-buddy unexpectedly enables codex-mcp-extension/plugin-runtime'
+            echo "$buddy_mcp_features"
+            exit 1
+          fi
+
       - name: Check for a clean worktree
         if: always() && !cancelled()
         uses: ./.github/actions/check-clean-worktree

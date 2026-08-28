@@ -1,3 +1,5 @@
+#![cfg(feature = "plugin-runtime")]
+
 use codex_config::AppToolApproval;
 use codex_config::McpServerToolConfig;
 use codex_config::test_support::CloudConfigBundleFixture;

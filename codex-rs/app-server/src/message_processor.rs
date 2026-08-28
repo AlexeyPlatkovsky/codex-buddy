@@ -357,6 +357,7 @@ impl MessageProcessor {
                         thread_manager: thread_manager.clone(),
                         #[cfg(feature = "goals")]
                         goal_service: goal_service.clone(),
+                        #[cfg(feature = "connectors")]
                         environment_manager: Arc::clone(&environment_manager_for_extensions),
                         executor_skill_provider: executor_skill_provider.clone(),
                         git_attribution_base_url: config.chatgpt_base_url.clone(),
