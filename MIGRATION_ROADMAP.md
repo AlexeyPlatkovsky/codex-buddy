@@ -433,6 +433,10 @@ App-server must remain for now, but its unconditional extension dependencies sho
 - Repository instructions now require `CARGO_INCREMENTAL=0` for broad migration matrices and
   post-validation cleanup at 20 GiB or on user request. Cleanup happens only after tests, lint fixes,
   and formatting are complete.
+- Repository instructions also prohibit unbounded package-wide
+  `cargo tree -e features --no-dedupe` queries. Use the checked-in deduplicated preflight or a
+  targeted inverse feature query; piping the expanded graph through `head` does not bound Cargo's
+  recursive work.
 
 Current unconditional or broadly included candidates include:
 
