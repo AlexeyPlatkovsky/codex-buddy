@@ -190,11 +190,24 @@ impl AppsRequestProcessor {
         let loaded_plugins = plugins_manager
             .plugins_for_config(&config.plugins_config_input())
             .await;
-        let connector_snapshot =
-            codex_connectors::ConnectorSnapshot::from_plugin_capability_summaries(
-                loaded_plugins.capability_summaries(),
-            );
-        let plugin_apps = connector_snapshot.connector_ids().to_vec();
+        let connector_snapshot = codex_mcp::ConnectorSnapshot::from_plugin_sources(
+            loaded_plugins.capability_summaries().iter().map(|summary| {
+                codex_mcp::PluginConnectorSource::from_connector_ids(
+                    summary.config_name.clone(),
+                    summary.display_name.clone(),
+                    summary
+                        .app_connector_ids
+                        .iter()
+                        .map(|connector_id| connector_id.0.clone()),
+                )
+            }),
+        );
+        let plugin_apps = connector_snapshot
+            .connector_ids()
+            .iter()
+            .cloned()
+            .map(codex_plugin::AppConnectorId)
+            .collect::<Vec<_>>();
         let (mut accessible_connectors, mut all_connectors) = tokio::join!(
             connectors::list_cached_accessible_connectors_from_mcp_tools(&config),
             connectors::list_cached_all_connectors(&config, &plugin_apps)

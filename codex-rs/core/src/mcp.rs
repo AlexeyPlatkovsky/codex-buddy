@@ -18,6 +18,7 @@ use codex_extension_api::SelectedPluginSnapshot;
 use codex_features::Feature;
 use codex_login::CodexAuth;
 use codex_mcp::CODEX_APPS_MCP_SERVER_NAME;
+use codex_mcp::ConnectorSnapshot;
 use codex_mcp::EffectiveMcpServer;
 use codex_mcp::McpConfig;
 use codex_mcp::McpEnvironmentAuthority;
@@ -25,13 +26,11 @@ use codex_mcp::McpPluginAttribution;
 use codex_mcp::McpServerRegistration;
 use codex_mcp::McpToolCatalogCache;
 use codex_mcp::McpToolRuntimeManager;
+use codex_mcp::PluginConnectorSource;
 use codex_mcp::ToolInfo;
 use codex_mcp::codex_apps_mcp_server_config;
 use codex_mcp::configured_mcp_servers;
 use codex_mcp::effective_mcp_servers;
-use codex_plugin::AppConnectorId;
-use codex_plugin::ConnectorSnapshot;
-use codex_plugin::PluginConnectorSource;
 use codex_protocol::capabilities::SelectedCapabilityRoot;
 use codex_protocol::protocol::EnvironmentConfigState;
 use codex_protocol::protocol::SessionSource;
@@ -229,7 +228,7 @@ impl McpManager {
                                     PluginConnectorSource::from_connector_ids(
                                         plugin_id,
                                         plugin_display_name,
-                                        connector_ids.into_iter().map(AppConnectorId),
+                                        connector_ids,
                                     ),
                                 );
                             }

@@ -1,12 +1,11 @@
 use super::*;
 use crate::McpPluginAttribution;
 use crate::McpServerRegistration;
+use crate::PluginConnectorSource;
 use codex_config::Constrained;
 use codex_config::types::AppToolApproval;
 use codex_config::types::AuthKeyringBackendKind;
 use codex_login::CodexAuth;
-use codex_plugin::AppConnectorId;
-use codex_plugin::PluginCapabilitySummary;
 use codex_protocol::models::ManagedFileSystemPermissions;
 use codex_protocol::models::PermissionProfile;
 use codex_protocol::permissions::NetworkSandboxPolicy;
@@ -42,7 +41,7 @@ pub(crate) fn test_mcp_config(codex_home: PathBuf) -> McpConfig {
         protocol_mode: McpProtocolMode::Legacy,
         client_elicitation_capability: ElicitationCapability::default(),
         mcp_server_catalog: ResolvedMcpCatalog::default(),
-        connector_snapshot: codex_plugin::ConnectorSnapshot::default(),
+        connector_snapshot: ConnectorSnapshot::default(),
     }
 }
 
@@ -200,28 +199,21 @@ fn tool_plugin_provenance_collects_app_and_mcp_sources() {
         ),
     ));
     config.mcp_server_catalog = catalog.build();
-    config.connector_snapshot =
-        codex_plugin::ConnectorSnapshot::from_plugin_capability_summaries(&[
-            PluginCapabilitySummary {
-                config_name: "alpha@test".to_string(),
-                display_name: "alpha-plugin".to_string(),
-                plugin_namespace: None,
-                app_connector_ids: vec![AppConnectorId("connector_example".to_string())],
-                mcp_server_names: vec!["alpha".to_string()],
-                ..PluginCapabilitySummary::default()
-            },
-            PluginCapabilitySummary {
-                config_name: "beta@test".to_string(),
-                display_name: "beta-plugin".to_string(),
-                plugin_namespace: None,
-                app_connector_ids: vec![
-                    AppConnectorId("connector_example".to_string()),
-                    AppConnectorId("connector_gmail".to_string()),
-                ],
-                mcp_server_names: vec!["beta".to_string()],
-                ..PluginCapabilitySummary::default()
-            },
-        ]);
+    config.connector_snapshot = ConnectorSnapshot::from_plugin_sources([
+        PluginConnectorSource::from_connector_ids(
+            "alpha@test",
+            "alpha-plugin",
+            ["connector_example".to_string()],
+        ),
+        PluginConnectorSource::from_connector_ids(
+            "beta@test",
+            "beta-plugin",
+            [
+                "connector_example".to_string(),
+                "connector_gmail".to_string(),
+            ],
+        ),
+    ]);
     let provenance = tool_plugin_provenance(&config);
 
     assert_eq!(
@@ -274,15 +266,11 @@ fn selected_mcp_attribution_does_not_join_an_unrelated_local_summary() {
     ));
     config.mcp_server_catalog = catalog.build();
     config.connector_snapshot =
-        codex_plugin::ConnectorSnapshot::from_plugin_capability_summaries(&[
-            PluginCapabilitySummary {
-                config_name: "shared-plugin-id".to_string(),
-                display_name: "Local GitHub".to_string(),
-                plugin_namespace: None,
-                mcp_server_names: vec!["github".to_string()],
-                ..PluginCapabilitySummary::default()
-            },
-        ]);
+        ConnectorSnapshot::from_plugin_sources([PluginConnectorSource::from_connector_ids(
+            "shared-plugin-id",
+            "Local GitHub",
+            ["unrelated_connector".to_string()],
+        )]);
 
     let provenance = tool_plugin_provenance(&config);
 

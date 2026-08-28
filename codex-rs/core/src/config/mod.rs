@@ -1809,11 +1809,20 @@ impl Config {
             connector_snapshot: if cfg!(feature = "connectors")
                 && mcp_source_policy == ExternalSourcePolicy::Automatic
             {
-                codex_plugin::ConnectorSnapshot::from_plugin_capability_summaries(
-                    loaded_plugins.capability_summaries(),
+                codex_mcp::ConnectorSnapshot::from_plugin_sources(
+                    loaded_plugins.capability_summaries().iter().map(|summary| {
+                        codex_mcp::PluginConnectorSource::from_connector_ids(
+                            summary.config_name.clone(),
+                            summary.display_name.clone(),
+                            summary
+                                .app_connector_ids
+                                .iter()
+                                .map(|connector_id| connector_id.0.clone()),
+                        )
+                    }),
                 )
             } else {
-                codex_plugin::ConnectorSnapshot::default()
+                codex_mcp::ConnectorSnapshot::default()
             },
         }
     }

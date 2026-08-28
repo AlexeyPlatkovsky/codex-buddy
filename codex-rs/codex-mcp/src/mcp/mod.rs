@@ -30,7 +30,6 @@ use codex_config::types::AuthKeyringBackendKind;
 use codex_config::types::OAuthCredentialsStoreMode;
 use codex_login::CodexAuth;
 use codex_model_provider::CHATGPT_CODEX_BASE_URL;
-use codex_plugin::ConnectorSnapshot;
 use codex_protocol::mcp::ClientMcpExtensions;
 use codex_protocol::mcp::McpServerInfo;
 use codex_protocol::mcp::Resource;
@@ -46,6 +45,7 @@ use rmcp::model::ReadResourceResult;
 use serde_json::Value;
 use tokio_util::sync::CancellationToken;
 
+use crate::ConnectorSnapshot;
 use crate::McpProtocolMode;
 use crate::McpServerSource;
 use crate::McpToolRuntimeManager;
@@ -266,10 +266,10 @@ impl ToolPluginProvenance {
             tool_plugin_provenance
                 .plugin_display_names_by_connector_id
                 .insert(
-                    connector_id.0.clone(),
+                    connector_id.clone(),
                     config
                         .connector_snapshot
-                        .plugin_display_names_for_connector_id(&connector_id.0)
+                        .plugin_display_names_for_connector_id(connector_id)
                         .to_vec(),
                 );
         }

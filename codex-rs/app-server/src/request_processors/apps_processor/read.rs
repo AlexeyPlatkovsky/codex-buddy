@@ -54,10 +54,18 @@ impl AppsRequestProcessor {
             .plugins_manager()
             .plugins_for_config(&config.plugins_config_input())
             .await;
-        let connector_snapshot =
-            codex_connectors::ConnectorSnapshot::from_plugin_capability_summaries(
-                loaded_plugins.capability_summaries(),
-            );
+        let connector_snapshot = codex_mcp::ConnectorSnapshot::from_plugin_sources(
+            loaded_plugins.capability_summaries().iter().map(|summary| {
+                codex_mcp::PluginConnectorSource::from_connector_ids(
+                    summary.config_name.clone(),
+                    summary.display_name.clone(),
+                    summary
+                        .app_connector_ids
+                        .iter()
+                        .map(|connector_id| connector_id.0.clone()),
+                )
+            }),
+        );
         let apps = apps
             .into_iter()
             .map(|metadata| {

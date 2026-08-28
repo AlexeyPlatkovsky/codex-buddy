@@ -145,6 +145,12 @@ jobs:
             exit 1
           fi
 
+          if grep -Eq '^codex-plugin v' <<<"$mcp_tree"; then
+            echo 'codex-mcp unexpectedly depends on codex-plugin'
+            echo "$mcp_tree"
+            exit 1
+          fi
+
           buddy_tree="$(cargo tree -p codex-buddy -e normal --prefix none)"
           if grep -Eq '^codex-connectors v' <<<"$buddy_tree"; then
             echo 'codex-buddy unexpectedly depends on codex-connectors'

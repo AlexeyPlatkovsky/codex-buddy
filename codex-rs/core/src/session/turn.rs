@@ -746,7 +746,7 @@ async fn required_mcp_servers_for_input(
         let connector_ids = current_config
             .iter()
             .flat_map(|config| config.connector_snapshot.connector_ids())
-            .map(|connector_id| connector_id.0.clone());
+            .cloned();
         build_connector_slug_counts(
             &codex_connectors::merge::merge_plugin_connectors_with_accessible(
                 connector_ids,
@@ -819,10 +819,7 @@ async fn build_skills_and_plugins(
     #[cfg(feature = "connectors")]
     let available_connectors = if turn_context.apps_enabled() {
         let connectors = codex_connectors::merge::merge_plugin_connectors_with_accessible(
-            connector_snapshot
-                .connector_ids()
-                .iter()
-                .map(|connector_id| connector_id.0.clone()),
+            connector_snapshot.connector_ids().iter().cloned(),
             connectors::accessible_connectors_from_mcp_tools(mcp_tools),
         );
         AppToolPolicyEvaluator::new(&turn_context.config.config_layer_stack)
@@ -1571,11 +1568,7 @@ pub(crate) async fn built_tools(
             let connector_snapshot = mcp.config().connector_snapshot.clone();
             let accessible_connectors = apps_enabled
                 .then(|| connectors::accessible_connectors_from_mcp_tools(all_mcp_tools));
-            let loaded_plugin_app_connector_ids = connector_snapshot
-                .connector_ids()
-                .iter()
-                .map(|connector_id| connector_id.0.clone())
-                .collect::<Vec<_>>();
+            let loaded_plugin_app_connector_ids = connector_snapshot.connector_ids().to_vec();
             async {
                 if apps_enabled && tool_suggest_is_enabled {
                     if let Some(accessible_connectors) = accessible_connectors.as_ref() {

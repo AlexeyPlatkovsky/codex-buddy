@@ -1,44 +1,25 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-use crate::AppConnectorId;
-use crate::AppDeclaration;
-use crate::PluginCapabilitySummary;
-
 /// Connector declarations contributed by one plugin package.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PluginConnectorSource {
     plugin_id: String,
     plugin_display_name: String,
-    connector_ids: Vec<AppConnectorId>,
+    connector_ids: Vec<String>,
 }
 
 impl PluginConnectorSource {
-    /// Creates one plugin source from parsed app declarations.
-    pub fn new(
-        plugin_id: impl Into<String>,
-        plugin_display_name: impl Into<String>,
-        declarations: impl IntoIterator<Item = AppDeclaration>,
-    ) -> Self {
-        Self::from_connector_ids(
-            plugin_id,
-            plugin_display_name,
-            declarations
-                .into_iter()
-                .map(|declaration| declaration.connector_id),
-        )
-    }
-
     /// Creates one plugin source from connector IDs that were already parsed.
     pub fn from_connector_ids(
         plugin_id: impl Into<String>,
         plugin_display_name: impl Into<String>,
-        connector_ids: impl IntoIterator<Item = AppConnectorId>,
+        connector_ids: impl IntoIterator<Item = String>,
     ) -> Self {
         let mut seen_connector_ids = HashSet::new();
         let connector_ids = connector_ids
             .into_iter()
-            .filter(|connector_id| !connector_id.0.trim().is_empty())
+            .filter(|connector_id| !connector_id.trim().is_empty())
             .filter(|connector_id| seen_connector_ids.insert(connector_id.clone()))
             .collect();
         Self {
@@ -54,7 +35,7 @@ impl PluginConnectorSource {
     }
 
     /// Returns the connector IDs contributed by this package.
-    pub fn connector_ids(&self) -> &[AppConnectorId] {
+    pub fn connector_ids(&self) -> &[String] {
         &self.connector_ids
     }
 }
@@ -63,7 +44,7 @@ impl PluginConnectorSource {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ConnectorSnapshot {
     sources: Vec<PluginConnectorSource>,
-    connector_ids: Vec<AppConnectorId>,
+    connector_ids: Vec<String>,
     plugin_display_names_by_connector_id: HashMap<String, Vec<String>>,
 }
 
@@ -84,7 +65,7 @@ impl ConnectorSnapshot {
                     connector_ids.push(connector_id.clone());
                 }
                 plugin_display_names_by_connector_id
-                    .entry(connector_id.0.clone())
+                    .entry(connector_id.clone())
                     .or_default()
                     .push(source.plugin_display_name().to_string());
             }
@@ -101,19 +82,8 @@ impl ConnectorSnapshot {
         }
     }
 
-    /// Adapts the current host plugin summaries to a connector snapshot.
-    pub fn from_plugin_capability_summaries(summaries: &[PluginCapabilitySummary]) -> Self {
-        Self::from_plugin_sources(summaries.iter().map(|summary| {
-            PluginConnectorSource::from_connector_ids(
-                summary.config_name.clone(),
-                summary.display_name.clone(),
-                summary.app_connector_ids.clone(),
-            )
-        }))
-    }
-
     /// Returns the connector IDs in source contribution order.
-    pub fn connector_ids(&self) -> &[AppConnectorId] {
+    pub fn connector_ids(&self) -> &[String] {
         &self.connector_ids
     }
 
@@ -132,5 +102,5 @@ impl ConnectorSnapshot {
 }
 
 #[cfg(test)]
-#[path = "connector_snapshot_tests.rs"]
+#[path = "connector_provenance_tests.rs"]
 mod tests;

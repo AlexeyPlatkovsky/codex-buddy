@@ -41,6 +41,8 @@ pub use catalog::McpServerRegistration;
 pub use catalog::McpServerSource;
 pub use catalog::ResolvedMcpCatalog;
 pub use catalog::ResolvedMcpServer;
+pub use connector_provenance::ConnectorSnapshot;
+pub use connector_provenance::PluginConnectorSource;
 
 pub use mcp::CODEX_APPS_MCP_SERVER_NAME;
 pub use mcp::McpConfig;
@@ -108,6 +110,7 @@ mod client_capabilities;
 pub(crate) mod codex_apps;
 mod codex_apps_cache;
 pub(crate) mod connection_manager;
+mod connector_provenance;
 pub(crate) mod elicitation;
 mod executor_environment_http_client;
 pub(crate) mod mcp;
