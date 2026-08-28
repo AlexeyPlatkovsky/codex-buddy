@@ -415,6 +415,13 @@ High-conflict files currently include:
 
 Prefer additive feature gates, small new modules, neutral DTO crates, and compatibility reexports. Avoid broad deletion until the relevant dependency edge is proven absent.
 
+### 2026-08-28 upstream sync record
+
+- Merged `upstream/main` at `868c9edb0d` with an ordinary merge commit; the three incoming MCP-cache/response-ID commits produced no textual conflicts.
+- Verified Buddy, Slim Core, and no-default app-server compilation. All 237 MCP tests ran; 236 passed immediately and one stale connector-neutral provenance expectation was corrected in the separate adaptation stage.
+- Kept the new hosted Apps cache integration test Full-only with `codex-core/connectors`; Slim intentionally does not start or advertise Codex Apps.
+- GitHub CLI PR creation was unavailable to the authenticated user (`CreatePullRequest` permission denied). Review branches were pushed, then merged locally with ordinary merge commits and pushed to `main`; branch protection recorded an administrator bypass. No force push or history rewrite was used.
+
 ## Deferred architecture: app-server/client split
 
 Buddy currently reaches app-server through:

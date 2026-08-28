@@ -1,5 +1,7 @@
 use std::sync::Arc;
+#[cfg(feature = "connectors")]
 use std::sync::atomic::AtomicBool;
+#[cfg(feature = "connectors")]
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 
@@ -10,14 +12,21 @@ use codex_config::types::McpServerTransportConfig;
 use codex_core::NewThread;
 use codex_core::StartThreadOptions;
 use codex_core::TurnInputRequest;
+#[cfg(feature = "connectors")]
 use codex_core::config::Config;
 use codex_exec_server::ExecutorFileSystem;
 use codex_exec_server::RemoveOptions;
+#[cfg(feature = "connectors")]
 use codex_extension_api::ExtensionFuture;
+#[cfg(feature = "connectors")]
 use codex_extension_api::ExtensionRegistryBuilder;
+#[cfg(feature = "connectors")]
 use codex_extension_api::McpServerContribution;
+#[cfg(feature = "connectors")]
 use codex_extension_api::McpServerContributionContext;
+#[cfg(feature = "connectors")]
 use codex_extension_api::McpServerContributor;
+#[cfg(feature = "connectors")]
 use codex_mcp::CODEX_APPS_MCP_SERVER_NAME;
 use codex_protocol::mcp::McpServerConnectionStatus;
 use codex_protocol::models::PermissionProfile;
@@ -32,8 +41,11 @@ use codex_protocol::protocol::ThreadSettingsOverrides;
 use codex_protocol::user_input::UserInput;
 use codex_utils_path_uri::PathUri;
 use core_test_support::apps_test_server::AppsTestServer;
+#[cfg(feature = "connectors")]
 use core_test_support::apps_test_server::SEARCH_CALENDAR_CREATE_TOOL;
+#[cfg(feature = "connectors")]
 use core_test_support::apps_test_server::SEARCH_CALENDAR_NAMESPACE;
+#[cfg(feature = "connectors")]
 use core_test_support::apps_test_server::apps_enabled_builder;
 use core_test_support::is_remote_test_environment;
 use core_test_support::responses;
@@ -262,6 +274,7 @@ async fn mcp_calls_stay_bound_to_each_thread() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[cfg(feature = "connectors")]
 #[tokio::test]
 async fn apps_cache_filled_during_binding_capture_reaches_the_model() -> anyhow::Result<()> {
     skip_if_no_network!(Ok(()));
