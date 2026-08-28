@@ -1171,6 +1171,121 @@ async fn resume_replays_legacy_js_repl_image_rollout_shapes() {
     assert!(legacy_image_index < new_user_index);
 }
 
+#[cfg(not(feature = "code-mode"))]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn slim_resume_replays_historical_code_cell_and_uses_direct_tools() {
+    skip_if_no_network!();
+
+    let thread_id = ThreadId::default();
+    let call_id = "historical-code-cell";
+    let rollout = vec![
+        RolloutLine {
+            timestamp: "2024-01-01T00:00:00.000Z".to_string(),
+            ordinal: None,
+            item: RolloutItem::SessionMeta(SessionMetaLine {
+                meta: SessionMeta {
+                    session_id: thread_id.into(),
+                    id: thread_id,
+                    parent_thread_id: None,
+                    timestamp: "2024-01-01T00:00:00Z".to_string(),
+                    cwd: ".".into(),
+                    originator: "test_originator".to_string(),
+                    cli_version: "test_version".to_string(),
+                    model_provider: Some("test-provider".to_string()),
+                    ..Default::default()
+                },
+                git: None,
+            }),
+        },
+        RolloutLine {
+            timestamp: "2024-01-01T00:00:01.000Z".to_string(),
+            ordinal: None,
+            item: rollout_response_item(ResponseItem::CustomToolCall {
+                id: None,
+                status: Some("completed".to_string()),
+                call_id: call_id.to_string(),
+                name: codex_code_mode_types::PUBLIC_TOOL_NAME.to_string(),
+                namespace: None,
+                input: "return 1 + 1".to_string(),
+                internal_chat_message_metadata_passthrough: None,
+            }),
+        },
+        RolloutLine {
+            timestamp: "2024-01-01T00:00:02.000Z".to_string(),
+            ordinal: None,
+            item: rollout_response_item(ResponseItem::CustomToolCallOutput {
+                id: None,
+                call_id: call_id.to_string(),
+                name: None,
+                output: FunctionCallOutputPayload::from_text("2".to_string()),
+                internal_chat_message_metadata_passthrough: None,
+            }),
+        },
+    ];
+
+    let tmpdir = TempDir::new().unwrap();
+    let session_path = tmpdir.path().join("resume-historical-code-cell.jsonl");
+    let mut file = std::fs::File::create(&session_path).unwrap();
+    for line in rollout {
+        writeln!(file, "{}", serde_json::to_string(&line).unwrap()).unwrap();
+    }
+
+    let server = MockServer::start().await;
+    let response_mock = mount_sse_once(
+        &server,
+        sse(vec![ev_response_created("resp1"), ev_completed("resp1")]),
+    )
+    .await;
+    let codex_home = Arc::new(TempDir::new().unwrap());
+    let test = test_codex()
+        .with_model("gpt-5.4")
+        .resume(&server, codex_home, session_path)
+        .await
+        .expect("resume conversation");
+    test.submit_turn("after historical code cell")
+        .await
+        .unwrap();
+
+    let request = response_mock.single_request();
+    let input = request.input();
+    assert!(input.iter().any(|item| {
+        item.get("type").and_then(serde_json::Value::as_str) == Some("custom_tool_call")
+            && item.get("call_id").and_then(serde_json::Value::as_str) == Some(call_id)
+    }));
+    assert!(input.iter().any(|item| {
+        item.get("type").and_then(serde_json::Value::as_str) == Some("custom_tool_call_output")
+            && item.get("call_id").and_then(serde_json::Value::as_str) == Some(call_id)
+    }));
+
+    let tools = request
+        .body_json()
+        .get("tools")
+        .and_then(serde_json::Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let tool_names = tools
+        .iter()
+        .filter_map(|tool| {
+            tool.get("name")
+                .or_else(|| tool.get("type"))
+                .and_then(serde_json::Value::as_str)
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        tool_names.iter().all(|name| {
+            *name != codex_code_mode_types::PUBLIC_TOOL_NAME
+                && *name != codex_code_mode_types::WAIT_TOOL_NAME
+        }),
+        "Slim follow-up must not advertise code-mode tools: {tool_names:?}"
+    );
+    assert!(
+        tool_names
+            .iter()
+            .any(|name| matches!(*name, "shell" | "shell_command" | "exec_command")),
+        "Slim follow-up must advertise direct tools: {tool_names:?}"
+    );
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn resume_replays_image_tool_outputs_with_detail() {
     skip_if_no_network!();

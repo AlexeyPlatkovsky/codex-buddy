@@ -688,7 +688,8 @@ async fn code_mode_session_provider_is_shared_across_threads() {
     config.cwd = config.codex_home.abs();
     std::fs::create_dir_all(&config.codex_home).expect("create codex home");
 
-    let provider: Arc<dyn CodeModeSessionProvider> = Arc::new(DisabledCodeModeSessionProvider);
+    let provider: Arc<dyn CodeModeSessionProvider> =
+        crate::code_mode_runtime::unavailable_provider();
     let manager = ThreadManager::with_models_provider_and_home_for_tests(
         CodexAuth::from_api_key("dummy"),
         config.model_provider.clone(),

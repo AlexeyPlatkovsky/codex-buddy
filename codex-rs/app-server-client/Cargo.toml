@@ -15,10 +15,12 @@ workspace = true
 [features]
 default = ["full-runtime-extensions"]
 coding-runtime-extensions = ["codex-app-server/coding-runtime-extensions"]
+code-mode = ["codex-app-server/code-mode", "codex-core/code-mode"]
 detached-review = ["codex-app-server/detached-review"]
 full-runtime-extensions = [
     "coding-runtime-extensions",
     "codex-app-server/full-runtime-extensions",
+    "code-mode",
     "codex-core/plugins",
     "detached-review",
     "queue",

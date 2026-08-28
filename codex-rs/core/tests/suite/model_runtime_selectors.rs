@@ -162,6 +162,50 @@ async fn response_body_for_remote_model(
         .body)
 }
 
+#[cfg(not(feature = "code-mode"))]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn slim_public_turns_force_code_mode_selectors_to_direct_tools() -> Result<()> {
+    skip_if_no_network!(Ok(()));
+
+    let cases = [
+        ("feature-code-mode", None, Some(Feature::CodeMode)),
+        ("feature-code-mode-only", None, Some(Feature::CodeModeOnly)),
+        ("model-code-mode", Some(ToolMode::CodeMode), None),
+        ("model-code-mode-only", Some(ToolMode::CodeModeOnly), None),
+    ];
+
+    for (slug, model_tool_mode, feature) in cases {
+        let mut model = remote_model(slug);
+        model.tool_mode = model_tool_mode;
+        let body = response_body_for_remote_model(model, move |config| {
+            if let Some(feature) = feature {
+                config
+                    .features
+                    .enable(feature)
+                    .expect("test config should allow feature update");
+            }
+        })
+        .await?;
+        let tools = tool_names(&body);
+
+        assert!(
+            tools.iter().all(|name| {
+                name != codex_code_mode_types::PUBLIC_TOOL_NAME
+                    && name != codex_code_mode_types::WAIT_TOOL_NAME
+            }),
+            "Slim must not advertise code-mode tools for {slug}: {tools:?}"
+        );
+        assert!(
+            tools.iter().any(|name| {
+                matches!(name.as_str(), "shell" | "shell_command" | "exec_command")
+            }),
+            "Slim must retain direct tools for {slug}: {tools:?}"
+        );
+    }
+
+    Ok(())
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn remote_tool_mode_selector_overrides_feature_flags() -> Result<()> {
     skip_if_no_network!(Ok(()));
@@ -179,8 +223,8 @@ async fn remote_tool_mode_selector_overrides_feature_flags() -> Result<()> {
     assert!(
         direct_tools
             .iter()
-            .all(|name| name != codex_code_mode::PUBLIC_TOOL_NAME
-                && name != codex_code_mode::WAIT_TOOL_NAME),
+            .all(|name| name != codex_code_mode_types::PUBLIC_TOOL_NAME
+                && name != codex_code_mode_types::WAIT_TOOL_NAME),
         "direct mode should override enabled code mode flags: {direct_tools:?}"
     );
 
@@ -192,8 +236,8 @@ async fn remote_tool_mode_selector_overrides_feature_flags() -> Result<()> {
         tool_names(&code_mode_only_body),
         vec![
             // Code-mode entrypoints.
-            codex_code_mode::PUBLIC_TOOL_NAME.to_string(),
-            codex_code_mode::WAIT_TOOL_NAME.to_string(),
+            codex_code_mode_types::PUBLIC_TOOL_NAME.to_string(),
+            codex_code_mode_types::WAIT_TOOL_NAME.to_string(),
             "request_user_input".to_string(),
             // Hosted Responses tool.
             "web_search".to_string(),
@@ -211,7 +255,7 @@ async fn remote_tool_mode_selector_overrides_feature_flags() -> Result<()> {
     assert!(
         tool_names(&unsupported_response.body)
             .iter()
-            .any(|name| name == codex_code_mode::PUBLIC_TOOL_NAME)
+            .any(|name| name == codex_code_mode_types::PUBLIC_TOOL_NAME)
     );
     assert_eq!(
         unsupported_response
@@ -243,10 +287,10 @@ async fn remote_code_mode_only_selector_fails_closed_when_host_is_disabled() -> 
     assert!(
         tools
             .iter()
-            .any(|name| name == codex_code_mode::PUBLIC_TOOL_NAME)
+            .any(|name| name == codex_code_mode_types::PUBLIC_TOOL_NAME)
             && tools
                 .iter()
-                .any(|name| name == codex_code_mode::WAIT_TOOL_NAME),
+                .any(|name| name == codex_code_mode_types::WAIT_TOOL_NAME),
         "code-mode-only must retain code-mode tools: {tools:?}"
     );
     assert!(

@@ -492,7 +492,7 @@ async fn namespaced_custom_tool_call_preserves_namespace_through_dispatch_and_re
             ev_response_created("resp-5"),
             ev_custom_tool_call(
                 direct_exec_call_id,
-                codex_code_mode::PUBLIC_TOOL_NAME,
+                codex_code_mode_types::PUBLIC_TOOL_NAME,
                 input,
             ),
             ev_completed("resp-5"),
@@ -537,7 +537,7 @@ async fn namespaced_custom_tool_call_preserves_namespace_through_dispatch_and_re
     assert_eq!(
         direct_exec_output["internal_chat_message_metadata_passthrough"]["executed_tool_calls"],
         json!([{
-            "name": codex_code_mode::PUBLIC_TOOL_NAME,
+            "name": codex_code_mode_types::PUBLIC_TOOL_NAME,
             "arguments": input,
         }]),
     );

@@ -16,8 +16,9 @@ path = "src/bin/config_schema.rs"
 workspace = true
 
 [features]
-default = ["audio-input", "memories"]
+default = ["audio-input", "code-mode", "memories"]
 audio-input = ["dep:codex-utils-audio"]
+code-mode = ["dep:codex-code-mode", "codex-tools/code-mode"]
 connectors = ["dep:codex-connectors", "plugins"]
 memories = ["dep:codex-memories-read"]
 plugins = ["dep:codex-core-plugins", "dep:codex-plugin"]
@@ -39,7 +40,7 @@ codex-app-server-protocol = { workspace = true }
 codex-apply-patch = { workspace = true }
 codex-async-utils = { workspace = true }
 codex-client = { workspace = true }
-codex-code-mode = { workspace = true }
+codex-code-mode = { workspace = true, optional = true }
 codex-code-mode-types = { workspace = true }
 codex-connectors = { workspace = true, optional = true }
 codex-context-fragments = { workspace = true }

@@ -248,6 +248,12 @@ impl CoreToolRuntime for McpHandler {
     }
 
     fn cached_code_mode_definitions(&self) -> Option<&[codex_code_mode_types::ToolDefinition]> {
+        #[cfg(not(feature = "code-mode"))]
+        {
+            None
+        }
+
+        #[cfg(feature = "code-mode")]
         Some(
             self.code_mode_tool_definitions
                 .get_or_init(|| {

@@ -16,8 +16,11 @@ use crate::session::session::Session;
 use crate::session::step_context::StepContext;
 use crate::session::tests::make_session_and_context;
 use crate::session::turn_context::TurnContext;
+#[cfg(feature = "code-mode")]
 use crate::tools::code_mode::CodeModeService;
+#[cfg(feature = "code-mode")]
 use crate::tools::code_mode::CodeModeWaitHandler;
+#[cfg(feature = "code-mode")]
 use crate::tools::code_mode::WAIT_TOOL_NAME;
 use crate::tools::context::FunctionToolOutput;
 use crate::tools::context::ToolCallSource;
@@ -63,43 +66,51 @@ impl ToolExecutor<ToolInvocation> for TestHandler {
 
 impl CoreToolRuntime for TestHandler {}
 
+#[cfg(feature = "code-mode")]
 struct MissingCellCodeModeSessionProvider;
 
-impl codex_code_mode::CodeModeSessionProvider for MissingCellCodeModeSessionProvider {
+#[cfg(feature = "code-mode")]
+impl codex_code_mode_types::CodeModeSessionProvider for MissingCellCodeModeSessionProvider {
     fn create_session<'a>(
         &'a self,
-        _delegate: Arc<dyn codex_code_mode::CodeModeSessionDelegate>,
-    ) -> codex_code_mode::CodeModeSessionProviderFuture<'a> {
+        _delegate: Arc<dyn codex_code_mode_types::CodeModeSessionDelegate>,
+    ) -> codex_code_mode_types::CodeModeSessionProviderFuture<'a> {
         Box::pin(async {
-            Ok(Arc::new(MissingCellCodeModeSession) as Arc<dyn codex_code_mode::CodeModeSession>)
+            Ok(Arc::new(MissingCellCodeModeSession)
+                as Arc<dyn codex_code_mode_types::CodeModeSession>)
         })
     }
 }
 
+#[cfg(feature = "code-mode")]
 struct MissingCellCodeModeSession;
 
-impl codex_code_mode::CodeModeSession for MissingCellCodeModeSession {
+#[cfg(feature = "code-mode")]
+impl codex_code_mode_types::CodeModeSession for MissingCellCodeModeSession {
     fn execute<'a>(
         &'a self,
-        _request: codex_code_mode::ExecuteRequest,
-    ) -> codex_code_mode::CodeModeSessionResultFuture<'a, codex_code_mode::StartedCell> {
+        _request: codex_code_mode_types::ExecuteRequest,
+    ) -> codex_code_mode_types::CodeModeSessionResultFuture<'a, codex_code_mode_types::StartedCell>
+    {
         Box::pin(async { Err("test session cannot execute cells".to_string()) })
     }
 
     fn wait<'a>(
         &'a self,
-        request: codex_code_mode::WaitRequest,
-    ) -> codex_code_mode::CodeModeSessionResultFuture<'a, codex_code_mode::WaitOutcome> {
+        request: codex_code_mode_types::WaitRequest,
+    ) -> codex_code_mode_types::CodeModeSessionResultFuture<'a, codex_code_mode_types::WaitOutcome>
+    {
         self.terminate(request.cell_id)
     }
 
     fn terminate<'a>(
         &'a self,
-        cell_id: codex_code_mode::CellId,
-    ) -> codex_code_mode::CodeModeSessionResultFuture<'a, codex_code_mode::WaitOutcome> {
+        cell_id: codex_code_mode_types::CellId,
+    ) -> codex_code_mode_types::CodeModeSessionResultFuture<'a, codex_code_mode_types::WaitOutcome>
+    {
         Box::pin(async move {
-            Ok(codex_code_mode::WaitOutcome::MissingCell(
-                codex_code_mode::RuntimeResponse::Result {
+            Ok(codex_code_mode_types::WaitOutcome::MissingCell(
+                codex_code_mode_types::RuntimeResponse::Result {
                     error_text: Some(format!("exec cell {cell_id} not found")),
                     cell_id,
                     content_items: Vec::new(),
@@ -108,7 +119,7 @@ impl codex_code_mode::CodeModeSession for MissingCellCodeModeSession {
         })
     }
 
-    fn shutdown<'a>(&'a self) -> codex_code_mode::CodeModeSessionResultFuture<'a, ()> {
+    fn shutdown<'a>(&'a self) -> codex_code_mode_types::CodeModeSessionResultFuture<'a, ()> {
         Box::pin(async { Ok(()) })
     }
 }
@@ -277,6 +288,7 @@ async fn dispatch_lifecycle_trace_records_incompatible_payload_failures() -> any
 }
 
 #[tokio::test]
+#[cfg(feature = "code-mode")]
 async fn missing_code_mode_wait_traces_only_the_wait_tool_call() -> anyhow::Result<()> {
     let temp = TempDir::new()?;
     let (mut session, turn) = make_session_and_context().await;

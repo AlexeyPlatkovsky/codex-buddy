@@ -63,6 +63,10 @@ for dependency in codex-agent-extension codex-queue-extension; do
 done
 
 for dependency in \
+  codex-code-mode \
+  codex-code-mode-host \
+  codex-code-mode-protocol \
+  codex-code-mode-runtime \
   codex-utils-audio \
   codex-memories-extension \
   codex-memories-read \
@@ -70,7 +74,8 @@ for dependency in \
   codex-image-generation-extension \
   codex-cloud-tasks \
   codex-cloud-tasks-client \
-  codex-cloud-tasks-mock-client; do
+  codex-cloud-tasks-mock-client \
+  v8; do
   if grep -Eq "^${dependency} v" <<<"${buddy_tree}"; then
     echo "codex-buddy unexpectedly depends on ${dependency}"
     echo "${buddy_tree}"
@@ -79,6 +84,14 @@ for dependency in \
 done
 
 full_app_server_tree="$(cargo tree --locked -p codex-app-server -e normal --prefix none)"
+for dependency in codex-code-mode codex-code-mode-protocol; do
+  if ! grep -Eq "^${dependency} v" <<<"${full_app_server_tree}"; then
+    echo "full codex-app-server must depend on ${dependency}"
+    echo "${full_app_server_tree}"
+    exit 1
+  fi
+done
+
 for dependency in codex-agent-extension codex-queue-extension; do
   if ! grep -Eq "^${dependency} v" <<<"${full_app_server_tree}"; then
     echo "full codex-app-server must depend on ${dependency}"
@@ -136,6 +149,19 @@ for dependency in codex-core-plugins codex-plugin; do
   fi
 done
 
+for package in codex-app-server codex-core codex-tools; do
+  if ! jq -e --arg package "${package}" '
+    .packages[]
+    | select(.name == $package)
+    | .dependencies[]
+    | select(.name == "codex-code-mode" and .kind == null)
+    | .optional == true
+  ' <<<"${workspace_metadata}" >/dev/null; then
+    echo "${package} dependency codex-code-mode must be optional"
+    exit 1
+  fi
+done
+
 buddy_chatgpt_features="$(cargo tree --locked -p codex-buddy -e features -i codex-chatgpt)"
 if [[ "${buddy_chatgpt_features}" == *'codex-chatgpt feature "connectors"'* ]]; then
   echo 'codex-buddy unexpectedly enables codex-chatgpt/connectors'
@@ -159,10 +185,28 @@ for package in codex-app-server codex-core codex-api; do
   fi
 done
 
+for package in codex-app-server codex-core; do
+  buddy_features="$(cargo tree --locked -p codex-buddy -e features -i "${package}")"
+  if [[ "${buddy_features}" == *"${package} feature \"code-mode\""* ]]; then
+    echo "codex-buddy unexpectedly enables ${package}/code-mode"
+    echo "${buddy_features}"
+    exit 1
+  fi
+done
+
 for package in codex-app-server codex-core codex-api; do
   full_cli_features="$(cargo tree --locked -p codex-cli -e features -i "${package}")"
   if [[ "${full_cli_features}" != *"${package} feature \"realtime\""* ]]; then
     echo "full codex-cli must enable ${package}/realtime"
+    echo "${full_cli_features}"
+    exit 1
+  fi
+done
+
+for package in codex-app-server codex-core; do
+  full_cli_features="$(cargo tree --locked -p codex-cli -e features -i "${package}")"
+  if [[ "${full_cli_features}" != *"${package} feature \"code-mode\""* ]]; then
+    echo "full codex-cli must enable ${package}/code-mode"
     echo "${full_cli_features}"
     exit 1
   fi

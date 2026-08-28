@@ -31,6 +31,7 @@ full-runtime-extensions = [
     "coding-runtime-extensions",
     "codex-core/audio-input",
     "codex-core/memories",
+    "code-mode",
     "dep:codex-external-agent-migration",
     "codex-external-agent-migration/memories",
     "connectors",
@@ -51,6 +52,7 @@ connectors = [
     "codex-core/plugins",
     "codex-mcp-extension/plugin-runtime",
 ]
+code-mode = ["dep:codex-code-mode", "codex-core/code-mode"]
 detached-review = ["dep:codex-agent-extension"]
 goals = ["dep:codex-goal-extension"]
 history-notes = ["dep:codex-history-notes-extension"]
@@ -73,7 +75,8 @@ codex-agent-extension = { workspace = true, optional = true }
 codex-arg0 = { workspace = true }
 codex-aws-auth = { workspace = true }
 codex-cloud-config = { workspace = true }
-codex-code-mode = { workspace = true }
+codex-code-mode = { workspace = true, optional = true }
+codex-code-mode-types = { workspace = true }
 codex-config = { workspace = true }
 codex-connectors = { workspace = true, optional = true }
 codex-core = { workspace = true }

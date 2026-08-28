@@ -24,8 +24,6 @@ use codex_agent_graph_store::LocalAgentGraphStore;
 use codex_analytics::AnalyticsEventsClient;
 use codex_app_server_protocol::ThreadHistoryBuilder;
 use codex_app_server_protocol::TurnStatus;
-use codex_code_mode::DisabledCodeModeSessionProvider;
-use codex_code_mode::ProcessOwnedCodeModeSessionProvider;
 use codex_code_mode_types::CodeModeSessionProvider;
 use codex_exec_server::EnvironmentManager;
 use codex_extension_api::ExtensionDataInit;
@@ -459,14 +457,7 @@ impl ThreadManager {
             Arc::clone(&extensions),
             codex_apps_tools_cache,
         ));
-        let code_mode_session_provider: Arc<dyn CodeModeSessionProvider> =
-            if config.features.enabled(Feature::CodeModeHost)
-                || config.code_mode.disable_in_process_fallback
-            {
-                Arc::new(ProcessOwnedCodeModeSessionProvider::default())
-            } else {
-                Arc::new(DisabledCodeModeSessionProvider)
-            };
+        let code_mode_session_provider = crate::code_mode_runtime::default_provider(config);
         Self {
             state: Arc::new(ThreadManagerState {
                 threads: Arc::new(RwLock::new(HashMap::new())),
@@ -528,9 +519,8 @@ impl ThreadManager {
         let Some(state) = Arc::get_mut(&mut self.state) else {
             unreachable!("new thread manager state should not be shared");
         };
-        state.code_mode_session_provider = Arc::new(
-            ProcessOwnedCodeModeSessionProvider::with_host_program(host_program),
-        );
+        state.code_mode_session_provider =
+            crate::code_mode_runtime::provider_with_host_program(host_program);
         self
     }
 
@@ -625,7 +615,7 @@ impl ThreadManager {
                 skills_service,
                 plugins_manager,
                 mcp_manager,
-                code_mode_session_provider: Arc::new(DisabledCodeModeSessionProvider),
+                code_mode_session_provider: crate::code_mode_runtime::unavailable_provider(),
                 extensions: empty_extension_registry(),
                 user_instructions_provider: Arc::new(
                     crate::test_support::EmptyUserInstructionsProvider,
