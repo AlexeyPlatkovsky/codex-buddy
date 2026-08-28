@@ -94,7 +94,7 @@ impl CodeModeWaitHandler {
                 })?;
                 let exec = ExecContext { session, turn };
                 let started_at = std::time::Instant::now();
-                let cell_id = codex_code_mode::CellId::new(args.cell_id);
+                let cell_id = codex_code_mode_types::CellId::new(args.cell_id);
                 let wait_response = if args.terminate {
                     exec.session
                         .services
@@ -105,7 +105,7 @@ impl CodeModeWaitHandler {
                     exec.session
                         .services
                         .code_mode_service
-                        .wait(codex_code_mode::WaitRequest {
+                        .wait(codex_code_mode_types::WaitRequest {
                             cell_id,
                             yield_time_ms: args.yield_time_ms,
                         })
@@ -115,11 +115,11 @@ impl CodeModeWaitHandler {
                     telemetry.finish(/*success*/ false);
                     FunctionCallError::RespondToModel(error)
                 })?;
-                if let codex_code_mode::WaitOutcome::LiveCell(response) = &wait_response {
+                if let codex_code_mode_types::WaitOutcome::LiveCell(response) = &wait_response {
                     let runtime_cell_id = match response {
-                        codex_code_mode::RuntimeResponse::Yielded { cell_id, .. }
-                        | codex_code_mode::RuntimeResponse::Terminated { cell_id, .. }
-                        | codex_code_mode::RuntimeResponse::Result { cell_id, .. } => cell_id,
+                        codex_code_mode_types::RuntimeResponse::Yielded { cell_id, .. }
+                        | codex_code_mode_types::RuntimeResponse::Terminated { cell_id, .. }
+                        | codex_code_mode_types::RuntimeResponse::Result { cell_id, .. } => cell_id,
                     };
                     telemetry.cell_id = Some(runtime_cell_id.to_string());
                     if let Some(executed_tool_calls) =
@@ -127,7 +127,10 @@ impl CodeModeWaitHandler {
                     {
                         executed_tool_calls.register_cell(runtime_cell_id, &call_id);
                     }
-                    if !matches!(response, codex_code_mode::RuntimeResponse::Yielded { .. }) {
+                    if !matches!(
+                        response,
+                        codex_code_mode_types::RuntimeResponse::Yielded { .. }
+                    ) {
                         exec.session
                             .services
                             .rollout_thread_trace

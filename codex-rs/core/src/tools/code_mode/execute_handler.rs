@@ -67,7 +67,7 @@ impl CodeModeExecuteHandler {
             .session
             .services
             .code_mode_service
-            .execute(codex_code_mode::ExecuteRequest {
+            .execute(codex_code_mode_types::ExecuteRequest {
                 tool_call_id: call_id.clone(),
                 enabled_tools,
                 source: args.code.clone(),
@@ -115,7 +115,10 @@ impl CodeModeExecuteHandler {
         code_cell_trace.record_initial_response(&response);
         // Yielded cells keep running, so terminal lifecycle is only emitted
         // here when the first response also ended the runtime.
-        if !matches!(response, codex_code_mode::RuntimeResponse::Yielded { .. }) {
+        if !matches!(
+            response,
+            codex_code_mode_types::RuntimeResponse::Yielded { .. }
+        ) {
             code_cell_trace.record_ended(&response);
             exec.session
                 .services

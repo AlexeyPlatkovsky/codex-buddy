@@ -61,6 +61,18 @@ In the codex-rs folder where the rust code lives:
     trivial; prefer new modules/files and keep `chatwidget.rs` focused on orchestration.
 - When running Rust commands (e.g. `just fix` or `just test`) be patient with the command and never try to kill them using the PID. Rust lock can make the execution slow, this is expected.
 
+### Rust build artifact disk usage
+
+- Repeated broad debug builds can make `codex-rs/target/debug` extremely large. Set
+  `CARGO_INCREMENTAL=0` for broad validation matrices unless incremental compilation itself is
+  under test, and avoid duplicate broad builds against the same target directory.
+- After debug-heavy validation, check `du -sh codex-rs/target`. If it is at least 20 GiB, or the
+  user asks for cleanup, wait for all Cargo, rustc, nextest, Just, and Bazel build/test processes to
+  finish and run `scripts/buddy_release/clean_rust_artifacts.sh --confirm` from the repository root.
+- The cleanup permanently deletes only the verified `codex-rs/target` directory through the
+  workspace deletion guard; it never moves artifacts to Trash. Report the size removed and the
+  resulting free space. Do not clean before the required test/fix/fmt sequence is complete.
+
 Run `just fmt` (in the `codex-rs` directory) automatically after you have finished making code changes anywhere in this repository; do not ask for approval to run it. Additionally, run the tests:
 
 1. Do not run `cargo test` directly. Use `just test` so test execution follows the repo defaults.

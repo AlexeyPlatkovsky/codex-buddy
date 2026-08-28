@@ -1,8 +1,8 @@
 use crate::ResponsesApiNamespaceTool;
 use crate::ToolName;
 use crate::ToolSpec;
-use codex_code_mode::CodeModeToolKind;
-use codex_code_mode::ToolDefinition as CodeModeToolDefinition;
+use codex_code_mode_types::CodeModeToolKind;
+use codex_code_mode_types::ToolDefinition as CodeModeToolDefinition;
 
 /// Augment tool descriptions with code-mode-specific exec samples.
 pub fn augment_tool_spec_for_code_mode(spec: ToolSpec) -> ToolSpec {

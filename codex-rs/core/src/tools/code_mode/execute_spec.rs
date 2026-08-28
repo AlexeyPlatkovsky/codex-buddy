@@ -1,5 +1,5 @@
 use codex_code_mode::ImageDetailVisibility;
-use codex_code_mode::ToolDefinition as CodeModeToolDefinition;
+use codex_code_mode_types::ToolDefinition as CodeModeToolDefinition;
 use codex_tools::FreeformTool;
 use codex_tools::FreeformToolFormat;
 use codex_tools::ToolSpec;
@@ -50,11 +50,11 @@ mod tests {
 
     #[test]
     fn create_code_mode_tool_matches_expected_spec() {
-        let enabled_tools = vec![codex_code_mode::ToolDefinition {
+        let enabled_tools = vec![codex_code_mode_types::ToolDefinition {
             name: "update_plan".to_string(),
             tool_name: ToolName::plain("update_plan"),
             description: "Update the plan".to_string(),
-            kind: codex_code_mode::CodeModeToolKind::Function,
+            kind: codex_code_mode_types::CodeModeToolKind::Function,
             input_schema: None,
             output_schema: None,
         }];
@@ -64,7 +64,7 @@ mod tests {
                 &enabled_tools,
                 &[],
                 &BTreeMap::new(),
-                codex_code_mode::DEFAULT_EXEC_YIELD_TIME_MS,
+                codex_code_mode_types::DEFAULT_EXEC_YIELD_TIME_MS,
                 /*code_mode_only*/ true,
                 ImageDetailVisibility::Visible,
             ),
@@ -74,7 +74,7 @@ mod tests {
                     &enabled_tools,
                     &[],
                     &BTreeMap::new(),
-                    codex_code_mode::DEFAULT_EXEC_YIELD_TIME_MS,
+                    codex_code_mode_types::DEFAULT_EXEC_YIELD_TIME_MS,
                     /*code_mode_only*/ true,
                     ImageDetailVisibility::Visible,
                 ),

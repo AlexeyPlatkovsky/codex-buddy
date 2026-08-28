@@ -1,27 +1,24 @@
 [package]
 edition.workspace = true
 license.workspace = true
-name = "codex-rollout-trace"
+name = "codex-code-mode-types"
 version.workspace = true
 
 [lib]
 doctest = false
-name = "codex_rollout_trace"
+name = "codex_code_mode_types"
 path = "src/lib.rs"
 
 [lints]
 workspace = true
 
 [dependencies]
-anyhow = { workspace = true }
-codex-code-mode-types = { workspace = true }
 codex-protocol = { workspace = true }
-http = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-tracing = { workspace = true }
-uuid = { workspace = true, features = ["v4"] }
+tokio = { workspace = true, features = ["sync"] }
+tokio-util = { workspace = true, features = ["rt"] }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }
-tempfile = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

@@ -4,7 +4,9 @@ use serde::Serialize;
 use serde_json::Value as JsonValue;
 use std::collections::BTreeMap;
 
+use crate::CodeModeToolKind;
 use crate::PUBLIC_TOOL_NAME;
+use crate::ToolDefinition;
 use crate::json_schema_types::render_json_schema_to_typescript;
 
 const MAX_JS_SAFE_INTEGER: u64 = (1_u64 << 53) - 1;
@@ -124,23 +126,6 @@ type CallToolResult<TStructured = { [key: string]: unknown }> = {
 };"#;
 
 pub const CODE_MODE_PRAGMA_PREFIX: &str = "// @exec:";
-
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum CodeModeToolKind {
-    Function,
-    Freeform,
-}
-
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
-pub struct ToolDefinition {
-    pub name: String,
-    pub tool_name: ToolName,
-    pub description: String,
-    pub kind: CodeModeToolKind,
-    pub input_schema: Option<JsonValue>,
-    pub output_schema: Option<JsonValue>,
-}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ToolNamespaceDescription {
