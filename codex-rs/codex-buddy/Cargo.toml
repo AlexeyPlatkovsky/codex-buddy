@@ -11,6 +11,13 @@ path = "src/main.rs"
 [lints]
 workspace = true
 
+[features]
+default = ["coding-runtime-extensions"]
+coding-runtime-extensions = [
+    "codex-exec/coding-runtime-extensions",
+    "codex-tui/coding-runtime-extensions",
+]
+
 [dependencies]
 anyhow = { workspace = true }
 clap = { workspace = true }

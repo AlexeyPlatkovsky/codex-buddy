@@ -14,7 +14,9 @@ workspace = true
 
 [features]
 default = ["full-runtime-extensions"]
+coding-runtime-extensions = ["codex-app-server/coding-runtime-extensions"]
 full-runtime-extensions = [
+    "coding-runtime-extensions",
     "codex-app-server/full-runtime-extensions",
     "codex-core/plugins",
 ]
