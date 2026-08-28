@@ -3,9 +3,9 @@ id: CB-48
 title: Disable personality instructions in Coding
 priority: high
 type: task
-status: backlog
+status: in_progress
 created_at: '2026-08-28T15:35:27Z'
-updated_at: '2026-08-28T15:35:48Z'
+updated_at: '2026-08-28T17:06:17Z'
 parent_id: CB-18
 tags:
 - core

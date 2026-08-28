@@ -77,6 +77,7 @@ mod process_exec;
 mod projects;
 mod rate_limit_reset_credits;
 mod rate_limits;
+#[cfg(feature = "realtime")]
 mod realtime_conversation;
 mod recommended_plugins;
 mod remote_control;
@@ -88,7 +89,11 @@ mod request_validation;
 mod residency;
 mod review;
 mod rollout_migration;
-#[cfg(any(not(feature = "queue"), not(feature = "detached-review")))]
+#[cfg(any(
+    not(feature = "queue"),
+    not(feature = "detached-review"),
+    not(feature = "realtime")
+))]
 mod runtime_extensions_disabled;
 mod safety_check_downgrade;
 #[cfg(not(target_os = "windows"))]

@@ -27,7 +27,9 @@ coding-runtime-extensions = ["codex-app-server-client/coding-runtime-extensions"
 full-runtime-extensions = [
     "coding-runtime-extensions",
     "codex-app-server-client/full-runtime-extensions",
+    "realtime",
 ]
+realtime = ["codex-app-server-client/realtime", "codex-core/realtime"]
 
 [dependencies]
 anyhow = { workspace = true }

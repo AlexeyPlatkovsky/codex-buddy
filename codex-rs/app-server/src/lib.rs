@@ -128,6 +128,7 @@ mod outgoing_message;
 mod queue_runtime;
 mod realtime_event_handling;
 mod realtime_history;
+mod realtime_runtime;
 mod request_processors;
 mod request_serialization;
 mod server_request_error;

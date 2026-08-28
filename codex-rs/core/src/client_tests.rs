@@ -1299,6 +1299,7 @@ async fn websocket_handshake_includes_attestation_for_chatgpt_codex_responses() 
 }
 
 #[tokio::test]
+#[cfg(feature = "realtime")]
 async fn existing_call_sideband_headers_include_attestation() {
     let (model_client, attestation_calls) =
         model_client_with_counting_attestation(/*include_attestation*/ true);

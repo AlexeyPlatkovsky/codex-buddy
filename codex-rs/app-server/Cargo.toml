@@ -40,6 +40,7 @@ full-runtime-extensions = [
     "image-generation",
     "memories",
     "queue",
+    "realtime",
 ]
 connectors = [
     "dep:codex-connectors",
@@ -56,6 +57,7 @@ history-notes = ["dep:codex-history-notes-extension"]
 image-generation = ["dep:codex-image-generation-extension"]
 memories = ["dep:codex-memories-extension", "dep:codex-memories-write"]
 queue = ["dep:codex-queue-extension"]
+realtime = ["codex-core/realtime"]
 
 [dependencies]
 anyhow = { workspace = true }

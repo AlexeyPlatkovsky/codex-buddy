@@ -10,8 +10,14 @@ mod apply_patch;
 mod apps;
 mod client;
 mod client_common;
+#[cfg(feature = "realtime")]
 mod realtime_context;
+#[cfg(feature = "realtime")]
 mod realtime_conversation;
+#[cfg(not(feature = "realtime"))]
+#[path = "realtime_conversation_disabled.rs"]
+mod realtime_conversation;
+#[cfg(feature = "realtime")]
 mod realtime_prompt;
 mod responses_metadata;
 mod responses_retry;

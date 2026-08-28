@@ -15,6 +15,7 @@ codex_rust_crate(
         "audio-input",
         "connectors",
         "plugins",
+        "realtime",
     ],
     crate_name = "codex_core",
     extra_binaries = [

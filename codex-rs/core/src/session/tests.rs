@@ -150,8 +150,11 @@ use codex_protocol::protocol::NetworkApprovalProtocol;
 use codex_protocol::protocol::RateLimitSnapshot;
 use codex_protocol::protocol::RateLimitWindow;
 use codex_protocol::protocol::RealtimeAudioFrame;
+#[cfg(feature = "realtime")]
 use codex_protocol::protocol::RealtimeConversationListVoicesResponseEvent;
+#[cfg(feature = "realtime")]
 use codex_protocol::protocol::RealtimeVoice;
+#[cfg(feature = "realtime")]
 use codex_protocol::protocol::RealtimeVoicesList;
 use codex_protocol::protocol::SessionMeta;
 use codex_protocol::protocol::SessionMetaLine;
@@ -10517,6 +10520,7 @@ async fn run_user_shell_command_does_not_set_reference_context_item() {
 }
 
 #[tokio::test]
+#[cfg(feature = "realtime")]
 async fn realtime_conversation_list_voices_emits_builtin_list() {
     let (session, _turn_context, rx) = make_session_and_context_with_rx().await;
 

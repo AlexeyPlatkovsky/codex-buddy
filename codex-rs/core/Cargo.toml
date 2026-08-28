@@ -21,6 +21,7 @@ audio-input = ["dep:codex-utils-audio"]
 connectors = ["dep:codex-connectors", "plugins"]
 memories = ["dep:codex-memories-read"]
 plugins = ["dep:codex-core-plugins", "dep:codex-plugin"]
+realtime = ["codex-api/realtime"]
 
 [dependencies]
 anyhow = { workspace = true }

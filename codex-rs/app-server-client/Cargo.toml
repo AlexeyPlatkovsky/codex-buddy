@@ -22,8 +22,10 @@ full-runtime-extensions = [
     "codex-core/plugins",
     "detached-review",
     "queue",
+    "realtime",
 ]
 queue = ["codex-app-server/queue"]
+realtime = ["codex-app-server/realtime", "codex-core/realtime"]
 
 [dependencies]
 codex-app-server = { path = "../app-server", default-features = false }

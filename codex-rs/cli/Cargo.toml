@@ -38,6 +38,7 @@ full-cli = [
     "dep:codex-arg0",
     "dep:codex-chatgpt",
     "dep:codex-cloud-tasks",
+    "codex-core/realtime",
     "codex-core/plugins",
     "dep:codex-core-plugins",
     "dep:codex-exec",
