@@ -715,6 +715,15 @@ impl Session {
             .parent_thread_id
             .or_else(|| initial_history.get_resumed_parent_thread_id());
         session_configuration.parent_thread_id = parent_thread_id;
+        if parent_thread_id.is_none() {
+            agent_control.set_root_service_tier(
+                session_configuration
+                    .step_settings
+                    .service_tier
+                    .clone()
+                    .or_else(|| config.service_tier.clone()),
+            );
+        }
         let is_paginated_subagent = matches!(
             session_configuration.history_mode,
             ThreadHistoryMode::Paginated
@@ -1422,11 +1431,12 @@ impl Session {
                     config.http_client_factory(),
                 )
                 .with_free_guardian_enabled(config.free_guardian_enabled())
-                .with_prompt_cache_key_override(
+                .with_session_context(
                     crate::guardian::prompt_cache_key_override_for_review_session(
                         &session_configuration.session_source,
                         session_configuration.parent_thread_id,
                     ),
+                    tx_event.clone(),
                 ),
                 executed_tool_calls: executed_tool_calls.clone(),
                 code_mode_service: crate::tools::code_mode::CodeModeService::new(

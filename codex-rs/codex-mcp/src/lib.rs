@@ -45,6 +45,7 @@ pub use connector_provenance::ConnectorSnapshot;
 pub use connector_provenance::PluginConnectorSource;
 
 pub use mcp::CODEX_APPS_MCP_SERVER_NAME;
+pub use mcp::DEFAULT_OPTIONAL_MCP_STARTUP_GRACE;
 pub use mcp::McpConfig;
 pub use mcp::ToolPluginProvenance;
 pub use server::EffectiveMcpServer;

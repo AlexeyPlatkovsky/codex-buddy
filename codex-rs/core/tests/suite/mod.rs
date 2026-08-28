@@ -94,6 +94,7 @@ mod lazy_mcp;
 mod live_cli;
 mod mcp_auth_elicitation;
 mod mcp_auth_refresh;
+mod mcp_optional_startup_grace;
 #[cfg(unix)]
 mod mcp_refresh_cleanup;
 mod mcp_startup_refresh_http_proxy;
@@ -162,6 +163,7 @@ mod step_settings_snapshots;
 mod stream_error_allows_next_turn;
 mod stream_no_completed;
 mod subagent_notifications;
+mod subagent_service_tier;
 mod token_budget;
 mod tool_harness;
 mod tool_lifecycle;
@@ -172,6 +174,7 @@ mod turn_input_submission;
 mod turn_state;
 mod unified_exec;
 mod unified_exec_process_events;
+mod unified_exec_stdin_approval;
 mod unified_exec_stdin_review_size;
 #[cfg(unix)]
 mod unified_exec_zsh_fork_approvals;
