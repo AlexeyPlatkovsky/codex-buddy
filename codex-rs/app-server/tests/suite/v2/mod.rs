@@ -33,7 +33,11 @@ mod executor_mcp;
 mod executor_skills;
 mod experimental_api;
 mod experimental_feature_list;
+#[cfg(feature = "full-runtime-extensions")]
 mod external_agent_config;
+#[cfg(not(feature = "full-runtime-extensions"))]
+mod external_agent_config_disabled;
+#[cfg(feature = "full-runtime-extensions")]
 mod external_agent_import_sync;
 mod feedback;
 mod fs;

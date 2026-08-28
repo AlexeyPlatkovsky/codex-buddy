@@ -29,6 +29,7 @@ default = ["full-runtime-extensions"]
 full-runtime-extensions = [
     "codex-core/audio-input",
     "codex-core/memories",
+    "dep:codex-external-agent-migration",
     "codex-external-agent-migration/memories",
     "goals",
     "history-notes",
@@ -63,7 +64,7 @@ codex-diagnostics = { workspace = true }
 codex-home = { workspace = true }
 codex-exec-server = { workspace = true }
 codex-extension-api = { workspace = true }
-codex-external-agent-migration = { workspace = true }
+codex-external-agent-migration = { workspace = true, optional = true }
 codex-features = { workspace = true }
 codex-goal-extension = { workspace = true, optional = true }
 codex-git-attribution = { workspace = true }

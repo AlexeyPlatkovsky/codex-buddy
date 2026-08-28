@@ -108,6 +108,7 @@ mod effective_plugin_change;
 mod error_code;
 mod extension_composition;
 mod extensions;
+#[cfg(feature = "full-runtime-extensions")]
 mod external_agent_migration;
 mod external_auth;
 mod filters;
