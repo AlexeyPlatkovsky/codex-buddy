@@ -131,6 +131,27 @@ jobs:
           cargo check -p codex-app-server --no-default-features
           cargo check -p codex-buddy
 
+          tools_tree="$(cargo tree -p codex-tools -e normal --prefix none)"
+          if grep -Eq '^codex-connectors v' <<<"$tools_tree"; then
+            echo 'codex-tools unexpectedly depends on codex-connectors'
+            echo "$tools_tree"
+            exit 1
+          fi
+
+          app_server_metadata="$(cargo metadata --no-deps --format-version=1)"
+          for dependency in codex-connectors codex-core-plugins codex-plugin; do
+            if ! jq -e --arg dependency "$dependency" '
+              .packages[]
+              | select(.name == "codex-app-server")
+              | .dependencies[]
+              | select(.name == $dependency and .kind == null)
+              | .optional == true
+            ' <<<"$app_server_metadata" >/dev/null; then
+              echo "codex-app-server dependency $dependency must be optional"
+              exit 1
+            fi
+          done
+
           buddy_chatgpt_features="$(cargo tree -p codex-buddy -e features -i codex-chatgpt)"
           if [[ "$buddy_chatgpt_features" == *'codex-chatgpt feature "connectors"'* ]]; then
             echo 'codex-buddy unexpectedly enables codex-chatgpt/connectors'
