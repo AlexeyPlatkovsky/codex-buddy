@@ -3,9 +3,9 @@ id: CB-47
 title: Gate realtime runtime behind Full composition
 priority: high
 type: task
-status: in_progress
+status: done
 created_at: '2026-08-28T15:35:26Z'
-updated_at: '2026-08-28T16:33:58Z'
+updated_at: '2026-08-28T17:06:16Z'
 parent_id: CB-18
 tags:
 - realtime

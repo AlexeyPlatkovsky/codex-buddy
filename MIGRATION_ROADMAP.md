@@ -322,6 +322,13 @@ App-server must remain for now, but its unconditional extension dependencies sho
 - Positive guards use the actual Full owners: app-server for audio, memories, and image generation; CLI for cloud tasks. `codex-cloud-config` remains intentionally available to Coding.
 - This stage changes no product code or compatibility surface. The locked graph preflight and shell syntax check passed.
 
+### Realtime completion record
+
+- `a8749464c8` makes executable realtime API transports and Core conversation services explicit Full features; Coding selects a private zero-state Core facade and starts no realtime work.
+- All six app-server v2 realtime methods and all protocol/config/rollout/history/timeline types remain available. Coding returns stable JSON-RPC `-32600` before thread lookup; Full retains the existing transports and voice list.
+- Slim public RPC and historical timeline tests passed 2/2; Core Slim/Full representative tests passed; `codex-api` Slim passed 103/103 and Full passed 180/180. Buddy and Full CLI checks, scoped lint, formatting, Bazel lock refresh, and the reciprocal feature-graph preflight passed.
+- The Buddy normal graph remains 1,287 nodes because the shared WebSocket/channel crates are still used elsewhere; this stage removes realtime executable code through feature selection rather than claiming a package-count reduction.
+
 Current unconditional or broadly included candidates include:
 
 - `codex-agent-extension`
