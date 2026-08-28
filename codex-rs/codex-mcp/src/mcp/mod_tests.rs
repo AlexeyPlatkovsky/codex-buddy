@@ -278,7 +278,10 @@ fn selected_mcp_attribution_does_not_join_an_unrelated_local_summary() {
     assert_eq!(
         provenance,
         ToolPluginProvenance {
-            plugin_display_names_by_connector_id: HashMap::new(),
+            plugin_display_names_by_connector_id: HashMap::from([(
+                "unrelated_connector".to_string(),
+                vec!["Local GitHub".to_string()],
+            )]),
             plugin_display_names_by_mcp_server_name: HashMap::from([(
                 "github".to_string(),
                 vec!["Executor GitHub".to_string()],
