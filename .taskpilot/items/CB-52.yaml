@@ -1,0 +1,17 @@
+schema_version: 1
+id: CB-52
+title: Close heavy-runtime dependency and compatibility evidence
+priority: high
+type: task
+status: backlog
+created_at: '2026-08-28T15:35:30Z'
+updated_at: '2026-08-28T15:35:52Z'
+parent_id: CB-18
+tags:
+- tests
+- release
+description: Run Slim negative and Full positive graph/build/behavior checks, record deltas, and close the runtime-pruning sequence only when all compatibility invariants pass.
+links:
+  blocks:
+  - CB-21
+  - CB-22

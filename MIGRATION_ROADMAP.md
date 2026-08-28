@@ -19,7 +19,7 @@ Repository and branch:
 | Upstream remote | `upstream` → `openai/codex` |
 | Planning source | `.taskpilot/` |
 | Next pruning task | `CB-20` |
-| Non-coding runtime task | `CB-20` |
+| Runtime pruning sequence | `CB-20`, then `CB-45` through `CB-52` |
 | Measurement task | `CB-21` |
 | Cross-platform task | `CB-22` |
 
@@ -39,7 +39,7 @@ Expected state after the Stage 1 checkpoint:
 
 - The Stage 1 implementation commit is `77e483d3dd Gate plugin runtime behind core feature`.
 - The worktree is clean.
-- `CB-19` is done. Continue with `CB-20`; `CB-21`, `CB-22`, and `CB-35` remain follow-up work.
+- `CB-19` is done. Continue with the `CB-20` → `CB-45`…`CB-52` chain; `CB-21`, `CB-22`, and `CB-35` remain follow-up work.
 - `CB-1` (explicit config-driven runtime) and `CB-23` (right-side subagent tree) are done.
 
 ## Product boundary
@@ -139,12 +139,29 @@ Do not reopen these decisions without new evidence:
 | Order | Stage | TaskPilot | Exit condition |
 |---:|---|---|---|
 | 1 | Gate the core plugin runtime | `CB-19` (done) | Buddy graph excludes `codex-plugin` and `codex-core-plugins`; Full builds retain plugin behavior. |
-| 2 | Prune app-server extensions | `CB-20` | Buddy app-server composition includes only coding-required extensions. |
-| 3 | Remove heavy non-coding core/TUI runtimes | `CB-20` | Audio, memories, image generation, realtime, cloud, decorative, and V8/code-mode paths are absent where not required. |
+| 2 | Define coding and Full compositions | `CB-20`, `CB-45` | Buddy app-server composition includes only coding-required extensions. |
+| 3 | Remove heavy non-coding core/TUI runtimes | `CB-46` through `CB-52` | Audio, memories, image generation, realtime, cloud, decorative, and V8/code-mode paths are absent where not required. |
 | 4 | Measure real savings | `CB-21` | Reproducible dependency, binary-size, and startup report distinguishes graph/runtime/linker savings. |
 | 5 | Cross-platform release gates | `CB-22` | Linux, macOS, and Windows coding configurations build and smoke-test. |
 | 6 | Upstream-sync hardening | `CB-35` | Repeatable conflict policy and dependency-boundary checks protect future upstream merges. |
 | 7 | Optional app-server architecture split | New TaskPilot feature if approved | Protocol/client separation removes the in-process server from Buddy without rewriting behavior ad hoc. |
+
+### Migration agent record
+
+The migration uses the following fixed roster. No nested or additional agent may be used without recording the change here first.
+
+| Phase | Agent | Role | Model | Effort |
+|---|---|---|---|---|
+| Planning | Lorentz (`remaining_runtime_plan`) | Runtime architecture | `gpt-5.6-sol` | high |
+| Planning | Lovelace (`measurement_platform_plan`) | Measurement and platforms | `gpt-5.6-terra` | high |
+| Planning | Pauli (`upstream_hardening_plan`) | Upstream workflow | `gpt-5.6-terra` | high |
+| Execution | `runtime_migration_owner` | Runtime features, realtime, and code-mode | `gpt-5.6-sol` | high |
+| Execution | `app_server_compatibility_owner` | App-server v2, config, CLI, and rollout compatibility | `gpt-5.6-sol` | high |
+| Execution | `tui_migration_owner` | TUI feature gates and snapshots | `gpt-5.6-terra` | high |
+| Execution | `measurement_release_owner` | Dependency evidence, benchmarks, and platform CI | `gpt-5.6-terra` | high |
+| Review | `final_migration_audit` | Final compatibility and breaking-change audit | `gpt-5.6-sol` | xhigh |
+
+At most three subagents run concurrently, with non-overlapping ownership.
 
 ## Stage 1: gate the core plugin runtime
 
@@ -296,12 +313,13 @@ Classify them before gating:
 
 | Extension | Initial disposition |
 |---|---|
-| Agent/subagent | Keep; required by subagents and the right panel. Remove unrelated migration/plugin behavior if separable. |
+| Detached app-server review agent | Gate from Buddy; it does not power Core subagents or the right panel. Keep inline review. |
 | Web search | Keep. |
 | Skills | Keep explicit project/user/global skills; keep bundled/plugin discovery disabled in Coding profile. |
 | MCP | Keep generic configured MCP; keep plugin runtime disabled for Buddy. |
-| Guardian | Audit before removal; coding safety/review behavior may depend on it. |
-| Queue | Likely gate or remove from Buddy after confirming no TUI/Exec session dependency. |
+| Guardian | Keep; coding approvals and managed safety behavior depend on it. |
+| Queue | Gate from Buddy while retaining stable v2 unavailable responses. |
+| Git attribution | Keep until a separate product/security decision changes the policy. |
 | Image generation | Exclude. Do not confuse with local image viewing. |
 | Memories/history-notes/goals | Exclude from Buddy unless a coding requirement is documented. |
 
@@ -318,16 +336,16 @@ Required checks:
 
 ## Stage 3: remove heavy non-coding runtimes
 
-Execute `CB-20` as several small commits. Do not combine all removals.
+Execute the `CB-20`, `CB-45`…`CB-52` blocker chain as small reviewable commits. Do not combine all removals.
 
 Recommended order:
 
-1. Disable core default `audio-input` and `memories` for Buddy without changing upstream Full defaults.
-2. Gate image-generation extension dependencies while retaining local image decoding/viewing.
-3. Gate realtime/voice processors and TUI paths.
-4. Remove or gate code-mode/V8 if it is not required for shell/file coding workflows.
-5. Gate cloud tasks and unrelated service clients.
-6. Audit pets, personality, decorative UI, and experimental surfaces.
+1. Lock negative graph coverage for audio, memories, image generation, cloud tasks, plugins, connectors, and V8 that are already absent.
+2. Gate realtime execution while retaining protocol/history compatibility.
+3. Suppress personality instructions for new Coding turns without rewriting existing rollouts.
+4. Compile pets and Full-only memories settings only in the Full TUI.
+5. Extract transport-neutral code-mode types.
+6. Gate code-mode execution and transport while retaining historical code-cell projection.
 
 For each item:
 
@@ -383,7 +401,7 @@ Before starting a new migration slice:
 
 1. Fetch `upstream`.
 2. Inspect the incoming range and current dirty state.
-3. Rebase or merge according to the fork policy; do not mix upstream conflict resolution with a feature refactor commit.
+3. Use an ordinary sync-only merge commit; do not rebase, force-push, repeat the historical `ours` bridge, or mix conflict resolution with a feature refactor.
 4. Run checks proportional to conflicts.
 5. Record recurring conflict patterns in TaskPilot.
 
@@ -456,7 +474,7 @@ taskpilot item comment CB-19 "<result, validation, compatibility notes>" --autho
 taskpilot validate
 ```
 
-Use `CB-20` for non-coding runtime removals, `CB-21` for measurements, `CB-22` for platform checks, and `CB-35` for CI/upstream workflow decisions.
+Use `CB-20` and `CB-45` through `CB-52` for the ordered runtime-removal slices, `CB-21` for measurements, `CB-22` for platform checks, and `CB-35` for CI/upstream workflow decisions.
 
 ## Definition of done for the migration
 
@@ -474,4 +492,4 @@ Use `CB-20` for non-coding runtime removals, `CB-21` for measurements, `CB-22` f
 
 ## Next-session recommended first action
 
-Continue with Stage 2 / TaskPilot `CB-20`: prune app-server runtime extensions that are outside the coding profile. Start by measuring Buddy’s current extension feature graph, then identify the smallest coherent composition cut that keeps TUI/Exec lifecycle, configured MCP, web search, image viewing, and subagents intact. Do not remove the in-process app-server itself; that remains a separate architecture decision.
+Upstream advanced to `868c9edb0d` after the Stage 1 checkpoint. Land and validate a sync-only ordinary merge before Stage 2. Then execute `CB-20`: make Buddy select an explicit coding app-server composition while Full Cargo and Bazel retain their current behavior. Do not remove the in-process app-server itself; that remains a separate architecture decision.

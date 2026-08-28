@@ -1,0 +1,16 @@
+schema_version: 1
+id: CB-47
+title: Gate realtime runtime behind Full composition
+priority: high
+type: task
+status: backlog
+created_at: '2026-08-28T15:35:26Z'
+updated_at: '2026-08-28T15:35:47Z'
+parent_id: CB-18
+tags:
+- realtime
+- compatibility
+description: Feature-gate executable realtime transports and services while retaining v2 DTOs, protocol items, history projection, and explicit Coding unavailable errors.
+links:
+  blocks:
+  - CB-48

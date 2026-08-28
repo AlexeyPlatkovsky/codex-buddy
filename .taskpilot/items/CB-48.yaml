@@ -1,0 +1,16 @@
+schema_version: 1
+id: CB-48
+title: Disable personality instructions in Coding
+priority: high
+type: task
+status: backlog
+created_at: '2026-08-28T15:35:27Z'
+updated_at: '2026-08-28T15:35:48Z'
+parent_id: CB-18
+tags:
+- core
+- context
+description: Resolve new Coding turns to no personality instructions without rewriting old rollouts or changing Full defaults; cover outbound model context.
+links:
+  blocks:
+  - CB-49
