@@ -1,3 +1,4 @@
+mod app_tool_policy;
 mod auth_policy;
 mod browser_computer_use_requirements;
 mod browser_use;
@@ -40,6 +41,11 @@ pub mod types;
 
 pub const CONFIG_TOML_FILE: &str = "config.toml";
 
+pub use app_tool_policy::AppToolPolicy;
+pub use app_tool_policy::AppToolPolicyEvaluator;
+pub use app_tool_policy::AppToolPolicyInput;
+pub use app_tool_policy::app_is_enabled;
+pub use app_tool_policy::apps_config_from_layer_stack;
 pub use auth_policy::ManagedAuthPolicy;
 pub use browser_computer_use_requirements::AllowDenyRequirementToml;
 pub use browser_computer_use_requirements::BrowserUseAccessApprovalLifetimeToml;

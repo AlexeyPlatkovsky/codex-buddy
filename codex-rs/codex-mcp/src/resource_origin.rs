@@ -3,8 +3,8 @@
 use std::collections::VecDeque;
 
 use anyhow::Context;
-use codex_connectors::AppToolPolicyEvaluator;
-use codex_connectors::AppToolPolicyInput;
+use codex_config::AppToolPolicyEvaluator;
+use codex_config::AppToolPolicyInput;
 use codex_protocol::ThreadId;
 use codex_protocol::items::McpToolCallStatus;
 use codex_protocol::items::TurnItem;

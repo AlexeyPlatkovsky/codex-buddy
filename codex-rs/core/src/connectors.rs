@@ -5,12 +5,12 @@ use std::sync::Mutex as StdMutex;
 use std::time::Duration;
 use std::time::Instant;
 
+use codex_config::apps_config_from_layer_stack;
 pub use codex_connectors::AppBranding;
 pub use codex_connectors::AppInfo;
 pub use codex_connectors::AppMetadata;
 use codex_connectors::ConnectorDirectoryCacheContext;
 use codex_connectors::ConnectorDirectoryCacheKey;
-use codex_connectors::apps_config_from_layer_stack;
 use codex_connectors::connector_runtime_context_key;
 use codex_exec_server::EnvironmentManager;
 use codex_exec_server::ExecServerRuntimePaths;

@@ -59,7 +59,8 @@ fn evaluator_reuses_one_snapshot_across_tools() {
             },
         )]),
     };
-    let evaluator = AppToolPolicyEvaluator::from_parts(Some(apps_config), Some(&requirements));
+    let config_layer_stack = config_layer_stack_from_parts(Some(&apps_config), Some(&requirements));
+    let evaluator = AppToolPolicyEvaluator::new(&config_layer_stack);
 
     assert_eq!(
         [
@@ -190,10 +191,9 @@ fn app_enablement_uses_defaults_and_per_app_overrides() {
         [true, false, false]
     );
 
-    let evaluator = AppToolPolicyEvaluator::from_parts(
-        Some(apps_config),
-        /*requirements_apps_config*/ None,
-    );
+    let config_layer_stack =
+        config_layer_stack_from_parts(Some(&apps_config), /*requirements_apps_config*/ None);
+    let evaluator = AppToolPolicyEvaluator::new(&config_layer_stack);
     assert_eq!(
         evaluator.apply_app_enabled_state(vec![
             app("calendar", /*enabled*/ false),
@@ -228,7 +228,8 @@ fn app_enablement_preserves_source_state_and_honors_local_and_managed_overrides(
         ]),
     };
     let requirements = app_enabled_requirement("drive", /*enabled*/ false);
-    let evaluator = AppToolPolicyEvaluator::from_parts(Some(apps_config), Some(&requirements));
+    let config_layer_stack = config_layer_stack_from_parts(Some(&apps_config), Some(&requirements));
+    let evaluator = AppToolPolicyEvaluator::new(&config_layer_stack);
 
     assert_eq!(
         evaluator.apply_app_enabled_state(vec![
@@ -242,6 +243,42 @@ fn app_enablement_preserves_source_state_and_honors_local_and_managed_overrides(
             app("drive", /*enabled*/ false),
             app("slack", /*enabled*/ false),
             app("gmail", /*enabled*/ true),
+        ]
+    );
+}
+
+#[test]
+fn app_enablement_applies_requirements_only_managed_disable() {
+    let requirements = app_enabled_requirement("calendar", /*enabled*/ false);
+    let config_layer_stack = config_layer_stack_from_parts(None, Some(&requirements));
+    let evaluator = AppToolPolicyEvaluator::new(&config_layer_stack);
+
+    assert_eq!(
+        evaluator.apply_app_enabled_state(vec![
+            app("calendar", /*enabled*/ true),
+            app("drive", /*enabled*/ false),
+        ]),
+        vec![
+            app("calendar", /*enabled*/ false),
+            app("drive", /*enabled*/ false),
+        ]
+    );
+}
+
+#[test]
+fn app_enablement_preserves_source_state_for_approval_only_requirements() {
+    let requirements = app_tool_requirements("calendar", "events/create", AppToolApproval::Approve);
+    let config_layer_stack = config_layer_stack_from_parts(None, Some(&requirements));
+    let evaluator = AppToolPolicyEvaluator::new(&config_layer_stack);
+
+    assert_eq!(
+        evaluator.apply_app_enabled_state(vec![
+            app("calendar", /*enabled*/ false),
+            app("drive", /*enabled*/ true),
+        ]),
+        vec![
+            app("calendar", /*enabled*/ false),
+            app("drive", /*enabled*/ true),
         ]
     );
 }
@@ -768,6 +805,20 @@ fn policy_from_config_parts(
     destructive_hint: Option<bool>,
     open_world_hint: Option<bool>,
 ) -> AppToolPolicy {
+    let config_layer_stack = config_layer_stack_from_parts(apps_config, requirements_apps_config);
+    AppToolPolicyEvaluator::new(&config_layer_stack).policy(AppToolPolicyInput {
+        connector_id,
+        tool_name,
+        tool_title,
+        destructive_hint,
+        open_world_hint,
+    })
+}
+
+fn config_layer_stack_from_parts(
+    apps_config: Option<&AppsConfigToml>,
+    requirements_apps_config: Option<&AppsRequirementsToml>,
+) -> ConfigLayerStack {
     let requirements = ConfigRequirementsToml {
         apps: requirements_apps_config.cloned(),
         ..Default::default()
@@ -775,7 +826,7 @@ fn policy_from_config_parts(
     let config_layer_stack =
         ConfigLayerStack::new(Vec::new(), ConfigRequirements::default(), requirements)
             .expect("config layer stack");
-    let config_layer_stack = if let Some(apps_config) = apps_config {
+    if let Some(apps_config) = apps_config {
         let mut user_config = TomlValue::Table(Default::default());
         user_config
             .as_table_mut()
@@ -792,14 +843,7 @@ fn policy_from_config_parts(
             .expect("apps user config should be valid")
     } else {
         config_layer_stack
-    };
-    AppToolPolicyEvaluator::new(&config_layer_stack).policy(AppToolPolicyInput {
-        connector_id,
-        tool_name,
-        tool_title,
-        destructive_hint,
-        open_world_hint,
-    })
+    }
 }
 
 fn app_enabled_requirement(app_id: &str, enabled: bool) -> AppsRequirementsToml {

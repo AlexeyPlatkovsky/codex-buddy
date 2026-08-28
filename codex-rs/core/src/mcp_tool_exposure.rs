@@ -5,8 +5,8 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::Weak;
 
-use codex_connectors::AppToolPolicyEvaluator;
-use codex_connectors::AppToolPolicyInput;
+use codex_config::AppToolPolicyEvaluator;
+use codex_config::AppToolPolicyInput;
 use codex_mcp::CODEX_APPS_MCP_SERVER_NAME;
 use codex_mcp::McpBinding;
 use codex_mcp::ToolInfo as McpToolInfo;
