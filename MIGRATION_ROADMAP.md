@@ -388,6 +388,38 @@ App-server must remain for now, but its unconditional extension dependencies sho
   queued for permanent cleanup because an unrelated active Cargo feature-tree process correctly
   triggers the cleanup guard.
 
+### Runtime-pruning closure evidence
+
+- CB-52 closes the CB-46 through CB-51 runtime-boundary sequence without changing the retained
+  app-server v2 methods, CLI/config parsing, managed policy, rollout projection, or historical
+  session deserialization. The relevant implementation records are `ad6a67a3f9`, `a8749464c8`,
+  `c09a15e5bc`, `820c16b71f`, `bc31f45c2f`, and `61af7c0113`.
+- The CI `buddy_slim` job invokes the reusable locked
+  `scripts/buddy_release/dependency_preflight.sh`. It checks Slim compilation roots and proves
+  Buddy excludes connectors/plugins, agent and queue extensions, executable code-mode/protocol/
+  host/runtime/V8, audio, memories, image generation, cloud-task runtimes, and realtime/code-mode
+  features. Reciprocal assertions prove that Full app-server retains agent, queue, audio, memory,
+  image, and code-mode/protocol roots while Full CLI retains cloud-task roots and enables the
+  retained realtime and code-mode features. Cargo metadata assertions keep the composition
+  dependencies optional.
+- Behavior evidence remains stage-specific and green: realtime preserves all six v2 methods and
+  returns `-32600` in Coding before lookup; Coding personality does not rewrite stored rollout
+  context; Coding TUI keeps stable unavailable behavior; and Coding code-mode resumes historical
+  code-cell items without advertising or starting a host while Full keeps execution. The Full
+  app-server host test compiled but did not reach assertions because its existing host-binary
+  fixture was not staged. The broad Coding TUI run had unrelated existing plugin/reset-memory
+  failures and lifecycle timeouts after 334 passes; no focused CB-49 check failed.
+- CB-21 remains the unblocked release-measurement handoff: repeat the same-target/profile/linker
+  release binary and cold/warm startup measurements, including a real first TUI frame, and report
+  the current normal-graph count rather than reusing the older 1,287-node observation. CB-22
+  remains the unblocked native release matrix handoff for macOS arm64, macOS x86_64, Linux x86_64,
+  Linux arm64, and Windows x86_64. Neither is a completed CB-52 measurement.
+- `bash -n`, `taskpilot validate`, and `git diff --check` pass for this closure. No broad build,
+  graph preflight, or artifact cleanup was rerun while unrelated `cargo tree` PID 51403 remained
+  active and `codex-rs/target` was 26 GiB. The dedicated `buddy_slim` change output now detects
+  script-only preflight edits; those edits select only the Slim-boundary job, while Rust and
+  workflow changes retain their existing broader CI selection.
+
 ### Build artifact cleanup guard
 
 - On 2026-08-28, migration validation was paused until the active Bazel build finished, then the
