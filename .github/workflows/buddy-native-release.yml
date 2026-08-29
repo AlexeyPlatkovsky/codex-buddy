@@ -2,19 +2,7 @@ name: Buddy native release
 
 on:
   workflow_call:
-    inputs:
-      include_macos_x86_64:
-        description: Run the manual native Intel macOS lane when its self-hosted runner is available.
-        required: false
-        default: false
-        type: boolean
   workflow_dispatch:
-    inputs:
-      include_macos_x86_64:
-        description: Run the native Intel macOS lane on the configured self-hosted runner.
-        required: false
-        default: false
-        type: boolean
 
 jobs:
   native:
@@ -149,64 +137,9 @@ jobs:
             Remove-Item -LiteralPath $targetDir -Recurse -Force
           }
 
-  macos_x86_64:
-    name: Buddy release — macOS x86_64 (native manual lane)
-    if: ${{ inputs.include_macos_x86_64 }}
-    runs-on:
-      group: ${{ github.event.repository.name }}-runners
-      labels: ${{ github.event.repository.name }}-macos-x64
-    timeout-minutes: 90
-    permissions:
-      contents: read
-    defaults:
-      run:
-        working-directory: codex-rs
-    env:
-      CARGO_INCREMENTAL: "0"
-      BUDDY_TARGET_BASENAME: codex-buddy-native-release-${{ github.run_id }}-macos-x64
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup-ci
-      - uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582 # 1.95.0
-      - name: Use an ephemeral Cargo target directory
-        shell: bash
-        run: |
-          target_dir="${RUNNER_TEMP}/${BUDDY_TARGET_BASENAME}"
-          export BUDDY_TARGET_DIR="${target_dir}"
-          export CARGO_TARGET_DIR="${target_dir}"
-          {
-            echo "BUDDY_TARGET_DIR=${BUDDY_TARGET_DIR}"
-            echo "CARGO_TARGET_DIR=${CARGO_TARGET_DIR}"
-          } >> "$GITHUB_ENV"
-      - name: Build and smoke native Intel macOS Buddy
-        shell: bash
-        run: |
-          set -euo pipefail
-          host_target="$(rustc -vV | awk '/^host: / { print $2 }')"
-          [[ "${host_target}" == "x86_64-apple-darwin" ]]
-          cargo build --locked --release -p codex-buddy --target x86_64-apple-darwin
-          binary="${BUDDY_TARGET_DIR}/x86_64-apple-darwin/release/codex-buddy"
-          [[ -x "${binary}" ]]
-          "${binary}" --version
-          "${binary}" exec --help | grep -Fq 'Usage:'
-      - name: Remove ephemeral Cargo artifacts
-        if: ${{ always() }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          target_dir="${RUNNER_TEMP}/${BUDDY_TARGET_BASENAME}"
-          case "${target_dir}" in
-            "${RUNNER_TEMP}"/codex-buddy-native-release-*) ;;
-            *) echo "refusing unexpected target directory: ${target_dir}" >&2; exit 1 ;;
-          esac
-          [[ ! -L "${target_dir}" ]]
-          rm -rf "${target_dir}"
-
   results:
     name: Buddy native release results
-    needs: [native, macos_x86_64]
+    needs: native
     if: ${{ always() }}
     runs-on: ubuntu-24.04
     steps:
@@ -215,8 +148,3 @@ jobs:
         run: |
           set -euo pipefail
           [[ '${{ needs.native.result }}' == 'success' ]] || { echo 'native Buddy matrix failed'; exit 1; }
-          if [[ '${{ inputs.include_macos_x86_64 }}' == 'true' ]]; then
-            [[ '${{ needs.macos_x86_64.result }}' == 'success' ]] || { echo 'native Intel macOS lane failed'; exit 1; }
-          else
-            echo 'Native Intel macOS evidence remains pending its opt-in self-hosted lane.'
-          fi

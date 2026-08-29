@@ -1,6 +1,6 @@
 # Codex Buddy migration roadmap
 
-Last updated: 2026-08-28
+Last updated: 2026-08-29
 
 This file is the restart handoff for continuing the Codex Buddy fork after a fresh Codex session. It records the current repository state, completed architecture cuts, remaining work, validation expectations, and decisions that should not be rediscovered.
 
@@ -39,9 +39,10 @@ Current migration checkpoint:
 
 - The Stage 1 implementation commit is `77e483d3dd Gate plugin runtime behind core feature`.
 - The worktree is clean.
-- `CB-19`, `CB-20`, `CB-21`, `CB-35`, and `CB-45` through `CB-52` are done. `CB-22`
-  remains open for native macOS x86_64 evidence and automatic postmerge integration.
+- `CB-19` through `CB-22`, `CB-35`, and `CB-45` through `CB-52` are done.
 - `CB-1` (explicit config-driven runtime) and `CB-23` (right-side subagent tree) are done.
+- `CB-12` (lightweight client/distribution), `CB-18` (dependency pruning), and `CB-34`
+  (maintainable fork lifecycle) are closed.
 
 ## Product boundary
 
@@ -413,8 +414,8 @@ App-server must remain for now, but its unconditional extension dependencies sho
 - CB-21 remains the unblocked release-measurement handoff: repeat the same-target/profile/linker
   release binary and cold/warm startup measurements, including a real first TUI frame, and report
   the current normal-graph count rather than reusing the older 1,287-node observation. CB-22
-  remains the unblocked native release matrix handoff for macOS arm64, macOS x86_64, Linux x86_64,
-  Linux arm64, and Windows x86_64. Neither is a completed CB-52 measurement.
+  remains the unblocked native release matrix handoff for macOS arm64, Linux x86_64, Linux arm64,
+  and Windows x86_64. Neither is a completed CB-52 measurement.
 - `bash -n`, `taskpilot validate`, and `git diff --check` pass for this closure. No broad build or
   graph preflight was rerun while unrelated `cargo tree` PID 51403 remained active. After proving
   that exact read-only process held no target files, the 26 GiB tree was permanently removed. The
@@ -544,13 +545,34 @@ workflow-artifact retention.
 The baseline graph still contained `codex-code-mode` and `codex-code-mode-protocol`; the current
 forbidden-root set is empty. Neither sampled TUI observation found a child process. The small timing
 deltas are noise-scale and are not claimed as a runtime-startup improvement. The linked-binary
-reduction is real but does not meet the 15% release-size gate; publishing therefore still requires
-an explicitly approved size-gate exception or further pruning.
+reduction is real but does not meet the original 15% target. On 2026-08-29 the product owner
+accepted the measured 1.978% stripped reduction, so the numerical target is no longer a release
+gate.
 
 Per-revision permanent cleanup reclaimed 7,726,919,680 B for the baseline and 7,563,227,136 B for
 the current build. Final workspace-root cleanup reclaimed the remaining 407,642,112 B before the
 JSON was emitted. Runner-wide free space ended 1,372,803,072 B below its initial value because
 toolchain/shared runner caches live outside the guarded workspace measurement root.
+
+### Why the measured reduction is only 1.978%
+
+The hosted comparison is credible, but its baseline `021111061d` is the merge after queue and
+detached-review pruning. It already includes the earlier CLI, non-coding extension, audio,
+memories/history/goals, connector, and plugin-runtime cuts. Accordingly, its forbidden-root report
+was already empty except for `codex-code-mode` and `codex-code-mode-protocol`.
+
+The measured range removes those two package-version nodes and adds the retained
+`codex-code-mode-types` compatibility crate, giving the exact net count `1,331 - 2 + 1 = 1,330`.
+The normal-graph metric counts unique package versions; it does not measure enabled features or
+linked object-code bytes. The same-target stripped comparison independently shows a real 4,022,136
+byte reduction. Thin LTO and linker dead-code elimination also make package counts a poor binary
+size proxy, but this report does not attempt to attribute a precise byte count to linker GC.
+
+If an end-to-end migration number is wanted later, rerun the hosted harness from pre-pruning
+baseline `92529d95fd` (the parent of `a56bf87e`, the first heavy-pruning commit) through
+`326747461d`, with the same toolchain, target, linker, and profile. Add a feature-graph diff and a
+symbol/object-size report if byte attribution is required. Do not reinterpret the current 1.978%
+as an end-to-end migration result.
 
 Use `CB-21`. Establish repeatable baselines rather than anecdotal timing.
 
@@ -570,8 +592,8 @@ Record commit hashes, OS, target triple, Rust version, linker, feature set, and 
 
 ## Stage 5: CI and platforms
 
-Status: in progress in TaskPilot `CB-22`. Manual native run `33203764981` at
-`68be9f217757e9b8cbe754da3f7f8c445ba3c59a` completed successfully. Every automatic lane built the
+Status: completed in TaskPilot `CB-22`. Manual native run `33203764981` at
+`68be9f217757e9b8cbe754da3f7f8c445ba3c59a` completed successfully. Every configured lane built the
 default Coding release composition, verified the native host target, passed `--version` and
 `exec --help` smoke checks, and permanently removed its exact runner-temporary Cargo target.
 
@@ -581,15 +603,17 @@ default Coding release composition, verified the native host target, passed `--v
 | Linux x86_64 | `ubuntu-24.04` | passed |
 | Linux arm64 | `ubuntu-24.04-arm` | passed |
 | Windows x86_64 | `windows-2025` | passed |
-| macOS x86_64 | opt-in self-hosted | pending; lane intentionally skipped because no Intel runner is configured |
 
 The direct workflow run is authoritative native evidence. The existing `postmerge-ci` parent had
 repeatedly ended in `startup_failure` before creating jobs, including run `33206203918` at main
 `10e22963dac4`. GitHub's run annotation identifies the exact permission-chain error: nested V8
 builds requested `actions: read` while the caller allowed `actions: none`. The final migration
-change grants `actions: read` and `contents: read` only to the V8 reusable-workflow call. A green
-automatic main run remains required before claiming the repaired postmerge release gate. Native
-macOS Intel remains an explicit opt-in self-hosted lane until a runner is configured.
+change grants `actions: read` and `contents: read` only to the V8 reusable-workflow call. Automatic
+run `33210391794` expanded correctly, proving the startup fix; three native lanes passed, while its
+Windows runner stopped during Cargo without a completed step or downloadable log. The earlier
+standalone Windows lane is green and remains the accepted platform evidence. Native Intel macOS is
+not a supported release requirement, and its workflow input, job, and aggregate dependency were
+removed on 2026-08-29.
 
 Use `CB-22`.
 
@@ -719,26 +743,27 @@ Use `CB-20` and `CB-45` through `CB-52` for the ordered runtime-removal slices, 
 | Measurement | Startup, binary size, dependency count, and runtime initialization deltas are reproducible and recorded. |
 | Upstream maintenance | Sync conflicts remain localized to feature composition and small boundary modules. |
 
-## Remaining migration gates
+## Migration closure and optional follow-ups
 
-The runtime-pruning implementation, compatibility work, hosted measurement, four automatic native
-platform lanes, cleanup guard, and upstream-sync hardening are complete. The parent feature
-`CB-18` and epic `CB-12` remain open for these evidence/release decisions:
+The runtime-pruning implementation, compatibility work, hosted measurement, four supported native
+platform lanes, cleanup guard, and upstream-sync hardening are complete. The product owner accepted
+the measured 1.978% stripped-binary reduction and removed native Intel macOS from the supported
+release requirements on 2026-08-29. `.github/CODEX_BUDDY_RELEASE_GATES.md` records both decisions
+as permanent, no-expiry product requirements. `CB-18` and `CB-12` therefore close with the
+following optional follow-ups rather than release blockers:
 
-1. Meet the 15% stripped release-binary reduction target or approve a documented exception. The
-   measured reduction is 1.978%, so dependency exclusion is proven but the size gate is not met.
-2. Configure an Intel macOS self-hosted runner and execute the opt-in native x86_64 lane, or approve
-   an explicit supported-platform exception.
-3. Verify the scoped `postmerge-ci` V8 permission fix on main so the green native matrix runs
-   automatically, then retain the successful run URL as release evidence.
-4. If stronger performance claims are required, collect the explicitly missing privileged
+1. If stronger performance claims are required, compare against a pre-pruning baseline and collect
+   the explicitly missing privileged
    true-cold, stable idle-RSS, in-process initialization, and model-backed first-turn measurements.
    The current report deliberately makes no claim from unavailable evidence.
+2. Repair the fork's unrelated `rust-ci-full` hosted/self-hosted runner configuration so the whole
+   postmerge aggregate can become green. This does not invalidate the standalone four-platform
+   Buddy evidence.
 
 ## Next-session recommended first action
 
-Verify one automatic main-branch native run after the scoped `postmerge-ci` V8 permission fix. Keep
-`CB-22` open until that evidence and native Intel macOS evidence (or an approved exception) exist.
-Treat the 15% size gate as a release decision: continue pruning in a new reviewable TaskPilot slice
-or record explicit approval for the measured 1.978% result. Do not remove the in-process app-server
-as part of either follow-up; that remains a separate architecture decision.
+The migration is closed. If additional size work is desired, first repeat the hosted measurement
+against a pre-pruning baseline so the result represents the entire fork migration rather than only
+the final runtime slices. Keep any further pruning in a new reviewable TaskPilot feature. Do not
+remove the in-process app-server as part of that follow-up; it remains a separate architecture
+decision.
