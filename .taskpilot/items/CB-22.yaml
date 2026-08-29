@@ -3,12 +3,12 @@ id: CB-22
 title: Verify Linux, macOS, and Windows coding builds
 priority: high
 type: task
-status: in_progress
+status: done
 created_at: '2026-08-27T14:14:35Z'
-updated_at: '2026-08-28T19:03:03Z'
+updated_at: '2026-08-29T02:38:44Z'
 parent_id: CB-18
 tags:
 - ci
 - cross-platform
-description: Add targeted build and smoke coverage for supported platforms without expanding routine tests to all features.
+description: Build and smoke the supported Coding distribution natively on macOS arm64, Linux x86_64, Linux arm64, and Windows x86_64 without expanding routine tests to all features. Native Intel macOS is not a release requirement.
 created_by: codex
