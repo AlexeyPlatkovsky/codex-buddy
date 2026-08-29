@@ -1,81 +1,67 @@
-<p align="center"><strong>Codex CLI</strong> is a coding agent from OpenAI that runs locally on your computer.
-<p align="center">
-  <img src="https://github.com/openai/codex/blob/main/.github/codex-cli-splash.png" alt="Codex CLI splash" width="80%" />
-</p>
-</br>
-If you want Codex in your code editor (VS Code, Cursor, Windsurf), <a href="https://developers.openai.com/codex/ide">install in your IDE.</a>
-</br>If you want the desktop app experience, run <code>codex app</code> or visit <a href="https://chatgpt.com/codex?app-landing-page=true">the Codex App page</a>.
-</br>If you are looking for the <em>cloud-based agent</em> from OpenAI, <strong>Codex Web</strong>, go to <a href="https://chatgpt.com/codex">chatgpt.com/codex</a>.</p>
+# Codex Buddy ⚡
 
----
+Codex Buddy is a lightweight, coding-focused fork of the Codex CLI. It keeps the interactive TUI, headless `exec`, review, resume/fork, authentication, sandboxing, apply-patch, and explicitly configured MCP workflows while removing or deferring non-coding runtime surface.
 
-## Quickstart
+## Try it
 
-### Installing and running Codex CLI
-
-Run the following on Mac or Linux to install Codex CLI:
+Build and run locally:
 
 ```shell
-curl -fsSL https://chatgpt.com/codex/install.sh | sh
+cd codex-rs
+cargo build --locked --release -p codex-buddy
+./target/release/codex-buddy
 ```
 
-Run the following on Windows to install Codex CLI:
+The local macOS DMG is a CLI binary, not a `.app`: mount it, copy `codex-buddy` to a directory on your `PATH`, then run `codex-buddy`.
 
-```shell
-powershell -ExecutionPolicy ByPass -c "irm https://chatgpt.com/codex/install.ps1 | iex"
-```
+## What is different? 🧭
 
-The standalone installers download from `https://releases.openai.com/codex` by default and fall back to GitHub Releases if a metadata or asset download is unavailable. To force GitHub Releases, set `CODEX_INSTALLER_USE_RELEASES_OPENAI_COM` to `false` (`0` and `no` are also accepted):
+| Area | Standard Codex CLI | Codex Buddy |
+| --- | --- | --- |
+| Focus | Full product surface | Coding workflows first |
+| Command | `codex` | `codex-buddy` |
+| Code Mode | Available when supplied by the full build | Intentionally excluded; direct tools are used instead |
+| Heavy surfaces | May include apps, plugins, browser/computer automation, cloud, voice, and generation features | Removed or not constructed in the coding runtime profile |
+| MCP and skills | Full discovery/composition | Explicit configuration and project instructions only |
 
-```shell
-curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_INSTALLER_USE_RELEASES_OPENAI_COM=false sh
-```
+⚠️ Code Mode cannot be enabled by a configuration key in the compact Buddy binary: it is a compile-time dependency choice. A future full Buddy variant would need a separate build and the `codex-code-mode-host` helper.
 
-```powershell
-$env:CODEX_INSTALLER_USE_RELEASES_OPENAI_COM='false'; irm https://chatgpt.com/codex/install.ps1 | iex
-```
+## Evidence so far 🧪
 
-Codex CLI can also be installed via the following package managers:
+All figures below are exploratory macOS arm64 measurements, not release gates or promises. The full ideal comparison still requires the dedicated Linux runner recorded in the roadmap.
 
-```shell
-# Install using npm
-npm install -g @openai/codex
-```
+| Measure | Standard / baseline | Buddy | Change |
+| --- | ---: | ---: | ---: |
+| Release binary | 987.3 MB | 967.5 MB | -2.0% |
+| First verified TUI frame | 106.7 ms | 107.1 ms | no meaningful change |
+| RSS at first TUI output | 23,356 KiB | 23,052 KiB | -1.3% |
+| First request payload | 71,691 B | 62,560 B | -12.7% |
+| First request with the opt-in minimal root prompt | 71,691 B | 42,417 B | -40.8% |
+| Root-instruction portion with the minimal prompt | 21,209 B | 1,066 B | -95.0% |
 
-```shell
-# Install using Homebrew
-brew install --cask codex
-```
+The minimal prompt is an opt-in experiment, not the default release setting. It reduced the initial request by about 7,318 approximate tokens in this harness.
 
-Then simply run `codex` to get started.
+## Quality checks ✅
 
-<details>
-<summary>You can also go to the <a href="https://github.com/openai/codex/releases/latest">latest GitHub Release</a> and download the appropriate binary for your platform.</summary>
+Real authenticated-model runs compare installed Codex CLI 0.151.0 with Buddy using deterministic local graders. Buddy passed all repeated, supported cases:
 
-Each GitHub Release contains many executables, but in practice, you likely want one of these:
+| Scenario, three macOS runs | Codex | Buddy |
+| --- | ---: | ---: |
+| Multi-step fix, changelog, and tests | 2/3 | 3/3 |
+| Retry after a forced transient tool failure | 3/3 | 3/3 |
+| Follow a project `AGENTS.md` → `SKILL.md` instruction | 3/3 | 3/3 |
+| Nearest scoped `AGENTS.md` instruction | 3/3 | 3/3 |
 
-- macOS
-  - Apple Silicon/arm64: `codex-aarch64-apple-darwin.tar.gz`
-  - x86_64 (older Mac hardware): `codex-x86_64-apple-darwin.tar.gz`
-- Linux
-  - x86_64: `codex-x86_64-unknown-linux-musl.tar.gz`
-  - arm64: `codex-aarch64-unknown-linux-musl.tar.gz`
+⚠️ Actual subagent delegation and a real approval/sandbox denial are not yet proven by the local CLI benchmark; follow-up work captures the tool/approval events rather than inferring them from files.
 
-Each archive contains a single entry with the platform baked into the name (e.g., `codex-x86_64-unknown-linux-musl`), so you likely want to rename it to `codex` after extracting it.
+## Versioning 📌
 
-</details>
+Buddy releases will use Semantic Versioning: patch for compatible fixes, minor for user-visible Buddy features, and major for incompatible changes. Upstream merges are assessed for user-visible impact before the next Buddy release version is chosen.
 
-### Using Codex with your ChatGPT plan
+## References
 
-Run `codex` and select **Sign in with ChatGPT**. We recommend signing into your ChatGPT account to use Codex as part of your Plus, Pro, Business, Edu, or Enterprise plan. [Learn more about what's included in your ChatGPT plan](https://help.openai.com/en/articles/11369540-codex-in-chatgpt).
-
-You can also use Codex with an API key, but this requires [additional setup](https://developers.openai.com/codex/auth#sign-in-with-an-api-key).
-
-## Docs
-
-- [**Codex Documentation**](https://developers.openai.com/codex)
-- [**Contributing**](./docs/contributing.md)
-- [**Installing & building**](./docs/install.md)
-- [**Open source fund**](./docs/open-source-fund.md)
+- [Migration roadmap](MIGRATION_ROADMAP.md)
+- [Performance and payload harness](scripts/buddy_release/compare_e2e_performance.py)
+- [Prompt-quality benchmark](scripts/buddy_release/compare_prompt_quality.py)
 
 This repository is licensed under the [Apache-2.0 License](LICENSE).

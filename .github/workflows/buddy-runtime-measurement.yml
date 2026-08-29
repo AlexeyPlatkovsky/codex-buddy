@@ -20,6 +20,15 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup-ci
       - uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582 # 1.95.0
+      - name: Validate E2E measurement harness
+        shell: bash
+        run: |
+          python3 scripts/buddy_release/compare_e2e_performance.py \
+            --dry-run \
+            --current "${GITHUB_SHA}" \
+            --output "${RUNNER_TEMP}/buddy-e2e-performance-dry-run.json"
+          jq -e '.mode == "dry-run" and .schema_version == 1' \
+            "${RUNNER_TEMP}/buddy-e2e-performance-dry-run.json"
       - name: Measure baseline and Coding runtime
         shell: bash
         run: |
@@ -38,7 +47,7 @@ jobs:
         if: ${{ always() }}
         shell: bash
         run: |
-          if find . -maxdepth 1 -name '.buddy_runtime_measurement.*' -print -quit \
+          if find . -maxdepth 1 \( -name '.buddy_runtime_measurement.*' -o -name '.buddy_e2e_performance.*' \) -print -quit \
             | grep -q .; then
             echo "measurement artifacts remain in the workspace" >&2
             exit 1

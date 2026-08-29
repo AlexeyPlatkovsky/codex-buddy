@@ -1,0 +1,16 @@
+schema_version: 1
+id: CB-62
+title: Execute the ideal paired benchmark
+priority: high
+type: task
+status: backlog
+created_at: '2026-08-29T06:11:10Z'
+updated_at: '2026-08-29T12:52:51Z'
+parent_id: CB-56
+tags:
+- benchmark
+description: On a dedicated Linux x86_64 runner, build 92529d95fd and the frozen current commit once, then collect at least 10 privileged cold pairs and 30 measured warm pairs per scenario after five warmups using a seeded balanced order. Rerun from a clean boot if load, thermal, cache, semantic-equivalence, or scenario-success preflight fails.
+links:
+  blocks:
+  - CB-63
+created_by: codex

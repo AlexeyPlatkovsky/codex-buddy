@@ -1,0 +1,14 @@
+schema_version: 1
+id: CB-69
+title: Brand and version Codex Buddy releases
+priority: high
+type: task
+status: in_progress
+created_at: '2026-08-29T15:46:03Z'
+updated_at: '2026-08-29T15:46:03Z'
+parent_id: CB-12
+tags:
+- distribution
+- versioning
+- tui
+description: 'Set an explicit Buddy product identity and SemVer release version independent of upstream placeholders. Acceptance: the TUI session header and status card show Codex Buddy v1.0.0, the CLI reports 1.0.0, snapshot coverage records the user-visible change, and the versioning policy states how Buddy changes and upstream merges advance releases.'

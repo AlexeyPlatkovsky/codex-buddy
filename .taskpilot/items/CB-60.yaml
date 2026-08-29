@@ -1,0 +1,17 @@
+schema_version: 1
+id: CB-60
+title: Implement paired statistics and evidence output
+priority: high
+type: task
+status: done
+created_at: '2026-08-29T06:11:08Z'
+updated_at: '2026-08-29T06:30:33Z'
+parent_id: CB-55
+tags:
+- python
+- statistics
+description: 'Emit raw per-run samples plus median, p90/p95, MAD, paired percentage deltas, deterministic bootstrap confidence intervals, artifact hashes, environment metadata, and pass/fail/inconclusive classification. Acceptance: no aggregate can be emitted without its raw observations and scenario-success checks.'
+links:
+  blocks:
+  - CB-61
+created_by: codex

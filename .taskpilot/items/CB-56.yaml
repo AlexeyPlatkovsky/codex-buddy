@@ -1,0 +1,14 @@
+schema_version: 1
+id: CB-56
+title: Run and publish controlled E2E evidence
+priority: high
+type: feature
+status: backlog
+created_at: '2026-08-29T06:10:47Z'
+updated_at: '2026-08-29T12:52:52Z'
+parent_id: CB-53
+tags:
+- performance
+- ci
+description: 'Execute the Python comparison on an ideal dedicated Linux x86_64 runner and publish reviewable raw evidence and conclusions. Acceptance: pre-pruning 92529d95fd and the selected current commit use the same pinned toolchain, target, linker, release profile, power and cache policy; required repetitions complete; report hashes and limitations are attached to the release decision.'
+created_by: codex

@@ -1,0 +1,18 @@
+schema_version: 1
+id: CB-58
+title: Specify runner isolation and sampling policy
+priority: high
+type: task
+status: done
+created_at: '2026-08-29T06:11:06Z'
+updated_at: '2026-08-29T06:30:30Z'
+parent_id: CB-54
+tags:
+- benchmark
+- ci
+description: 'Define a dedicated same-host comparison: pinned toolchain/target/linker/profile, fixed power mode, bounded load and thermal preflight, credentials removed, external network disabled, true-cold cache eviction only when privileged, warmups excluded, and balanced randomized baseline/current pairs. Acceptance: every uncontrolled condition is fatal or explicit in the report.'
+links:
+  blocks:
+  - CB-59
+  - CB-60
+created_by: codex

@@ -1,0 +1,14 @@
+schema_version: 1
+id: CB-66
+title: Expand real-model prompt-quality coverage
+priority: high
+type: task
+status: done
+created_at: '2026-08-29T14:52:18Z'
+updated_at: '2026-08-29T15:09:17Z'
+parent_id: CB-56
+tags:
+- benchmark
+- quality
+description: Extend the opt-in real-model benchmark with deterministic evidence for multi-step completion, a required retry after a transient tool failure, project skill-file instruction use, sandbox boundary/approval behavior, and subagent delegation when the runtime exposes collaboration tools. Run the applicable scenarios against installed Codex and Buddy with the minimal root prompt; distinguish unsupported runtime features from quality failures.
+created_by: codex

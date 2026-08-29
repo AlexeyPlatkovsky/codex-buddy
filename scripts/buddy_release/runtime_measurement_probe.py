@@ -164,7 +164,9 @@ def tui_first_frame(
             import fcntl
             import termios
 
-            fcntl.ioctl(master_fd, termios.TIOCSWINSZ, struct.pack("HHHH", 24, 80, 0, 0))
+            fcntl.ioctl(
+                master_fd, termios.TIOCSWINSZ, struct.pack("HHHH", 24, 80, 0, 0)
+            )
         except OSError:
             pass
 
@@ -185,7 +187,9 @@ def tui_first_frame(
                 descendants_at_first_output = descendant_processes(pid)
             captured.extend(data)
             if first_verified_frame_ns is None:
-                has_screen_control, rendered_text_bytes = frame_evidence(bytes(captured))
+                has_screen_control, rendered_text_bytes = frame_evidence(
+                    bytes(captured)
+                )
                 if has_screen_control and rendered_text_bytes >= 20:
                     first_verified_frame_ns = time.perf_counter_ns()
             if len(captured) == 4096:
@@ -248,7 +252,9 @@ def main() -> None:
     if not binary.is_file() or binary.is_symlink():
         raise SystemExit(f"refusing probe: binary is not a regular file: {binary}")
     if not codex_home.is_dir() or codex_home.is_symlink():
-        raise SystemExit(f"refusing probe: CODEX_HOME is not a regular directory: {codex_home}")
+        raise SystemExit(
+            f"refusing probe: CODEX_HOME is not a regular directory: {codex_home}"
+        )
     if args.warm_runs < 1 or args.tui_timeout_seconds <= 0:
         raise SystemExit("warm runs and TUI timeout must be positive")
 

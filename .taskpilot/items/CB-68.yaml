@@ -1,0 +1,13 @@
+schema_version: 1
+id: CB-68
+title: Prove approval and sandbox boundaries in quality benchmark
+priority: high
+type: task
+status: backlog
+created_at: '2026-08-29T15:09:15Z'
+updated_at: '2026-08-29T15:09:15Z'
+parent_id: CB-56
+tags:
+- benchmark
+- approvals
+description: Replace the parent-directory macOS fixture with a boundary that the configured sandbox actually denies, and capture the approval or denial event. Compare installed Codex and Buddy without conflating unsupported runtime configuration with model quality.

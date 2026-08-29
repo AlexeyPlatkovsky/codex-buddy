@@ -1,0 +1,14 @@
+schema_version: 1
+id: CB-65
+title: Add an opt-in real-model prompt-quality benchmark
+priority: high
+type: task
+status: done
+created_at: '2026-08-29T13:53:05Z'
+updated_at: '2026-08-29T14:33:34Z'
+parent_id: CB-56
+tags:
+- benchmark
+- quality
+description: 'Add a small fixture-based benchmark that compares installed Codex and Buddy with the minimal root prompt using real authenticated model calls only when explicitly enabled. Acceptance: at least three safe tasks have deterministic local graders, runs are isolated and paired, results redact model text, and the script has unit coverage without network use.'
+created_by: codex

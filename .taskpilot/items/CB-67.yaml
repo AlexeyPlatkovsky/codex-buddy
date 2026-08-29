@@ -1,0 +1,13 @@
+schema_version: 1
+id: CB-67
+title: Prove delegated subagent tool use in quality benchmark
+priority: high
+type: task
+status: backlog
+created_at: '2026-08-29T15:09:14Z'
+updated_at: '2026-08-29T15:09:14Z'
+parent_id: CB-56
+tags:
+- benchmark
+- subagents
+description: Add an app-server or known-supported collaboration-runtime benchmark that captures the spawn_agent tool call itself, then compare installed Codex and Buddy. Do not treat final artifacts as evidence of delegation.

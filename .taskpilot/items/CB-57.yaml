@@ -1,0 +1,17 @@
+schema_version: 1
+id: CB-57
+title: Specify scenarios metrics and JSON schema
+priority: high
+type: task
+status: done
+created_at: '2026-08-29T06:11:05Z'
+updated_at: '2026-08-29T06:30:29Z'
+parent_id: CB-54
+tags:
+- benchmark
+description: Specify parser launch, TUI first frame, headless first turn, and interactive TUI first turn against a deterministic loopback Responses server. Define monotonic timestamps, CPU/RSS/process-tree sampling, size and graph metadata, raw samples, schema versioning, failure semantics, and the primary non-inferiority metric.
+links:
+  blocks:
+  - CB-59
+  - CB-60
+created_by: codex
