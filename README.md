@@ -35,11 +35,15 @@ All figures below are exploratory macOS arm64 measurements, not release gates or
 | Release binary | 987.3 MB | 967.5 MB | -2.0% |
 | First verified TUI frame | 106.7 ms | 107.1 ms | no meaningful change |
 | RSS at first TUI output | 23,356 KiB | 23,052 KiB | -1.3% |
+| Idle RSS after 2 minutes, no prompt | 95.0 MB | 33.4 MB | -64.8% |
+| RSS after a four-phone web-research task | 97–134 MB, including Code Mode host | 66.7 MB | -31% to -50% |
 | First request payload | 71,691 B | 62,560 B | -12.7% |
 | First request with the opt-in minimal root prompt | 71,691 B | 42,417 B | -40.8% |
 | Root-instruction portion with the minimal prompt | 21,209 B | 1,066 B | -95.0% |
 
 The minimal prompt is an opt-in experiment, not the default release setting. It reduced the initial request by about 7,318 approximate tokens in this harness.
+
+The two RSS rows are manual measurements on the same MacBook, using the same model and a user-root working directory. The standard CLI runtime range includes its approximately 8.9 MB `codex-code-mode-host` helper when present; RSS naturally varies during tool use, so this is a representative range rather than a release guarantee.
 
 ## Quality checks ✅
 
