@@ -1,6 +1,6 @@
 [package]
 name = "codex-buddy"
-version.workspace = true
+version = "1.0.1"
 edition.workspace = true
 license.workspace = true
 
@@ -27,7 +27,7 @@ codex-cli = { workspace = true, default-features = false }
 codex-config = { workspace = true }
 codex-exec = { path = "../exec", default-features = false }
 codex-runtime-profile = { workspace = true }
-codex-tui = { path = "../tui", default-features = false }
+codex-tui = { path = "../tui", default-features = false, features = ["buddy-branding"] }
 codex-utils-cli = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 

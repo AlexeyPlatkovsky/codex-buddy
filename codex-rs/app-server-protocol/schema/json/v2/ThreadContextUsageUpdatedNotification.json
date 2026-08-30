@@ -1,0 +1,67 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "ThreadContextUsage": {
+      "description": "Approximate token allocation across the latest model-visible request.",
+      "properties": {
+        "assistantAndReasoningTokens": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "baseInstructionsTokens": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "otherTokens": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "toolActivityTokens": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "toolDefinitionsTokens": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "totalTokens": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "userAndDeveloperTokens": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "assistantAndReasoningTokens",
+        "baseInstructionsTokens",
+        "otherTokens",
+        "toolActivityTokens",
+        "toolDefinitionsTokens",
+        "totalTokens",
+        "userAndDeveloperTokens"
+      ],
+      "type": "object"
+    }
+  },
+  "description": "Approximate model-visible context in the latest request constructed for a thread.",
+  "properties": {
+    "contextUsage": {
+      "$ref": "#/definitions/ThreadContextUsage"
+    },
+    "threadId": {
+      "type": "string"
+    },
+    "turnId": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "contextUsage",
+    "threadId",
+    "turnId"
+  ],
+  "title": "ThreadContextUsageUpdatedNotification",
+  "type": "object"
+}

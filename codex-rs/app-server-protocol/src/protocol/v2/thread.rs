@@ -32,6 +32,7 @@ pub use codex_protocol::dynamic_tools::DynamicToolNamespaceTool;
 pub use codex_protocol::dynamic_tools::DynamicToolSpec;
 use codex_protocol::models::ResponseItem;
 use codex_protocol::openai_models::ReasoningEffort;
+use codex_protocol::protocol::ContextUsage as CoreContextUsage;
 use codex_protocol::protocol::ThreadGoalStatus as CoreThreadGoalStatus;
 use codex_protocol::protocol::TokenUsage as CoreTokenUsage;
 use codex_protocol::protocol::TokenUsageInfo as CoreTokenUsageInfo;
@@ -1831,6 +1832,16 @@ pub struct ThreadTokenUsageUpdatedNotification {
     pub token_usage: ThreadTokenUsage,
 }
 
+/// Approximate model-visible context in the latest request constructed for a thread.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadContextUsageUpdatedNotification {
+    pub thread_id: String,
+    pub turn_id: String,
+    pub context_usage: ThreadContextUsage,
+}
+
 /// Internal-only notification containing the exact usage from one upstream
 /// Responses API completion.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
@@ -1869,6 +1880,41 @@ pub struct ThreadTokenUsage {
     // TODO(aibrahim): make this not optional
     #[ts(type = "number | null")]
     pub model_context_window: Option<i64>,
+}
+
+/// Approximate token allocation across the latest model-visible request.
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadContextUsage {
+    #[ts(type = "number")]
+    pub total_tokens: i64,
+    #[ts(type = "number")]
+    pub base_instructions_tokens: i64,
+    #[ts(type = "number")]
+    pub tool_definitions_tokens: i64,
+    #[ts(type = "number")]
+    pub user_and_developer_tokens: i64,
+    #[ts(type = "number")]
+    pub assistant_and_reasoning_tokens: i64,
+    #[ts(type = "number")]
+    pub tool_activity_tokens: i64,
+    #[ts(type = "number")]
+    pub other_tokens: i64,
+}
+
+impl From<CoreContextUsage> for ThreadContextUsage {
+    fn from(value: CoreContextUsage) -> Self {
+        Self {
+            total_tokens: value.total_tokens,
+            base_instructions_tokens: value.base_instructions_tokens,
+            tool_definitions_tokens: value.tool_definitions_tokens,
+            user_and_developer_tokens: value.user_and_developer_tokens,
+            assistant_and_reasoning_tokens: value.assistant_and_reasoning_tokens,
+            tool_activity_tokens: value.tool_activity_tokens,
+            other_tokens: value.other_tokens,
+        }
+    }
 }
 
 impl From<CoreTokenUsageInfo> for ThreadTokenUsage {

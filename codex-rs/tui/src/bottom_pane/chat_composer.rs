@@ -413,6 +413,7 @@ fn parent_owned_command_is_allowed(command: SlashCommand, args: &str) -> bool {
                 | SlashCommand::Import
                 | SlashCommand::Hooks
                 | SlashCommand::Status
+                | SlashCommand::Context
                 | SlashCommand::Usage
                 | SlashCommand::Ide
                 | SlashCommand::DebugConfig

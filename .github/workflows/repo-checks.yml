@@ -20,6 +20,9 @@ jobs:
       - name: Verify codex-rs Cargo manifests inherit workspace settings
         run: python3 .github/scripts/verify_cargo_workspace_manifests.py
 
+      - name: Verify Codex Buddy release version is consistent
+        run: python3 scripts/buddy_release/check_buddy_version.py
+
       - name: Verify codex-tui does not import codex-core directly
         run: python3 .github/scripts/verify_tui_core_boundary.py
 

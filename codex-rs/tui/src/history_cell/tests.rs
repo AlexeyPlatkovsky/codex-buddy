@@ -1953,6 +1953,21 @@ fn session_header_includes_reasoning_level_when_present() {
     assert!(model_line.contains("/model to change"));
 }
 
+#[cfg(feature = "buddy-branding")]
+#[test]
+fn session_header_uses_buddy_branding() {
+    let cell = SessionHeaderHistoryCell::new(
+        "gpt-5.6-terra".to_string(),
+        Some(ReasoningEffortConfig::Medium),
+        /*show_fast_status*/ false,
+        PathBuf::from("project"),
+        crate::version::PRODUCT_DISPLAY_VERSION,
+    );
+
+    let rendered = render_lines(&cell.display_lines(/*width*/ 80)).join("\n");
+    insta::assert_snapshot!(rendered);
+}
+
 #[test]
 fn session_header_hides_fast_status_when_disabled() {
     let cell = SessionHeaderHistoryCell::new(

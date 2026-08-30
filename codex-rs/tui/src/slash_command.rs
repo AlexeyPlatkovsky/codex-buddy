@@ -50,6 +50,7 @@ pub enum SlashCommand {
     Diff,
     Mention,
     Status,
+    Context,
     Cd,
     #[strum(to_string = "pwd", serialize = "cwd")]
     Pwd,
@@ -110,6 +111,7 @@ impl SlashCommand {
             SlashCommand::Import => "import setup, this project, and recent chats from Claude Code",
             SlashCommand::Hooks => "view and manage lifecycle hooks",
             SlashCommand::Status => "show current session configuration and token usage",
+            SlashCommand::Context => "show the current request context by category",
             SlashCommand::Cd => "change the current working directory",
             SlashCommand::Pwd => "show the current working directory",
             SlashCommand::Usage => "view account usage or use a usage limit reset",
@@ -197,6 +199,7 @@ impl SlashCommand {
                 | SlashCommand::Diff
                 | SlashCommand::Mention
                 | SlashCommand::Status
+                | SlashCommand::Context
                 | SlashCommand::Pwd
                 | SlashCommand::Usage
                 | SlashCommand::Ide
@@ -240,6 +243,7 @@ impl SlashCommand {
             | SlashCommand::Skills
             | SlashCommand::Hooks
             | SlashCommand::Status
+            | SlashCommand::Context
             | SlashCommand::Pwd
             | SlashCommand::Usage
             | SlashCommand::DebugConfig

@@ -2,6 +2,15 @@
 
 Codex Buddy is a lightweight, coding-focused fork of the Codex CLI. It keeps the interactive TUI, headless `exec`, review, resume/fork, authentication, sandboxing, apply-patch, and explicitly configured MCP workflows while removing or deferring non-coding runtime surface.
 
+## At a glance 📉
+
+| Same MacBook, idle for 2 minutes | Standard Codex CLI | Codex Buddy |
+| --- | ---: | ---: |
+| RAM (RSS) | 95.0 MB | **33.4 MB** |
+| Initial context used | 13% | **5%** |
+
+These are exploratory, same-machine measurements—not release guarantees. See [evidence](#evidence-so-far-) for the workload measurements and method.
+
 ## Try it
 
 Build and run locally:
@@ -35,7 +44,6 @@ All figures below are exploratory macOS arm64 measurements, not release gates or
 | Release binary | 987.3 MB | 967.5 MB | -2.0% |
 | First verified TUI frame | 106.7 ms | 107.1 ms | no meaningful change |
 | RSS at first TUI output | 23,356 KiB | 23,052 KiB | -1.3% |
-| Idle RSS after 2 minutes, no prompt | 95.0 MB | 33.4 MB | -64.8% |
 | RSS after a four-phone web-research task | 97–134 MB, including Code Mode host | 66.7 MB | -31% to -50% |
 | First request payload | 71,691 B | 62,560 B | -12.7% |
 | First request with the opt-in minimal root prompt | 71,691 B | 42,417 B | -40.8% |
@@ -60,7 +68,7 @@ Real authenticated-model runs compare installed Codex CLI 0.151.0 with Buddy usi
 
 ## Versioning 📌
 
-Buddy releases will use Semantic Versioning: patch for compatible fixes, minor for user-visible Buddy features, and major for incompatible changes. Upstream merges are assessed for user-visible impact before the next Buddy release version is chosen.
+Buddy releases use Semantic Versioning: patch for compatible fixes, minor for user-visible Buddy features, and major for incompatible changes. Upstream merges are assessed for user-visible impact before the next Buddy release version is chosen. Run `scripts/buddy_release/install_git_hooks.sh` once to enable the local pre-commit version guard; GitHub checks the same rule.
 
 ## References
 

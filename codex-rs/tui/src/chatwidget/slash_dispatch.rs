@@ -500,6 +500,7 @@ impl ChatWidget {
                     );
                 }
             }
+            SlashCommand::Context => self.add_context_usage_output(),
             SlashCommand::Cd => {
                 self.dispatch_command_with_args(SlashCommand::Cd, "~".to_string(), Vec::new());
             }
@@ -1165,6 +1166,7 @@ impl ChatWidget {
         match cmd {
             SlashCommand::Ide
             | SlashCommand::Status
+            | SlashCommand::Context
             | SlashCommand::Pwd
             | SlashCommand::Usage
             | SlashCommand::DebugConfig

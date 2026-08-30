@@ -1,6 +1,7 @@
 use super::*;
 use crate::chatwidget::ThreadUsageOutcome;
 use assert_matches::assert_matches;
+use codex_app_server_protocol::ThreadContextUsage;
 use codex_app_server_protocol::ThreadUsage;
 use codex_app_server_protocol::ThreadUsageBreakdownGroup;
 use codex_utils_path_uri::PathUri;
@@ -77,6 +78,45 @@ async fn status_command_renders_immediately_without_rate_limit_refresh() {
             .any(|event| matches!(event, AppEvent::RefreshRateLimits { .. })),
         "non-ChatGPT sessions should not request a rate-limit refresh for /status"
     );
+}
+
+#[tokio::test]
+async fn context_command_renders_latest_request_breakdown() {
+    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+    chat.context_usage = Some(ThreadContextUsage {
+        total_tokens: 66_700,
+        base_instructions_tokens: 1_066,
+        tool_definitions_tokens: 3_400,
+        user_and_developer_tokens: 12_250,
+        assistant_and_reasoning_tokens: 17_501,
+        tool_activity_tokens: 32_483,
+        other_tokens: 0,
+    });
+
+    chat.dispatch_command(SlashCommand::Context);
+
+    let rendered = match rx.try_recv() {
+        Ok(AppEvent::InsertHistoryCell(cell)) => {
+            lines_to_single_string(&cell.display_lines(/*width*/ 90))
+        }
+        other => panic!("expected /context output, got {other:?}"),
+    };
+    insta::assert_snapshot!(rendered, @r###"
+Context usage (approximate)
+┌─────────────────────────────────┬────────┐
+│ Category                        │ Tokens │
+├─────────────────────────────────┼────────┤
+│ Base instructions               │     1K │
+│ Tool definitions                │     3K │
+│ User and developer messages     │    12K │
+│ Assistant answers and reasoning │    18K │
+│ Tool calls and results          │    32K │
+│ Other                           │     0K │
+├─────────────────────────────────┼────────┤
+│ Total                           │    67K │
+└─────────────────────────────────┴────────┘
+Rounded to the nearest thousand tokens; not tokenizer-accurate or billable usage.
+"###);
 }
 
 #[tokio::test]

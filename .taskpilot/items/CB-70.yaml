@@ -1,0 +1,14 @@
+schema_version: 1
+id: CB-70
+title: Context transparency in the Buddy TUI
+priority: high
+type: feature
+status: done
+created_at: '2026-08-29T17:33:47Z'
+updated_at: '2026-08-29T18:19:08Z'
+parent_id: CB-12
+tags:
+- tui
+- context
+- product
+description: 'Expose a local, non-model-visible breakdown of the current request context in Codex Buddy. Acceptance: a `/context` command reports clearly labelled approximate token categories without changing request construction, history, or cache behavior.'

@@ -1397,6 +1397,10 @@ pub enum EventMsg {
     /// Optional means unknown — UIs should not display when `None`.
     TokenCount(TokenCountEvent),
 
+    /// Approximate breakdown of the context in the most recently constructed model request.
+    /// This is a transient diagnostic event and is not model-visible history.
+    ContextUsage(ContextUsageEvent),
+
     /// Agent text output message
     AgentMessage(AgentMessageEvent),
 
@@ -2274,6 +2278,27 @@ impl TokenUsageInfo {
 pub struct TokenCountEvent {
     pub info: Option<TokenUsageInfo>,
     pub rate_limits: Option<RateLimitSnapshot>,
+}
+
+/// Approximate token counts for the most recently constructed model request.
+///
+/// Counts use the same byte-based estimator as local context-window accounting. They are useful
+/// for explaining relative context cost, not for billing or tokenizer-accurate accounting.
+#[derive(Debug, Clone, Default, Deserialize, Serialize, JsonSchema, TS)]
+pub struct ContextUsage {
+    pub total_tokens: i64,
+    pub base_instructions_tokens: i64,
+    pub tool_definitions_tokens: i64,
+    pub user_and_developer_tokens: i64,
+    pub assistant_and_reasoning_tokens: i64,
+    pub tool_activity_tokens: i64,
+    pub other_tokens: i64,
+}
+
+/// Delivers the current model-visible context estimate to local clients.
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, TS)]
+pub struct ContextUsageEvent {
+    pub context_usage: ContextUsage,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, JsonSchema, TS)]

@@ -395,6 +395,7 @@ stop
                 SlashCommand::Diff,
                 SlashCommand::Mention,
                 SlashCommand::Status,
+                SlashCommand::Context,
                 SlashCommand::Pwd,
                 SlashCommand::Usage,
             ]

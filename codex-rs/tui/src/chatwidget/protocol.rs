@@ -31,6 +31,9 @@ impl ChatWidget {
             self.restore_retry_status_header_if_present();
         }
         match notification {
+            ServerNotification::ThreadContextUsageUpdated(notification) => {
+                self.context_usage = Some(notification.context_usage);
+            }
             ServerNotification::ThreadTokenUsageUpdated(notification) => {
                 self.set_token_info(Some(token_usage_info_from_app_server(
                     notification.token_usage,

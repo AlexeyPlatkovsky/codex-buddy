@@ -464,6 +464,8 @@ export type { ThreadArchivedNotification } from "./ThreadArchivedNotification";
 export type { ThreadClosedNotification } from "./ThreadClosedNotification";
 export type { ThreadCompactStartParams } from "./ThreadCompactStartParams";
 export type { ThreadCompactStartResponse } from "./ThreadCompactStartResponse";
+export type { ThreadContextUsage } from "./ThreadContextUsage";
+export type { ThreadContextUsageUpdatedNotification } from "./ThreadContextUsageUpdatedNotification";
 export type { ThreadDeleteParams } from "./ThreadDeleteParams";
 export type { ThreadDeleteResponse } from "./ThreadDeleteResponse";
 export type { ThreadDeletedNotification } from "./ThreadDeletedNotification";

@@ -23,6 +23,7 @@ workspace = true
 
 [features]
 default = ["full-runtime-extensions"]
+buddy-branding = []
 coding-runtime-extensions = ["codex-app-server-client/coding-runtime-extensions"]
 code-mode = ["codex-app-server-client/code-mode"]
 full-runtime-extensions = [

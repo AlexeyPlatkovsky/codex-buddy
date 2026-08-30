@@ -14,6 +14,7 @@ use crate::compact_remote_v2::run_inline_remote_auto_compact_task as run_inline_
 #[cfg(feature = "connectors")]
 use crate::connectors;
 use crate::context::ContextualUserFragment;
+use crate::context_usage::estimate_prompt_context_usage;
 use crate::environment_selection::TurnEnvironmentSnapshot;
 use crate::feedback_tags;
 use crate::hook_runtime::drain_async_hook_results;
@@ -101,7 +102,9 @@ use codex_protocol::models::ResponseItem;
 use codex_protocol::protocol::AgentMessageContentDeltaEvent;
 use codex_protocol::protocol::AgentReasoningSectionBreakEvent;
 use codex_protocol::protocol::CodexErrorInfo;
+use codex_protocol::protocol::ContextUsageEvent;
 use codex_protocol::protocol::ErrorEvent;
+use codex_protocol::protocol::Event;
 use codex_protocol::protocol::EventMsg;
 use codex_protocol::protocol::InternalSessionSource;
 use codex_protocol::protocol::PlanDeltaEvent;
@@ -1434,6 +1437,14 @@ async fn run_sampling_request(
             step_context.as_ref(),
             base_instructions.clone(),
         );
+        let context_usage = estimate_prompt_context_usage(&prompt);
+        let _ = sess
+            .get_tx_event()
+            .send(Event {
+                id: turn_context.sub_id.clone(),
+                msg: EventMsg::ContextUsage(ContextUsageEvent { context_usage }),
+            })
+            .await;
         let err = match try_run_sampling_request(
             tool_runtime.clone(),
             Arc::clone(&sess),
@@ -1849,6 +1860,7 @@ pub(super) fn realtime_text_for_event(msg: &EventMsg) -> Option<(String, Option<
         | EventMsg::ThreadSettingsApplied(_)
         | EventMsg::TurnComplete(_)
         | EventMsg::TokenCount(_)
+        | EventMsg::ContextUsage(_)
         | EventMsg::UserMessage(_)
         | EventMsg::AgentReasoning(_)
         | EventMsg::AgentReasoningRawContent(_)

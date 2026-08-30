@@ -55,6 +55,8 @@ use codex_app_server_protocol::RequestId;
 use codex_app_server_protocol::ServerNotification;
 use codex_app_server_protocol::ServerRequestPayload;
 use codex_app_server_protocol::StrictReviewRequiredNotification;
+use codex_app_server_protocol::ThreadContextUsage;
+use codex_app_server_protocol::ThreadContextUsageUpdatedNotification;
 use codex_app_server_protocol::ThreadGoalUpdatedNotification;
 use codex_app_server_protocol::ThreadItem;
 use codex_app_server_protocol::ThreadRealtimeClosedNotification;
@@ -98,6 +100,7 @@ use codex_protocol::items::TurnItem as CoreTurnItem;
 use codex_protocol::models::AdditionalPermissionProfile as CoreAdditionalPermissionProfile;
 use codex_protocol::plan_tool::UpdatePlanArgs;
 use codex_protocol::protocol::CodexErrorInfo as CoreCodexErrorInfo;
+use codex_protocol::protocol::ContextUsageEvent;
 use codex_protocol::protocol::Event;
 use codex_protocol::protocol::EventMsg;
 use codex_protocol::protocol::ExecApprovalRequestEvent;
@@ -982,6 +985,15 @@ pub(crate) async fn apply_bespoke_event_handling(
             handle_token_count_event(conversation_id, event_turn_id, token_count_event, &outgoing)
                 .await;
         }
+        EventMsg::ContextUsage(context_usage_event) => {
+            handle_context_usage_event(
+                conversation_id,
+                event_turn_id,
+                context_usage_event,
+                &outgoing,
+            )
+            .await;
+        }
         EventMsg::Error(ev) => {
             thread_watch_manager
                 .note_system_error(&conversation_id.to_string())
@@ -1671,6 +1683,23 @@ async fn handle_token_count_event(
     }
 }
 
+async fn handle_context_usage_event(
+    conversation_id: ThreadId,
+    turn_id: String,
+    ContextUsageEvent { context_usage }: ContextUsageEvent,
+    outgoing: &ThreadScopedOutgoingMessageSender,
+) {
+    outgoing
+        .send_server_notification(ServerNotification::ThreadContextUsageUpdated(
+            ThreadContextUsageUpdatedNotification {
+                thread_id: conversation_id.to_string(),
+                turn_id,
+                context_usage: ThreadContextUsage::from(context_usage),
+            },
+        ))
+        .await;
+}
+
 async fn handle_error(
     _conversation_id: ThreadId,
     error: TurnError,
@@ -2206,6 +2235,8 @@ mod tests {
     use codex_protocol::protocol::AgentMessageEvent;
     use codex_protocol::protocol::AskForApproval;
     use codex_protocol::protocol::AuthRecoveryEvent;
+    use codex_protocol::protocol::ContextUsage;
+    use codex_protocol::protocol::ContextUsageEvent;
     use codex_protocol::protocol::CreditsSnapshot;
     use codex_protocol::protocol::EventMsg;
     use codex_protocol::protocol::GuardianAssessmentEvent;
@@ -4040,6 +4071,50 @@ mod tests {
                 assert_eq!(payload.rate_limits.limit_name, None);
                 assert!(payload.rate_limits.primary.is_some());
                 assert!(payload.rate_limits.credits.is_some());
+            }
+            other => bail!("unexpected notification: {other:?}"),
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_handle_context_usage_event_emits_current_breakdown() -> Result<()> {
+        let conversation_id = ThreadId::new();
+        let (tx, mut rx) = mpsc::channel(CHANNEL_CAPACITY);
+        let outgoing = Arc::new(OutgoingMessageSender::new(
+            tx,
+            codex_analytics::AnalyticsEventsClient::disabled(),
+        ));
+        let outgoing = ThreadScopedOutgoingMessageSender::new(
+            outgoing,
+            vec![ConnectionId(1)],
+            ThreadId::new(),
+        );
+        let context_usage = ContextUsage {
+            total_tokens: 60_000,
+            base_instructions_tokens: 1_000,
+            tool_definitions_tokens: 3_000,
+            user_and_developer_tokens: 10_000,
+            assistant_and_reasoning_tokens: 14_000,
+            tool_activity_tokens: 32_000,
+            other_tokens: 0,
+        };
+
+        handle_context_usage_event(
+            conversation_id,
+            "turn-123".to_string(),
+            ContextUsageEvent {
+                context_usage: context_usage.clone(),
+            },
+            &outgoing,
+        )
+        .await;
+
+        match recv_broadcast_notification(&mut rx).await? {
+            ServerNotification::ThreadContextUsageUpdated(notification) => {
+                assert_eq!(notification.thread_id, conversation_id.to_string());
+                assert_eq!(notification.turn_id, "turn-123");
+                assert_eq!(notification.context_usage, context_usage.into());
             }
             other => bail!("unexpected notification: {other:?}"),
         }
