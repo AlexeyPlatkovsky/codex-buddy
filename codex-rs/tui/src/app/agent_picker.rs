@@ -47,7 +47,9 @@ impl App {
                                 section_id: None,
                                 project_id: None,
                                 cwd: None,
-                                use_state_db_only: true,
+                                // Active children may not have reached the state DB yet. The
+                                // pinned tree must see their server-authored names immediately.
+                                use_state_db_only: false,
                                 search_term: None,
                                 parent_thread_id: None,
                                 ancestor_thread_id: Some(root.to_string()),

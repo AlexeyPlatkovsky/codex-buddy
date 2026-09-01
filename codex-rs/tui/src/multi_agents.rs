@@ -49,6 +49,10 @@ pub(crate) struct SubAgentActivityDisplay {
     pub(crate) thread_id: ThreadId,
     pub(crate) agent_path: String,
     pub(crate) is_running_hint: bool,
+    pub(crate) agent_nickname: Option<String>,
+    pub(crate) agent_role: Option<String>,
+    pub(crate) model: Option<String>,
+    pub(crate) reasoning_effort: Option<ReasoningEffortConfig>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -288,6 +292,10 @@ pub(crate) fn sub_agent_activity_display(item: &ThreadItem) -> Option<SubAgentAc
         kind,
         agent_thread_id,
         agent_path,
+        agent_nickname,
+        agent_role,
+        model,
+        reasoning_effort,
         ..
     } = item
     else {
@@ -302,6 +310,10 @@ pub(crate) fn sub_agent_activity_display(item: &ThreadItem) -> Option<SubAgentAc
         thread_id: parse_thread_id(agent_thread_id)?,
         agent_path: agent_path.clone(),
         is_running_hint,
+        agent_nickname: agent_nickname.clone(),
+        agent_role: agent_role.clone(),
+        model: model.clone(),
+        reasoning_effort: reasoning_effort.clone(),
     })
 }
 
@@ -693,6 +705,10 @@ mod tests {
             kind: SubAgentActivityKind::Interacted,
             agent_thread_id: ThreadId::new().to_string(),
             agent_path: "/root/child".to_string(),
+            agent_nickname: None,
+            agent_role: None,
+            model: None,
+            reasoning_effort: None,
         };
 
         assert_eq!(sub_agent_activity_display(&item), None);
@@ -706,6 +722,10 @@ mod tests {
             kind: SubAgentActivityKind::Completed,
             agent_thread_id: thread_id.to_string(),
             agent_path: "/root/child".to_string(),
+            agent_nickname: None,
+            agent_role: None,
+            model: None,
+            reasoning_effort: None,
         };
 
         assert_eq!(
@@ -714,6 +734,10 @@ mod tests {
                 thread_id,
                 agent_path: "/root/child".to_string(),
                 is_running_hint: false,
+                agent_nickname: None,
+                agent_role: None,
+                model: None,
+                reasoning_effort: None,
             })
         );
     }

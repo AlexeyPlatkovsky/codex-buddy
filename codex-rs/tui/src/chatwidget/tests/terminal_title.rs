@@ -2,7 +2,25 @@
 
 use super::*;
 use crate::bottom_pane::goal_status_indicator_line;
+use crate::version::PRODUCT_DISPLAY_NAME;
+use crate::version::PRODUCT_DISPLAY_VERSION;
 use pretty_assertions::assert_eq;
+
+#[tokio::test]
+async fn terminal_title_uses_the_product_brand_and_version() {
+    let (mut chat, _rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+    chat.config.tui_terminal_title =
+        Some(vec!["app-name".to_string(), "codex-version".to_string()]);
+
+    chat.refresh_terminal_title();
+
+    assert_eq!(
+        chat.last_terminal_title,
+        Some(format!(
+            "{PRODUCT_DISPLAY_NAME} | {PRODUCT_DISPLAY_VERSION}"
+        ))
+    );
+}
 
 #[tokio::test]
 async fn goal_clock_refresh_redraws_only_when_elapsed_label_changes() {
@@ -111,7 +129,9 @@ async fn terminal_title_shows_action_required_while_exec_approval_is_pending() {
 
     assert_eq!(
         chat.last_terminal_title,
-        Some("[ ! ] Action Required | project".to_string())
+        Some(format!(
+            "[ ! ] Action Required | {PRODUCT_DISPLAY_NAME} | project"
+        ))
     );
     assert!(!chat.should_animate_terminal_title_spinner());
 
@@ -198,7 +218,9 @@ async fn terminal_title_action_required_blinks_when_animations_are_enabled() {
 
     assert_eq!(
         chat.last_terminal_title,
-        Some("[ . ] Action Required | project".to_string())
+        Some(format!(
+            "[ . ] Action Required | {PRODUCT_DISPLAY_NAME} | project"
+        ))
     );
     assert!(chat.should_animate_terminal_title_action_required());
 }
@@ -211,7 +233,10 @@ async fn terminal_title_activity_indicators_do_not_animate_when_animations_are_d
     chat.terminal_title_animation_origin = Instant::now() - std::time::Duration::from_millis(1500);
     chat.refresh_terminal_title();
 
-    assert_eq!(chat.last_terminal_title, Some("project".to_string()));
+    assert_eq!(
+        chat.last_terminal_title,
+        Some(format!("{PRODUCT_DISPLAY_NAME} | project"))
+    );
     assert!(!chat.should_animate_terminal_title_spinner());
 
     let request = ExecApprovalRequestEvent {
@@ -235,7 +260,9 @@ async fn terminal_title_activity_indicators_do_not_animate_when_animations_are_d
 
     assert_eq!(
         chat.last_terminal_title,
-        Some("[ ! ] Action Required | project".to_string())
+        Some(format!(
+            "[ ! ] Action Required | {PRODUCT_DISPLAY_NAME} | project"
+        ))
     );
     assert!(!chat.should_animate_terminal_title_action_required());
 }

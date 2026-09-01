@@ -2040,8 +2040,20 @@
         },
         {
           "properties": {
+            "agentNickname": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "agentPath": {
               "type": "string"
+            },
+            "agentRole": {
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "agentThreadId": {
               "type": "string"
@@ -2051,6 +2063,22 @@
             },
             "kind": {
               "$ref": "#/definitions/SubAgentActivityKind"
+            },
+            "model": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "reasoningEffort": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/ReasoningEffort"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "type": {
               "enum": [

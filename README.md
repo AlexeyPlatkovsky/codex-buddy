@@ -11,17 +11,73 @@ Codex Buddy is a lightweight, coding-focused fork of the Codex CLI. It keeps the
 
 These are exploratory, same-machine measurements—not release guarantees. See [evidence](#evidence-so-far-) for the workload measurements and method.
 
-## Try it
+## Features ✨
 
-Build and run locally:
+![Codex Buddy showing a pinned hierarchical subagent tree](assets/codex-buddy-agent-tree.png)
+
+*A live nested task in Codex Buddy v1.0.8. The right-side tree stays pinned while the transcript
+scrolls independently.*
+
+| Feature | What it provides |
+| --- | --- |
+| Pinned hierarchical agent tree | Shows the main agent, children, and nested children beside the transcript on wide terminals |
+| Automatic agent identity | Displays generated agent names and roles as soon as their metadata arrives—no `/subagents` refresh required |
+| Live execution context | Adds compact model/reasoning labels such as `5.6.T-M` and per-agent elapsed runtimes |
+| Lifecycle visibility | Distinguishes running, waiting, completed, failed, interrupted, approval, and input-required states |
+| Task-scoped cleanup | Starts each new root task with a fresh panel while retaining the current task's completed agents for long runs |
+| Independent transcript navigation | Keeps the tree fixed while Arrow, Page Up/Down, Home, and End scroll the main output; popup menus keep control of their own navigation keys |
+| Agent switching | Preserves the `/subagents` picker and keyboard traversal across discovered agents in stable spawn order |
+| Buddy-native session UX | Uses Codex Buddy branding and versioning in the TUI and terminal title, then prints token usage and the Buddy resume command on exit |
+| Coding-first Codex workflows | Keeps interactive chat, `exec`, review, resume/fork, authentication, sandboxing, apply-patch, project instructions, skills, and explicitly configured MCP servers |
+
+## Install
+
+Install from source on macOS, Linux, or Windows. You need Git and a current Rust toolchain
+(`rustup` is recommended; install it from [rustup.rs](https://rustup.rs) if needed):
 
 ```shell
-cd codex-rs
-cargo build --locked --release -p codex-buddy
-./target/release/codex-buddy
+git clone https://github.com/AlexeyPlatkovsky/codex-buddy.git
+cd codex-buddy/codex-rs
+cargo install --locked --path codex-buddy
 ```
 
-The local macOS DMG is a CLI binary, not a `.app`: mount it, copy `codex-buddy` to a directory on your `PATH`, then run `codex-buddy`.
+This installs the `codex-buddy` executable into Cargo's user bin directory (normally
+`~/.cargo/bin`). Ensure that directory is on your `PATH`, then verify the installation:
+
+```shell
+codex-buddy --version
+codex-buddy
+```
+
+If the version is still `0.0.0`, check which executable your shell is using:
+
+```shell
+which -a codex-buddy
+```
+
+Your shell may find an older copy (for example, `~/bin/codex-buddy`) before the newly installed
+one. Replace that preferred copy with the path matching your installation method, then refresh the
+shell command cache:
+
+```shell
+# For `cargo install`:
+cp ~/.cargo/bin/codex-buddy ~/bin/codex-buddy
+# For the system-wide install below:
+# cp /usr/local/bin/codex-buddy ~/bin/codex-buddy
+hash -r
+codex-buddy --version
+```
+
+To install a release binary system-wide on macOS or Linux instead:
+
+```shell
+cd codex-buddy/codex-rs
+cargo build --locked --release -p codex-buddy
+sudo install -m 755 target/release/codex-buddy /usr/local/bin/codex-buddy
+```
+
+The macOS DMG is a CLI binary, not a `.app`: mount it, copy `codex-buddy` to a directory on
+your `PATH`, then run `codex-buddy`.
 
 ## What is different? 🧭
 
@@ -64,7 +120,9 @@ Real authenticated-model runs compare installed Codex CLI 0.151.0 with Buddy usi
 | Follow a project `AGENTS.md` → `SKILL.md` instruction | 3/3 | 3/3 |
 | Nearest scoped `AGENTS.md` instruction | 3/3 | 3/3 |
 
-⚠️ Actual subagent delegation and a real approval/sandbox denial are not yet proven by the local CLI benchmark; follow-up work captures the tool/approval events rather than inferring them from files.
+⚠️ The local CLI benchmark does not yet score subagent delegation or a real approval/sandbox
+denial. The subagent tree itself has focused app-server routing, interaction, and rendering tests in
+addition to live TUI verification.
 
 ## Versioning 📌
 

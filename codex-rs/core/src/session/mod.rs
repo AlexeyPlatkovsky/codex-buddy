@@ -2147,6 +2147,10 @@ impl Session {
                             kind: SubAgentActivityKind::Completed,
                             agent_thread_id: self.thread_id,
                             agent_path: child_agent_path.clone(),
+                            agent_nickname: None,
+                            agent_role: None,
+                            model: None,
+                            reasoning_effort: None,
                         },
                     )
                     .await

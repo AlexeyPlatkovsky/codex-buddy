@@ -251,6 +251,41 @@ async fn next_thread_settings_updated(
     panic!("expected ThreadSettingsUpdated for thread {thread_id}");
 }
 
+fn child_thread_settings_updated(
+    model: &str,
+    thread_id: ThreadId,
+) -> ThreadSettingsUpdatedNotification {
+    ThreadSettingsUpdatedNotification {
+        thread_id: thread_id.to_string(),
+        thread_settings: ThreadSettings {
+            cwd: test_absolute_path("/tmp/child-thread-settings"),
+            approval_policy: AskForApproval::OnRequest,
+            approvals_reviewer: codex_app_server_protocol::ApprovalsReviewer::User,
+            sandbox_policy: codex_app_server_protocol::SandboxPolicy::ReadOnly {
+                network_access: false,
+            },
+            active_permission_profile: Some(
+                codex_app_server_protocol::ActivePermissionProfile::read_only(),
+            ),
+            model: model.to_string(),
+            model_provider: "openai".to_string(),
+            service_tier: None,
+            effort: Some(ReasoningEffortConfig::Medium),
+            summary: None,
+            collaboration_mode: CollaborationMode {
+                mode: ModeKind::Default,
+                settings: Settings {
+                    model: model.to_string(),
+                    reasoning_effort: Some(ReasoningEffortConfig::Medium),
+                    developer_instructions: None,
+                },
+            },
+            multi_agent_mode: Default::default(),
+            personality: Some(Personality::Pragmatic),
+        },
+    }
+}
+
 #[tokio::test]
 async fn handle_mcp_inventory_result_respects_origin_thread() {
     let mut app = make_test_app().await;
@@ -1750,6 +1785,256 @@ async fn collab_receiver_notification_caches_thread_without_app_server_read() {
 }
 
 #[tokio::test]
+async fn completed_spawn_records_the_child_model_for_the_pinned_tree() {
+    let mut app = make_test_app().await;
+    let primary_thread_id = ThreadId::new();
+    let child_thread_id = ThreadId::new();
+    app.primary_thread_id = Some(primary_thread_id);
+    app.agent_navigation.begin_fresh_primary_task(
+        primary_thread_id,
+        "gpt-5.6-terra".to_string(),
+        ReasoningEffortConfig::High,
+    );
+
+    app.handle_thread_event_now(ThreadBufferedEvent::Notification(Box::new(
+        ServerNotification::ItemCompleted(codex_app_server_protocol::ItemCompletedNotification {
+            thread_id: primary_thread_id.to_string(),
+            turn_id: "turn-1".to_string(),
+            completed_at_ms: 0,
+            item: ThreadItem::CollabAgentToolCall {
+                id: "spawn-1".to_string(),
+                tool: codex_app_server_protocol::CollabAgentTool::SpawnAgent,
+                status: codex_app_server_protocol::CollabAgentToolCallStatus::Completed,
+                sender_thread_id: primary_thread_id.to_string(),
+                receiver_thread_ids: vec![child_thread_id.to_string()],
+                prompt: Some("research the issue".to_string()),
+                model: Some("gpt-5.6-luna".to_string()),
+                reasoning_effort: Some(ReasoningEffortConfig::Low),
+                agents_states: HashMap::new(),
+            },
+        }),
+    )));
+
+    let tree = app.agent_navigation.tree_snapshot(
+        Some(primary_thread_id),
+        /*selected_thread_id*/ None,
+        Some(primary_thread_id),
+    );
+    let child = tree
+        .rows
+        .iter()
+        .find(|row| row.thread_id == child_thread_id)
+        .expect("child tree row");
+
+    assert_eq!(child.model_label.as_deref(), Some("5.6.L-L"));
+    assert!(child.elapsed.is_some());
+}
+
+#[tokio::test]
+async fn completed_spawn_refreshes_agent_metadata_without_opening_the_picker() -> Result<()> {
+    let (mut app, mut app_event_rx, _op_rx) = make_test_app_with_channels().await;
+    let (app_server, requests, proxy) = session_lifecycle_requests::start_recording_app_server(
+        &app.config,
+        /*blocked_thread_list*/ None,
+        /*failed_thread_name*/ None,
+    )
+    .await?;
+    let primary_thread_id = ThreadId::new();
+    let child_thread_id = ThreadId::new();
+    app.primary_thread_id = Some(primary_thread_id);
+    app.active_thread_id = Some(primary_thread_id);
+
+    app.handle_app_server_event(
+        &app_server,
+        codex_app_server_client::AppServerEvent::ServerNotification(Box::new(
+            ServerNotification::ItemCompleted(
+                codex_app_server_protocol::ItemCompletedNotification {
+                    thread_id: primary_thread_id.to_string(),
+                    turn_id: "turn-1".to_string(),
+                    completed_at_ms: 0,
+                    item: ThreadItem::CollabAgentToolCall {
+                        id: "spawn-1".to_string(),
+                        tool: codex_app_server_protocol::CollabAgentTool::SpawnAgent,
+                        status: codex_app_server_protocol::CollabAgentToolCallStatus::Completed,
+                        sender_thread_id: primary_thread_id.to_string(),
+                        receiver_thread_ids: vec![child_thread_id.to_string()],
+                        prompt: Some("research the issue".to_string()),
+                        model: Some("gpt-5.6-luna".to_string()),
+                        reasoning_effort: Some(ReasoningEffortConfig::Medium),
+                        agents_states: HashMap::new(),
+                    },
+                },
+            ),
+        )),
+    )
+    .await;
+
+    let tree = app.agent_navigation.tree_snapshot(
+        Some(primary_thread_id),
+        /*selected_thread_id*/ None,
+        Some(primary_thread_id),
+    );
+    let child = tree
+        .rows
+        .iter()
+        .find(|row| row.thread_id == child_thread_id)
+        .expect("spawn should be visible before the picker command");
+    assert_eq!(child.model_label.as_deref(), Some("5.6.L-M"));
+
+    let loaded = tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            let event = app_event_rx.recv().await.expect("app event channel");
+            if let AppEvent::AgentPickerThreadsLoaded { .. } = event {
+                break;
+            }
+        }
+    })
+    .await;
+
+    assert!(
+        loaded.is_ok(),
+        "spawn should refresh agent names immediately"
+    );
+    assert!(
+        requests
+            .lock()
+            .expect("request recorder lock")
+            .iter()
+            .any(|request| request.method == "thread/list"),
+        "spawn should request the authoritative agent metadata"
+    );
+    proxy.abort();
+    Ok(())
+}
+
+#[tokio::test]
+async fn started_subagent_uses_its_name_without_opening_the_picker() {
+    let mut app = make_test_app().await;
+    let primary_thread_id = ThreadId::new();
+    let child_thread_id = ThreadId::new();
+    app.primary_thread_id = Some(primary_thread_id);
+    app.agent_navigation.upsert(
+        primary_thread_id,
+        /*agent_nickname*/ None,
+        /*agent_role*/ None,
+        /*is_closed*/ false,
+    );
+
+    let app_server = crate::start_embedded_app_server_for_picker(app.chat_widget.config_ref())
+        .await
+        .expect("embedded app server");
+    app.handle_app_server_event(
+        &app_server,
+        codex_app_server_client::AppServerEvent::ServerNotification(Box::new(
+            ServerNotification::ThreadStarted(ThreadStartedNotification {
+                thread: Thread {
+                    id: child_thread_id.to_string(),
+                    extra: None,
+                    session_id: primary_thread_id.to_string(),
+                    forked_from_id: None,
+                    parent_thread_id: Some(primary_thread_id.to_string()),
+                    preview: "agent task".to_string(),
+                    ephemeral: false,
+                    section: None,
+                    section_entered_at: None,
+                    project_id: None,
+                    history_mode: Default::default(),
+                    model_provider: "openai".to_string(),
+                    created_at: 1,
+                    updated_at: 1,
+                    recency_at: Some(1),
+                    status: codex_app_server_protocol::ThreadStatus::Active {
+                        active_flags: Vec::new(),
+                    },
+                    path: None,
+                    cwd: test_path_buf("/tmp/agent").abs(),
+                    cli_version: "0.0.0".to_string(),
+                    source: codex_app_server_protocol::SessionSource::SubAgent(
+                        SubAgentSource::ThreadSpawn {
+                            parent_thread_id: primary_thread_id,
+                            depth: 1,
+                            agent_path: None,
+                            agent_nickname: Some("Ada".to_string()),
+                            agent_role: Some("researcher".to_string()),
+                        },
+                    ),
+                    can_accept_direct_input: Some(true),
+                    thread_source: None,
+                    agent_nickname: None,
+                    agent_role: None,
+                    git_info: None,
+                    name: Some("agent task".to_string()),
+                    turns: Vec::new(),
+                },
+            }),
+        )),
+    )
+    .await;
+
+    assert_eq!(
+        app.agent_navigation
+            .get(&child_thread_id)
+            .and_then(|entry| entry.agent_nickname.as_deref()),
+        Some("Ada")
+    );
+}
+
+#[tokio::test]
+async fn v2_started_activity_populates_name_and_model_without_subagents_command() {
+    let mut app = make_test_app().await;
+    let primary_thread_id = ThreadId::new();
+    let child_thread_id = ThreadId::new();
+    app.primary_thread_id = Some(primary_thread_id);
+    app.agent_navigation.begin_fresh_primary_task(
+        primary_thread_id,
+        "gpt-5.6-terra".to_string(),
+        ReasoningEffortConfig::High,
+    );
+
+    let app_server = crate::start_embedded_app_server_for_picker(app.chat_widget.config_ref())
+        .await
+        .expect("embedded app server");
+    app.handle_app_server_event(
+        &app_server,
+        codex_app_server_client::AppServerEvent::ServerNotification(Box::new(
+            ServerNotification::ItemCompleted(
+                codex_app_server_protocol::ItemCompletedNotification {
+                    thread_id: primary_thread_id.to_string(),
+                    turn_id: "turn-1".to_string(),
+                    completed_at_ms: 0,
+                    item: ThreadItem::SubAgentActivity {
+                        id: "activity-1".to_string(),
+                        kind: codex_app_server_protocol::SubAgentActivityKind::Started,
+                        agent_thread_id: child_thread_id.to_string(),
+                        agent_path: "/root/research".to_string(),
+                        agent_nickname: Some("Ada".to_string()),
+                        agent_role: Some("researcher".to_string()),
+                        model: Some("gpt-5.6-luna".to_string()),
+                        reasoning_effort: Some(ReasoningEffortConfig::Medium),
+                    },
+                },
+            ),
+        )),
+    )
+    .await;
+
+    let tree = app.agent_navigation.tree_snapshot(
+        Some(primary_thread_id),
+        /*selected_thread_id*/ None,
+        Some(primary_thread_id),
+    );
+    let child = tree
+        .rows
+        .iter()
+        .find(|row| row.thread_id == child_thread_id)
+        .expect("v2 child tree row");
+    assert_eq!(
+        (child.label.as_str(), child.model_label.as_deref()),
+        ("Ada [researcher]", Some("5.6.L-M"))
+    );
+}
+
+#[tokio::test]
 async fn collab_receiver_notification_does_not_cache_not_found_thread() {
     let mut app = make_test_app().await;
     let receiver_thread_id =
@@ -1899,6 +2184,10 @@ async fn open_agent_picker_preserves_running_hints_until_observed_completion() -
             thread_id,
             agent_path: "/root/child".to_string(),
             is_running_hint: true,
+            agent_nickname: None,
+            agent_role: None,
+            model: None,
+            reasoning_effort: None,
         });
 
     Box::pin(app.open_agent_picker(&mut app_server)).await;
@@ -1954,6 +2243,10 @@ async fn open_agent_picker_preserves_running_hints_until_observed_completion() -
             thread_id,
             agent_path: "/root/child".to_string(),
             is_running_hint: true,
+            agent_nickname: None,
+            agent_role: None,
+            model: None,
+            reasoning_effort: None,
         });
 
     Box::pin(app.open_agent_picker(&mut app_server)).await;
@@ -1992,6 +2285,10 @@ async fn open_agent_picker_clears_running_hint_from_completed_snapshot() -> Resu
             thread_id,
             agent_path: "/root/child".to_string(),
             is_running_hint: true,
+            agent_nickname: None,
+            agent_role: None,
+            model: None,
+            reasoning_effort: None,
         });
     assert!(!app.agent_navigation.is_parent_owned(thread_id));
 
@@ -2027,6 +2324,10 @@ async fn open_agent_picker_selects_path_backed_agent() -> Result<()> {
             thread_id,
             agent_path: "/root/worker".to_string(),
             is_running_hint: true,
+            agent_nickname: None,
+            agent_role: None,
+            model: None,
+            reasoning_effort: None,
         });
 
     Box::pin(app.open_agent_picker(&mut app_server)).await;
@@ -2066,6 +2367,10 @@ async fn open_agent_picker_refreshes_replay_only_path_backed_liveness() -> Resul
             thread_id,
             agent_path: "/root/child".to_string(),
             is_running_hint: true,
+            agent_nickname: None,
+            agent_role: None,
+            model: None,
+            reasoning_effort: None,
         });
 
     Box::pin(app.open_agent_picker(&mut app_server)).await;
@@ -2295,6 +2600,10 @@ fn selected_and_resumed_threads_use_server_capability_for_v1_and_v2_children() -
                 thread_id: child_thread_ids[0],
                 agent_path: "/root/child-0".to_string(),
                 is_running_hint: true,
+                agent_nickname: None,
+                agent_role: None,
+                model: None,
+                reasoning_effort: None,
             });
         app.thread_event_channels.remove(&child_thread_ids[1]);
         let backfill = app.backfill_loaded_subagent_threads(&mut app_server).await;
@@ -5455,6 +5764,8 @@ async fn make_test_app() -> App {
         thread_event_listener_tasks: HashMap::new(),
         agent_navigation: AgentNavigationState::default(),
         agent_tree_viewport: agent_tree_viewport::AgentTreeViewport::new(),
+        agent_tree_panel_entered_alt_screen: false,
+        pinned_transcript: None,
         agents_overview: Default::default(),
         side_threads: HashMap::new(),
         abandoned_side_threads: HashSet::new(),
@@ -5537,6 +5848,8 @@ async fn make_test_app_with_channels() -> (
             thread_event_listener_tasks: HashMap::new(),
             agent_navigation: AgentNavigationState::default(),
             agent_tree_viewport: agent_tree_viewport::AgentTreeViewport::new(),
+            agent_tree_panel_entered_alt_screen: false,
+            pinned_transcript: None,
             agents_overview: Default::default(),
             side_threads: HashMap::new(),
             abandoned_side_threads: HashSet::new(),
@@ -8460,6 +8773,47 @@ async fn inactive_thread_settings_notification_updates_cached_collaboration_mode
         app.chat_widget.config_ref().personality,
         Some(Personality::Pragmatic)
     );
+}
+
+#[tokio::test]
+async fn uncached_child_settings_update_records_the_tree_model_before_routing_returns() {
+    let mut app = make_test_app().await;
+    let primary_thread_id = ThreadId::new();
+    let child_thread_id = ThreadId::new();
+    app.primary_thread_id = Some(primary_thread_id);
+    app.agent_navigation.begin_fresh_primary_task(
+        primary_thread_id,
+        "gpt-5.6-terra".to_string(),
+        ReasoningEffortConfig::High,
+    );
+    app.agent_navigation.upsert(
+        child_thread_id,
+        Some("Luna worker".to_string()),
+        Some("worker".to_string()),
+        /*is_closed*/ false,
+    );
+
+    app.enqueue_thread_notification(
+        child_thread_id,
+        ServerNotification::ThreadSettingsUpdated(child_thread_settings_updated(
+            "gpt-5.6-luna",
+            child_thread_id,
+        )),
+    )
+    .await
+    .expect("child settings notification should be accepted");
+
+    let tree = app.agent_navigation.tree_snapshot(
+        Some(primary_thread_id),
+        /*selected_thread_id*/ None,
+        Some(primary_thread_id),
+    );
+    let child = tree
+        .rows
+        .iter()
+        .find(|row| row.thread_id == child_thread_id)
+        .expect("child tree row");
+    assert_eq!(child.model_label.as_deref(), Some("5.6.L-M"));
 }
 
 #[tokio::test]

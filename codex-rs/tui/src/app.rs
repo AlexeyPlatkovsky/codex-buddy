@@ -174,6 +174,8 @@ use crossterm::event::KeyEvent;
 use crossterm::event::KeyEventKind;
 use crossterm::event::KeyModifiers;
 use ratatui::backend::Backend;
+use ratatui::layout::Constraint;
+use ratatui::layout::Layout;
 use ratatui::layout::Rect;
 use ratatui::layout::Size;
 use ratatui::style::Stylize;
@@ -205,6 +207,7 @@ mod agent_navigation;
 mod agent_picker;
 mod agent_status_feed;
 mod agent_tree;
+mod agent_tree_metadata;
 mod agent_tree_panel;
 mod agent_tree_status_state;
 mod agent_tree_viewport;
@@ -228,6 +231,7 @@ mod pending_interactive_replay;
 mod permission_shortcuts;
 #[cfg(feature = "full-runtime-extensions")]
 mod pets;
+mod pinned_transcript;
 mod platform_actions;
 mod plugin_mentions;
 mod recap;
@@ -291,6 +295,28 @@ fn collab_receiver_thread_ids(notification: &ServerNotification) -> Option<&[Str
         },
         _ => None,
     }
+}
+
+/// Extracts the requested model details once a spawn notification names its new thread.
+fn collab_spawn_details(
+    notification: &ServerNotification,
+) -> Option<(&[String], &str, &ReasoningEffortConfig)> {
+    let item = match notification {
+        ServerNotification::ItemStarted(notification) => &notification.item,
+        ServerNotification::ItemCompleted(notification) => &notification.item,
+        _ => return None,
+    };
+    let ThreadItem::CollabAgentToolCall {
+        tool: codex_app_server_protocol::CollabAgentTool::SpawnAgent,
+        receiver_thread_ids,
+        model: Some(model),
+        reasoning_effort: Some(reasoning_effort),
+        ..
+    } = item
+    else {
+        return None;
+    };
+    (!receiver_thread_ids.is_empty()).then_some((receiver_thread_ids, model, reasoning_effort))
 }
 
 fn sub_agent_activity_item(notification: &ServerNotification) -> Option<&ThreadItem> {
@@ -612,6 +638,8 @@ pub(crate) struct App {
     thread_event_listener_tasks: HashMap<ThreadId, JoinHandle<()>>,
     agent_navigation: AgentNavigationState,
     agent_tree_viewport: agent_tree_viewport::AgentTreeViewport,
+    agent_tree_panel_entered_alt_screen: bool,
+    pinned_transcript: Option<pinned_transcript::PinnedTranscript>,
     agents_overview: agents_overview::AgentsOverviewState,
     side_threads: HashMap<ThreadId, SideThreadState>,
     abandoned_side_threads: HashSet<ThreadId>,
@@ -951,34 +979,72 @@ impl App {
             ),
             has_subagents,
         );
+        self.update_agent_tree_panel_screen_mode(tui, panel_layout.panel_area.is_some())?;
+        let panel_area = panel_layout.panel_area;
+        if panel_area.is_some() {
+            self.pinned_transcript.get_or_insert_with(|| {
+                pinned_transcript::PinnedTranscript::new(
+                    self.transcript_cells.clone(),
+                    self.keymap.pager.clone(),
+                )
+            });
+        } else {
+            self.pinned_transcript = None;
+        }
         let chat_widget_state = &self.chat_widget;
         let chat_widget = chat_widget_state.as_renderable();
-        let desired_height = if dashboard_visible {
+        let desired_height = if dashboard_visible || panel_area.is_some() {
             screen_size.height
         } else {
             chat_widget.desired_height(panel_layout.chat_area.width)
         };
         let viewport = &mut self.agent_tree_viewport;
+        let selected_tree = panel_area.map(|panel_area| {
+            viewport.resize(usize::from(panel_area.height.saturating_sub(1)), &tree);
+            viewport.update(&tree, current_thread_id);
+            tree.with_selection(viewport.selected_thread_id(), current_thread_id)
+        });
+        let pinned_transcript = self.pinned_transcript.as_mut();
+        let transcript_cells = &self.transcript_cells;
         let mut rendered_area = Rect::default();
         tui.draw_with_resize_reflow(desired_height, screen_size, |frame| {
             let area = frame.area();
             let panel_layout = agent_tree_panel::layout_agent_tree_panel(area, has_subagents);
             let chat_area = panel_layout.chat_area;
             rendered_area = chat_area;
-            chat_widget.render(chat_area, frame.buffer);
-            chat_widget_state.note_rendered_width(chat_area.width);
-            if let Some((x, y)) = chat_widget.cursor_pos(chat_area) {
-                frame.set_cursor_style(chat_widget.cursor_style(chat_area));
-                frame.set_cursor_position((x, y));
+            if let Some(transcript) = pinned_transcript {
+                let composer = chat_widget_state.as_composer_renderable();
+                let composer_height = composer.desired_height(chat_area.width);
+                let [transcript_area, composer_area] = Layout::vertical([
+                    Constraint::Min(0),
+                    Constraint::Length(composer_height.min(chat_area.height)),
+                ])
+                .areas(chat_area);
+                transcript.sync_and_render(
+                    transcript_area,
+                    frame.buffer,
+                    transcript_cells,
+                    chat_widget_state,
+                );
+                composer.render(composer_area, frame.buffer);
+                if let Some((x, y)) = composer.cursor_pos(composer_area) {
+                    frame.set_cursor_style(composer.cursor_style(composer_area));
+                    frame.set_cursor_position((x, y));
+                }
+            } else {
+                chat_widget.render(chat_area, frame.buffer);
+                if let Some((x, y)) = chat_widget.cursor_pos(chat_area) {
+                    frame.set_cursor_style(chat_widget.cursor_style(chat_area));
+                    frame.set_cursor_position((x, y));
+                }
             }
-            if let Some(panel_area) = panel_layout.panel_area {
-                viewport.resize(panel_layout.panel_content_height(), &tree);
-                viewport.update(&tree, current_thread_id);
-                let selected_tree =
-                    tree.with_selection(viewport.selected_thread_id(), current_thread_id);
+            chat_widget_state.note_rendered_width(chat_area.width);
+            if let Some((panel_area, selected_tree)) =
+                panel_layout.panel_area.zip(selected_tree.as_ref())
+            {
                 agent_tree_panel::render_agent_tree_panel(
                     panel_area,
-                    &selected_tree,
+                    selected_tree,
                     viewport,
                     frame.buffer,
                 );
@@ -1027,6 +1093,25 @@ impl App {
     fn has_subagents_for_panel(&self) -> bool {
         self.agent_navigation
             .has_non_primary_thread(self.primary_thread_id)
+    }
+
+    /// Gives the agent board its own fixed terminal surface while it is visible.
+    ///
+    /// Inline terminal scrollback cannot host a fixed side pane: every terminal row belongs to the
+    /// same scroll region. The alternate screen makes the chat and board one stable frame instead.
+    fn update_agent_tree_panel_screen_mode(
+        &mut self,
+        tui: &mut tui::Tui,
+        panel_visible: bool,
+    ) -> Result<()> {
+        if panel_visible && !tui.is_alt_screen_active() {
+            tui.enter_alt_screen()?;
+            self.agent_tree_panel_entered_alt_screen = tui.is_alt_screen_active();
+        } else if !panel_visible && self.agent_tree_panel_entered_alt_screen {
+            tui.leave_alt_screen()?;
+            self.agent_tree_panel_entered_alt_screen = false;
+        }
+        Ok(())
     }
 
     #[cfg(feature = "full-runtime-extensions")]

@@ -20,6 +20,7 @@ use ratatui::widgets::Block;
 use ratatui::widgets::Borders;
 use ratatui::widgets::Paragraph;
 use ratatui::widgets::Widget;
+use std::time::Duration;
 
 const MIN_PANEL_TERMINAL_WIDTH: u16 = 100;
 const MIN_PANEL_WIDTH: u16 = 28;
@@ -34,6 +35,7 @@ pub(crate) struct AgentTreePanelLayout {
 
 impl AgentTreePanelLayout {
     /// Returns the number of content rows in the panel after its title border.
+    #[cfg(test)]
     pub(crate) fn panel_content_height(self) -> usize {
         self.panel_area
             .map(|area| usize::from(area.height.saturating_sub(1)))
@@ -101,9 +103,12 @@ pub(crate) fn render_agent_tree_panel(
 
 fn render_row(row: &AgentTreeRow, width: u16) -> Line<'static> {
     let indent = "  ".repeat(row.depth.min(12));
+    let details = row_details(row);
     let available = usize::from(width)
         .saturating_sub(indent.len())
-        .saturating_sub(4);
+        .saturating_sub(4)
+        .saturating_sub(details.len())
+        .saturating_sub(usize::from(!details.is_empty()));
     let label = truncate_text(&row.label, available);
     let selection = if row.is_selected || row.is_current {
         "› ".cyan()
@@ -117,13 +122,39 @@ fn render_row(row: &AgentTreeRow, width: u16) -> Line<'static> {
     } else {
         label.into()
     };
-    Line::from(vec![
+    let mut spans = vec![
         selection,
         indent.into(),
         status_symbol(row.status),
         " ".into(),
         label,
-    ])
+    ];
+    if !details.is_empty() {
+        spans.extend([" ".dim(), details.dim()]);
+    }
+    Line::from(spans)
+}
+
+fn row_details(row: &AgentTreeRow) -> String {
+    match (&row.model_label, row.elapsed) {
+        (Some(model), Some(elapsed)) => format!("{model} {}", format_elapsed(elapsed)),
+        (Some(model), None) => model.clone(),
+        (None, Some(elapsed)) => format_elapsed(elapsed),
+        (None, None) => String::new(),
+    }
+}
+
+fn format_elapsed(elapsed: Duration) -> String {
+    let seconds = elapsed.as_secs();
+    if seconds < 60 {
+        return format!("{seconds}s");
+    }
+    let minutes = seconds / 60;
+    let seconds = seconds % 60;
+    if minutes < 60 {
+        return format!("{minutes}m{seconds:02}s");
+    }
+    format!("{}h{:02}m", minutes / 60, minutes % 60)
 }
 
 fn status_symbol(status: AgentTreeStatus) -> Span<'static> {

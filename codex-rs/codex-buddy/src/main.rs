@@ -20,6 +20,7 @@ use codex_exec::Cli as ExecCli;
 use codex_exec::Command as ExecCommand;
 use codex_exec::ReviewArgs;
 use codex_runtime_profile::RuntimePreset;
+use codex_tui::AppExitInfo;
 use codex_tui::Cli as TuiCli;
 use codex_utils_cli::CliConfigOverrides;
 
@@ -183,7 +184,7 @@ async fn run(paths: Arg0DispatchPaths) -> Result<()> {
     match command {
         None => {
             interactive.config_overrides.prepend_root_overrides(root);
-            codex_tui::run_main_with_runtime_preset(
+            let exit_info = codex_tui::run_main_with_runtime_preset(
                 interactive,
                 paths,
                 LoaderOverrides::default(),
@@ -191,6 +192,7 @@ async fn run(paths: Arg0DispatchPaths) -> Result<()> {
                 BUDDY_RUNTIME_PRESET,
             )
             .await?;
+            print_buddy_exit_summary(exit_info);
         }
         Some(Command::Exec(mut exec)) => {
             inherit_exec_root_options(&mut exec, &interactive);
@@ -297,7 +299,7 @@ async fn run(paths: Arg0DispatchPaths) -> Result<()> {
             interactive.resume_picker = interactive.resume_session_id.is_none() && !command.last;
             interactive.resume_show_all = command.all;
             interactive.resume_include_non_interactive = command.include_non_interactive;
-            codex_tui::run_main_with_runtime_preset(
+            let exit_info = codex_tui::run_main_with_runtime_preset(
                 interactive,
                 paths,
                 LoaderOverrides::default(),
@@ -305,6 +307,7 @@ async fn run(paths: Arg0DispatchPaths) -> Result<()> {
                 BUDDY_RUNTIME_PRESET,
             )
             .await?;
+            print_buddy_exit_summary(exit_info);
         }
         Some(Command::Fork(command)) => {
             let SessionTuiCli(mut options) = command.config_overrides;
@@ -315,7 +318,7 @@ async fn run(paths: Arg0DispatchPaths) -> Result<()> {
             interactive.fork_last = command.last;
             interactive.fork_picker = interactive.fork_session_id.is_none() && !command.last;
             interactive.fork_show_all = command.all;
-            codex_tui::run_main_with_runtime_preset(
+            let exit_info = codex_tui::run_main_with_runtime_preset(
                 interactive,
                 paths,
                 LoaderOverrides::default(),
@@ -323,9 +326,24 @@ async fn run(paths: Arg0DispatchPaths) -> Result<()> {
                 BUDDY_RUNTIME_PRESET,
             )
             .await?;
+            print_buddy_exit_summary(exit_info);
         }
     }
     Ok(())
+}
+
+fn print_buddy_exit_summary(exit_info: AppExitInfo) {
+    for line in buddy_exit_messages(exit_info, /*color_enabled*/ false) {
+        println!("{line}");
+    }
+}
+
+fn buddy_exit_messages(exit_info: AppExitInfo, color_enabled: bool) -> Vec<String> {
+    exit_info
+        .format_exit_messages(color_enabled)
+        .into_iter()
+        .map(|line| line.replacen("codex resume", "codex-buddy resume", /*count*/ 1))
+        .collect()
 }
 
 fn reject_root_strict_config_for_subcommand(
@@ -438,6 +456,9 @@ mod tests {
     use super::*;
     use clap::CommandFactory;
     use codex_core::config::ConfigBuilder;
+    use codex_tui::AppExitInfo;
+    use codex_tui::ExitReason;
+    use codex_tui::TokenUsage;
     use tempfile::TempDir;
 
     #[test]
@@ -652,5 +673,33 @@ mod tests {
             .expect("coding config");
         assert_eq!(BUDDY_RUNTIME_PRESET, RuntimePreset::Coding);
         assert_eq!(config.runtime_profile.preset(), BUDDY_RUNTIME_PRESET);
+    }
+
+    #[test]
+    fn exit_summary_uses_the_buddy_resume_command_and_reports_tokens() {
+        let lines = buddy_exit_messages(
+            AppExitInfo {
+                token_usage: TokenUsage {
+                    total_tokens: 12,
+                    input_tokens: 7,
+                    output_tokens: 5,
+                    ..Default::default()
+                },
+                thread_id: None,
+                resume_hint: Some("codex resume session-name".to_string()),
+                disconnect_info: None,
+                update_action: None,
+                exit_reason: ExitReason::UserRequested,
+            },
+            /*color_enabled*/ false,
+        );
+
+        assert_eq!(
+            lines,
+            vec![
+                "Token usage: total=12 input=7 output=5".to_string(),
+                "To continue this session, run codex-buddy resume session-name".to_string(),
+            ]
+        );
     }
 }

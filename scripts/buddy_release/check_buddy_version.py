@@ -84,6 +84,30 @@ def validate_versions(versions: BuddyVersions) -> list[str]:
     return errors
 
 
+def validate_version_bump(previous: str, current: str) -> list[str]:
+    """Require the checked Buddy version to be newer than a local baseline."""
+
+    previous_match = SEMVER_RE.fullmatch(previous)
+    current_match = SEMVER_RE.fullmatch(current)
+    if previous_match is None or current_match is None:
+        return ["Codex Buddy versions must be valid SemVer before comparing them"]
+
+    previous_core = tuple(
+        map(
+            int, previous.split("-", maxsplit=1)[0].split("+", maxsplit=1)[0].split(".")
+        )
+    )
+    current_core = tuple(
+        map(int, current.split("-", maxsplit=1)[0].split("+", maxsplit=1)[0].split("."))
+    )
+    if current_core <= previous_core:
+        return [
+            "Codex Buddy version must increase for every completed task: "
+            f"baseline={previous}, current={current}"
+        ]
+    return []
+
+
 def staged_reader(repo_root: Path) -> Callable[[Path], str]:
     """Return a reader for the Git index, which is what a commit actually records."""
 
@@ -107,12 +131,33 @@ def working_tree_reader(repo_root: Path) -> Callable[[Path], str]:
     return lambda path: (repo_root / path).read_text(encoding="utf-8")
 
 
+def version_from_git_ref(repo_root: Path, git_ref: str) -> str:
+    """Read the Codex Buddy package version from one local Git revision."""
+
+    result = subprocess.run(
+        ["git", "-C", str(repo_root), "show", f"{git_ref}:{BUDDY_CARGO_TOML}"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise ValueError(
+            f"could not read {BUDDY_CARGO_TOML} from {git_ref}: {result.stderr.strip()}"
+        )
+    return _extract_version(result.stdout, r'^version = "([^"]+)"$', BUDDY_CARGO_TOML)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--staged",
         action="store_true",
         help="validate the Git index instead of the working tree",
+    )
+    parser.add_argument(
+        "--require-bump-from-ref",
+        metavar="REF",
+        help="require the checked version to be newer than this local Git revision",
     )
     return parser.parse_args()
 
@@ -132,6 +177,15 @@ def main() -> int:
         return 1
 
     errors = validate_versions(versions)
+    if args.require_bump_from_ref is not None:
+        try:
+            previous_version = version_from_git_ref(
+                repo_root, args.require_bump_from_ref
+            )
+        except ValueError as error:
+            print(f"Buddy version check failed: {error}", file=sys.stderr)
+            return 1
+        errors.extend(validate_version_bump(previous_version, versions.cargo_toml))
     if errors:
         print("Buddy version check failed:", file=sys.stderr)
         print("\n".join(f"- {error}" for error in errors), file=sys.stderr)

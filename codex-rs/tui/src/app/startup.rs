@@ -522,6 +522,8 @@ See the Codex keymap documentation for supported actions and examples."
             thread_event_listener_tasks: HashMap::new(),
             agent_navigation: AgentNavigationState::default(),
             agent_tree_viewport: agent_tree_viewport::AgentTreeViewport::new(),
+            agent_tree_panel_entered_alt_screen: false,
+            pinned_transcript: None,
             agents_overview: Default::default(),
             side_threads: HashMap::new(),
             abandoned_side_threads: HashSet::new(),

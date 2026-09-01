@@ -8,7 +8,9 @@ use super::app_server_event_targets::server_request_thread_id;
 use crate::app_command::AppCommand;
 use crate::app_event::AppEvent;
 use crate::app_server_session::AppServerSession;
+use crate::app_server_session::source_agent_path;
 use crate::app_server_session::status_account_display_from_auth_mode;
+use crate::app_server_session::thread_blocks_direct_input;
 use codex_app_server_client::AppServerEvent;
 use codex_app_server_protocol::AuthMode;
 use codex_app_server_protocol::ClientRequest;
@@ -17,6 +19,8 @@ use codex_app_server_protocol::RequestId;
 use codex_app_server_protocol::ServerNotification;
 use codex_app_server_protocol::ServerRequest;
 use codex_app_server_protocol::SessionSource;
+use codex_app_server_protocol::SubAgentActivityKind;
+use codex_app_server_protocol::ThreadItem;
 use codex_app_server_protocol::ThreadReadParams;
 use codex_app_server_protocol::ThreadReadResponse;
 use codex_app_server_protocol::ThreadSource;
@@ -88,6 +92,11 @@ impl App {
         app_server_client: &AppServerSession,
         notification: ServerNotification,
     ) {
+        // Collab spawn events can arrive before the child has a local event channel. Cache their
+        // receiver id and requested model before the routing guard below can discard an early
+        // nested-agent event.
+        self.cache_collab_receiver_threads_for_notification(&notification);
+
         if let ServerNotification::ThreadStatusChanged(status) = &notification {
             let _ = self.dynamic_tool_status_updates.send(status.clone());
         }
@@ -119,6 +128,39 @@ impl App {
 
         if let ServerNotification::ThreadStarted(started) = &notification
             && let SessionSource::SubAgent(SubAgentSource::ThreadSpawn {
+                parent_thread_id,
+                agent_nickname: source_nickname,
+                agent_role: source_role,
+                ..
+            }) = &started.thread.source
+            && let Some(primary_thread_id) = self.primary_thread_id
+            && (*parent_thread_id == primary_thread_id
+                || self.thread_event_channels.contains_key(parent_thread_id)
+                || self.agent_navigation.get(parent_thread_id).is_some())
+            && let Ok(thread_id) = codex_protocol::ThreadId::from_string(&started.thread.id)
+        {
+            self.upsert_agent_picker_thread(
+                thread_id,
+                started
+                    .thread
+                    .agent_nickname
+                    .clone()
+                    .or_else(|| source_nickname.clone()),
+                started
+                    .thread
+                    .agent_role
+                    .clone()
+                    .or_else(|| source_role.clone()),
+                /*is_closed*/ false,
+            );
+            self.agent_navigation
+                .set_agent_path(thread_id, source_agent_path(&started.thread.source));
+            if thread_blocks_direct_input(&started.thread) {
+                self.agent_navigation.mark_parent_owned(thread_id);
+            }
+        }
+        if let ServerNotification::ThreadStarted(started) = &notification
+            && let SessionSource::SubAgent(SubAgentSource::ThreadSpawn {
                 parent_thread_id, ..
             }) = &started.thread.source
             && self
@@ -143,6 +185,37 @@ impl App {
                 | ServerNotification::ThreadClosed(_)
         ) {
             self.refresh_agents_overview_threads(app_server_client);
+        }
+        if super::collab_spawn_details(&notification).is_some()
+            && let ServerNotificationThreadTarget::Thread(sender_thread_id) =
+                server_notification_thread_target(&notification)
+            && let Some(primary_thread_id) = self.primary_thread_id
+            && (sender_thread_id == primary_thread_id
+                || self.thread_event_channels.contains_key(&sender_thread_id)
+                || self.agent_navigation.get(&sender_thread_id).is_some())
+        {
+            // Spawn lifecycle items intentionally contain only the new thread id, model, and
+            // effort. Refresh the bounded root-scoped listing immediately so the fixed panel gets
+            // the authoritative nickname and role without requiring the user to open
+            // `/subagents`.
+            self.refresh_agent_picker_threads(app_server_client, primary_thread_id);
+        }
+        if matches!(
+            super::sub_agent_activity_item(&notification),
+            Some(ThreadItem::SubAgentActivity {
+                kind: SubAgentActivityKind::Started,
+                ..
+            })
+        ) && let ServerNotificationThreadTarget::Thread(sender_thread_id) =
+            server_notification_thread_target(&notification)
+            && let Some(primary_thread_id) = self.primary_thread_id
+            && (sender_thread_id == primary_thread_id
+                || self.thread_event_channels.contains_key(&sender_thread_id)
+                || self.agent_navigation.get(&sender_thread_id).is_some())
+        {
+            // Older app-server peers omit activity metadata. The live listing is a bounded
+            // fallback for their nickname and role, and no `/subagents` command is required.
+            self.refresh_agent_picker_threads(app_server_client, primary_thread_id);
         }
         match &notification {
             ServerNotification::ServerRequestResolved(notification) => {

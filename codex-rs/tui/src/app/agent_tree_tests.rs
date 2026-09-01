@@ -1,4 +1,5 @@
 use super::*;
+use codex_protocol::openai_models::ReasoningEffort;
 use pretty_assertions::assert_eq;
 
 fn input(
@@ -14,6 +15,8 @@ fn input(
         agent_path: agent_path.map(str::to_string),
         agent_nickname: nickname.map(str::to_string),
         agent_role: Some("worker".to_string()),
+        model_label: None,
+        elapsed: None,
         status: AgentTreeStatus::from_picker_metadata(!closed, closed),
     }
 }
@@ -207,4 +210,20 @@ fn rich_status_is_projected_without_changing_tree_order_or_selection() {
     assert_eq!(ids(&snapshot), vec![root, approval]);
     assert_eq!(snapshot.rows[1].status, AgentTreeStatus::NeedsApproval);
     assert!(snapshot.rows[1].is_selected);
+}
+
+#[test]
+fn compact_model_labels_preserve_the_model_family_and_effort() {
+    assert_eq!(
+        compact_agent_model_label("gpt-5.6-luna", &ReasoningEffort::High),
+        "5.6.L-H"
+    );
+    assert_eq!(
+        compact_agent_model_label("gpt-5.6-sol", &ReasoningEffort::Medium),
+        "5.6.S-M"
+    );
+    assert_eq!(
+        compact_agent_model_label("gpt-5.4", &ReasoningEffort::High),
+        "5.4-H"
+    );
 }

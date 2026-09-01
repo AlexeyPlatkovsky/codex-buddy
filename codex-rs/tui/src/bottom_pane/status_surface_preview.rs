@@ -4,6 +4,8 @@ use ratatui::text::Line;
 
 use super::status_line_from_segments;
 use super::status_line_setup::StatusLineItem;
+use crate::version::PRODUCT_DISPLAY_NAME;
+use crate::version::PRODUCT_DISPLAY_VERSION;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub(crate) enum StatusSurfacePreviewItem {
@@ -43,7 +45,7 @@ pub(crate) enum StatusSurfacePreviewItem {
 impl StatusSurfacePreviewItem {
     fn placeholder(self) -> &'static str {
         match self {
-            StatusSurfacePreviewItem::AppName => "codex",
+            StatusSurfacePreviewItem::AppName => PRODUCT_DISPLAY_NAME,
             StatusSurfacePreviewItem::ProjectName => "my-project",
             StatusSurfacePreviewItem::ProjectRoot => "my-project",
             StatusSurfacePreviewItem::CurrentDir => "~/my-project/subdir",
@@ -59,7 +61,7 @@ impl StatusSurfacePreviewItem {
             StatusSurfacePreviewItem::ContextUsed => "Context 0% used",
             StatusSurfacePreviewItem::FiveHourLimit => "primary 0%",
             StatusSurfacePreviewItem::WeeklyLimit => "secondary 0%",
-            StatusSurfacePreviewItem::CodexVersion => "0.0.0",
+            StatusSurfacePreviewItem::CodexVersion => PRODUCT_DISPLAY_VERSION,
             StatusSurfacePreviewItem::ContextWindowSize => "0 window",
             StatusSurfacePreviewItem::UsedTokens => "0 used",
             StatusSurfacePreviewItem::TotalInputTokens => "0 in",

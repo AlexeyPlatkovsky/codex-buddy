@@ -7,8 +7,10 @@
 use crate::multi_agents::AgentPickerThreadEntry;
 use crate::multi_agents::format_agent_picker_item_name;
 use codex_protocol::ThreadId;
+use codex_protocol::openai_models::ReasoningEffort;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::time::Duration;
 
 #[path = "agent_tree_status.rs"]
 mod agent_tree_status;
@@ -33,6 +35,8 @@ pub(crate) struct AgentTreeInput {
     pub(crate) agent_path: Option<String>,
     pub(crate) agent_nickname: Option<String>,
     pub(crate) agent_role: Option<String>,
+    pub(crate) model_label: Option<String>,
+    pub(crate) elapsed: Option<Duration>,
     pub(crate) status: AgentTreeStatus,
 }
 
@@ -48,6 +52,8 @@ impl AgentTreeInput {
             agent_path: entry.agent_path.clone(),
             agent_nickname: entry.agent_nickname.clone(),
             agent_role: entry.agent_role.clone(),
+            model_label: None,
+            elapsed: None,
             status: AgentTreeStatus::from_picker_metadata(entry.is_running, entry.is_closed),
         }
     }
@@ -67,6 +73,8 @@ pub(crate) struct AgentTreeRow {
     pub(crate) depth: usize,
     pub(crate) agent_path: Option<String>,
     pub(crate) label: String,
+    pub(crate) model_label: Option<String>,
+    pub(crate) elapsed: Option<Duration>,
     pub(crate) status: AgentTreeStatus,
     pub(crate) is_current: bool,
     pub(crate) is_selected: bool,
@@ -213,6 +221,8 @@ impl AgentTreeSnapshot {
                         input.agent_role.as_deref(),
                         primary_thread_id == Some(input.thread_id),
                     ),
+                    model_label: input.model_label.clone(),
+                    elapsed: input.elapsed,
                     status: input.status,
                     is_current: current_thread_id == Some(input.thread_id),
                     is_selected: selected_thread_id == Some(input.thread_id),
@@ -235,6 +245,42 @@ impl AgentTreeSnapshot {
             row.is_current = current_thread_id == Some(row.thread_id);
         }
         snapshot
+    }
+}
+
+/// Compacts a model and reasoning-effort pair for the narrow tree panel.
+///
+/// Examples: `gpt-5.6-luna` with high effort becomes `5.6.L-H`; model names without a
+/// family suffix retain their version, such as `gpt-5.4` becoming `5.4-H`.
+pub(crate) fn compact_agent_model_label(model: &str, effort: &ReasoningEffort) -> String {
+    let model = model.trim().strip_prefix("gpt-").unwrap_or(model.trim());
+    let mut segments = model.split('-').filter(|segment| !segment.is_empty());
+    let version = segments.next().unwrap_or("?");
+    let family = segments
+        .next_back()
+        .filter(|family| {
+            !family
+                .chars()
+                .all(|character| character.is_ascii_digit() || character == '.')
+        })
+        .and_then(|family| family.chars().next())
+        .map(|family| format!(".{}", family.to_ascii_uppercase()))
+        .unwrap_or_default();
+    format!("{version}{family}-{}", compact_reasoning_effort(effort))
+}
+
+fn compact_reasoning_effort(effort: &ReasoningEffort) -> &'static str {
+    match effort {
+        ReasoningEffort::None => "N",
+        ReasoningEffort::Minimal => "MIN",
+        ReasoningEffort::Low => "L",
+        ReasoningEffort::Medium => "M",
+        ReasoningEffort::High => "H",
+        ReasoningEffort::XHigh => "XH",
+        ReasoningEffort::Max => "MAX",
+        ReasoningEffort::Ultra => "U",
+        ReasoningEffort::Persistent => "P",
+        ReasoningEffort::Custom(_) => "?",
     }
 }
 

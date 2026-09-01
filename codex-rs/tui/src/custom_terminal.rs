@@ -675,7 +675,7 @@ fn diff_buffers(a: &Buffer, b: &Buffer) -> Vec<DrawCommand> {
 
     for (x, y, cell) in cell_updates {
         let row = usize::from(y - a.area.y);
-        if x <= last_nonblank_columns[row] {
+        if x.saturating_sub(a.area.x) <= last_nonblank_columns[row] {
             updates.push(DrawCommand::Put {
                 x,
                 y,

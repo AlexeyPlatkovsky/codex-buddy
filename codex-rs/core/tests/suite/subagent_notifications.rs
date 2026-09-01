@@ -1392,7 +1392,45 @@ async fn spawned_full_history_v2_child_uses_model_precedence_without_dropping_co
             "restored parent policy should require an explicit delegation request"
         );
     }
-    test.submit_turn(TURN_1_PROMPT).await?;
+    test.codex
+        .start_or_steer_turn(TurnInputRequest::user_input(vec![UserInput::Text {
+            text: TURN_1_PROMPT.to_string(),
+            text_elements: Vec::new(),
+        }]))
+        .await?;
+    let started_activity = wait_for_event_match(&test.codex, |event| match event {
+        EventMsg::ItemCompleted(completed) => match &completed.item {
+            TurnItem::SubAgentActivity(activity)
+                if activity.kind == SubAgentActivityKind::Started =>
+            {
+                Some(activity.clone())
+            }
+            _ => None,
+        },
+        _ => None,
+    })
+    .await;
+    assert_eq!(
+        (
+            started_activity.model.as_deref(),
+            started_activity.reasoning_effort,
+        ),
+        (
+            Some(expected_model),
+            Some(expected_reasoning_effort.clone())
+        )
+    );
+    assert!(
+        started_activity
+            .agent_nickname
+            .as_deref()
+            .is_some_and(|nickname| !nickname.is_empty()),
+        "started activity should publish the generated agent nickname"
+    );
+    wait_for_event(&test.codex, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
     let parent_request = spawn_turn.single_request();
 
     let child_request = wait_for_request_with_model(&child_request_log, expected_model).await?;
@@ -2381,6 +2419,10 @@ async fn plaintext_multi_agent_v2_completion_sends_agent_message(
                 agent_path: codex_protocol::AgentPath::root()
                     .join("worker")
                     .expect("worker path"),
+                agent_nickname: None,
+                agent_role: None,
+                model: None,
+                reasoning_effort: None,
             }
         );
     } else {
@@ -2639,6 +2681,10 @@ async fn multi_agent_v2_peer_followup_completion_notifies_initiating_turn() -> R
                 agent_path: codex_protocol::AgentPath::root()
                     .join("worker")
                     .expect("worker path"),
+                agent_nickname: None,
+                agent_role: None,
+                model: None,
+                reasoning_effort: None,
             },
         )
     );

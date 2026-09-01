@@ -147,6 +147,12 @@ fn render_navigation_hints(area: Rect, buf: &mut Buffer, keymap: &PagerKeymap) {
 }
 
 /// Generic widget for rendering a pager view.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum TranscriptPresentation {
+    Pager,
+    Pinned,
+}
+
 struct PagerView {
     renderables: Vec<Box<dyn Renderable>>,
     scroll_offset: usize,
@@ -158,6 +164,7 @@ struct PagerView {
     scroll_percentage_visible: bool,
     /// If set, on next render ensure this chunk is visible.
     pending_scroll_chunk: Option<usize>,
+    presentation: TranscriptPresentation,
 }
 
 impl PagerView {
@@ -166,6 +173,7 @@ impl PagerView {
         title: String,
         scroll_offset: usize,
         keymap: PagerKeymap,
+        presentation: TranscriptPresentation,
     ) -> Self {
         Self {
             renderables,
@@ -176,6 +184,7 @@ impl PagerView {
             last_rendered_height: None,
             scroll_percentage_visible: true,
             pending_scroll_chunk: None,
+            presentation,
         }
     }
 
@@ -188,7 +197,9 @@ impl PagerView {
 
     fn render(&mut self, area: Rect, buf: &mut Buffer) {
         Clear.render(area, buf);
-        self.render_header(area, buf);
+        if self.presentation == TranscriptPresentation::Pager {
+            self.render_header(area, buf);
+        }
         let content_area = self.content_area(area);
         self.update_last_content_height(content_area.height);
         let content_height = self.content_height(content_area.width);
@@ -204,7 +215,9 @@ impl PagerView {
 
         self.render_content(content_area, buf);
 
-        self.render_bottom_bar(area, content_area, buf, content_height);
+        if self.presentation == TranscriptPresentation::Pager {
+            self.render_bottom_bar(area, content_area, buf, content_height);
+        }
     }
 
     fn render_header(&self, area: Rect, buf: &mut Buffer) {
@@ -244,7 +257,10 @@ impl PagerView {
             if area.width == 0 {
                 break;
             }
-            buf[(area.x, y)] = Cell::from('~');
+            buf[(area.x, y)] = Cell::from(match self.presentation {
+                TranscriptPresentation::Pager => '~',
+                TranscriptPresentation::Pinned => ' ',
+            });
             for x in area.x + 1..area.right() {
                 buf[(x, y)] = Cell::from(' ');
             }
@@ -342,10 +358,15 @@ impl PagerView {
     }
 
     fn content_area(&self, area: Rect) -> Rect {
-        let mut area = area;
-        area.y = area.y.saturating_add(1);
-        area.height = area.height.saturating_sub(2);
-        area
+        match self.presentation {
+            TranscriptPresentation::Pager => Rect::new(
+                area.x,
+                area.y.saturating_add(1),
+                area.width,
+                area.height.saturating_sub(2),
+            ),
+            TranscriptPresentation::Pinned => area,
+        }
     }
 }
 
@@ -474,6 +495,7 @@ pub(crate) struct TranscriptOverlay {
     live_tail_key: Option<LiveTailKey>,
     history_state: TranscriptHistoryState,
     is_done: bool,
+    presentation: TranscriptPresentation,
 }
 
 /// Cache key for the active-cell "live tail" appended to the transcript overlay.
@@ -492,11 +514,67 @@ struct LiveTailKey {
 }
 
 impl TranscriptOverlay {
+    /// Handles only transcript navigation keys without taking ownership of the composer.
+    ///
+    /// The pinned agent-tree layout embeds the transcript beside the composer, so closing the
+    /// pager must remain the app's responsibility while wheel-derived arrow keys still scroll
+    /// the transcript.
+    pub(crate) fn handle_navigation_key(
+        &mut self,
+        tui: &mut tui::Tui,
+        key_event: KeyEvent,
+    ) -> bool {
+        let keymap = &self.view.keymap;
+        let is_unambiguous_navigation_key = matches!(
+            key_event,
+            KeyEvent {
+                code: KeyCode::Up
+                    | KeyCode::Down
+                    | KeyCode::PageUp
+                    | KeyCode::PageDown
+                    | KeyCode::Home
+                    | KeyCode::End,
+                modifiers: crossterm::event::KeyModifiers::NONE,
+                kind: crossterm::event::KeyEventKind::Press
+                    | crossterm::event::KeyEventKind::Repeat,
+                ..
+            }
+        );
+        let is_navigation_key = is_unambiguous_navigation_key
+            && (keymap.scroll_up.is_pressed(key_event)
+                || keymap.scroll_down.is_pressed(key_event)
+                || keymap.page_up.is_pressed(key_event)
+                || keymap.page_down.is_pressed(key_event)
+                || keymap.half_page_up.is_pressed(key_event)
+                || keymap.half_page_down.is_pressed(key_event)
+                || keymap.jump_top.is_pressed(key_event)
+                || keymap.jump_bottom.is_pressed(key_event));
+        if is_navigation_key {
+            let _ = self.view.handle_key_event(tui, key_event);
+        }
+        is_navigation_key
+    }
+
     /// Creates a transcript overlay for a fixed set of committed cells.
     ///
     /// This overlay does not own the "active cell"; callers may optionally append a live tail via
     /// `sync_live_tail` during draws to reflect in-flight activity.
     pub(crate) fn new(transcript_cells: Vec<Arc<dyn HistoryCell>>, keymap: PagerKeymap) -> Self {
+        Self::new_with_presentation(transcript_cells, keymap, TranscriptPresentation::Pager)
+    }
+
+    pub(crate) fn new_pinned(
+        transcript_cells: Vec<Arc<dyn HistoryCell>>,
+        keymap: PagerKeymap,
+    ) -> Self {
+        Self::new_with_presentation(transcript_cells, keymap, TranscriptPresentation::Pinned)
+    }
+
+    fn new_with_presentation(
+        transcript_cells: Vec<Arc<dyn HistoryCell>>,
+        keymap: PagerKeymap,
+        presentation: TranscriptPresentation,
+    ) -> Self {
         Self {
             view: PagerView::new(
                 Self::render_cells(
@@ -507,12 +585,14 @@ impl TranscriptOverlay {
                 "T R A N S C R I P T".to_string(),
                 usize::MAX,
                 keymap,
+                presentation,
             ),
             cells: transcript_cells,
             highlight_cell: None,
             live_tail_key: None,
             history_state: TranscriptHistoryState::Idle,
             is_done: false,
+            presentation,
         }
     }
 
@@ -883,12 +963,20 @@ impl TranscriptOverlay {
         if self.view.is_scrolled_to_bottom() {
             self.view.scroll_offset = usize::MAX;
         }
-        let top_h = area.height.saturating_sub(3);
-        let top = Rect::new(area.x, area.y, area.width, top_h);
-        let bottom = Rect::new(area.x, area.y + top_h, area.width, 3);
-        self.view.render(top, buf);
-        self.render_history_state(top, buf);
-        self.render_hints(bottom, buf);
+        match self.presentation {
+            TranscriptPresentation::Pager => {
+                let top_h = area.height.saturating_sub(3);
+                let top = Rect::new(area.x, area.y, area.width, top_h);
+                let bottom = Rect::new(area.x, area.y + top_h, area.width, 3);
+                self.view.render(top, buf);
+                self.render_history_state(top, buf);
+                self.render_hints(bottom, buf);
+            }
+            TranscriptPresentation::Pinned => {
+                self.view.render(area, buf);
+                self.render_history_state(area, buf);
+            }
+        }
     }
 
     fn render_history_state(&self, area: Rect, buf: &mut Buffer) {
@@ -966,7 +1054,13 @@ impl StaticOverlay {
         keymap: PagerKeymap,
     ) -> Self {
         Self {
-            view: PagerView::new(renderables, title, /*scroll_offset*/ 0, keymap),
+            view: PagerView::new(
+                renderables,
+                title,
+                /*scroll_offset*/ 0,
+                keymap,
+                TranscriptPresentation::Pager,
+            ),
             is_done: false,
         }
     }
@@ -1095,6 +1189,10 @@ mod tests {
         TranscriptOverlay::new(cells, default_pager_keymap())
     }
 
+    fn pinned_transcript(cells: Vec<Arc<dyn HistoryCell>>) -> TranscriptOverlay {
+        TranscriptOverlay::new_pinned(cells, default_pager_keymap())
+    }
+
     fn static_overlay(lines: Vec<Line<'static>>, title: &str) -> StaticOverlay {
         StaticOverlay::with_title(lines, title.to_string(), default_pager_keymap())
     }
@@ -1109,6 +1207,7 @@ mod tests {
             title.to_string(),
             scroll_offset,
             default_pager_keymap(),
+            TranscriptPresentation::Pager,
         )
     }
 
@@ -1229,6 +1328,45 @@ mod tests {
         term.draw(|f| overlay.render(f.area(), f.buffer_mut()))
             .expect("draw");
         assert_snapshot!(term.backend());
+    }
+
+    #[test]
+    fn pinned_transcript_snapshot_uses_plain_surface() {
+        let mut transcript = pinned_transcript(vec![Arc::new(TestCell {
+            lines: vec![Line::from("short transcript")],
+        })]);
+        let mut term = Terminal::new(TestBackend::new(/*width*/ 40, /*height*/ 8)).expect("term");
+
+        term.draw(|frame| transcript.render(frame.area(), frame.buffer_mut()))
+            .expect("draw");
+
+        assert_snapshot!(term.backend());
+    }
+
+    #[tokio::test]
+    async fn pinned_transcript_navigation_does_not_consume_typing_keys() {
+        let mut transcript = pinned_transcript(Vec::new());
+        let mut tui = crate::tui::test_support::make_test_tui().expect("test tui");
+
+        for code in [KeyCode::Char(' '), KeyCode::Char('j'), KeyCode::Char('k')] {
+            assert!(!transcript.handle_navigation_key(
+                &mut tui,
+                KeyEvent::new(code, crossterm::event::KeyModifiers::NONE),
+            ));
+        }
+        for code in [
+            KeyCode::Up,
+            KeyCode::Down,
+            KeyCode::PageUp,
+            KeyCode::PageDown,
+            KeyCode::Home,
+            KeyCode::End,
+        ] {
+            assert!(transcript.handle_navigation_key(
+                &mut tui,
+                KeyEvent::new(code, crossterm::event::KeyModifiers::NONE),
+            ));
+        }
     }
 
     #[test]

@@ -16,6 +16,8 @@ fn tree() -> AgentTreeSnapshot {
                 agent_path: None,
                 agent_nickname: None,
                 agent_role: None,
+                model_label: Some("5.6.L-M".to_string()),
+                elapsed: Some(std::time::Duration::from_secs(21)),
                 status: AgentTreeStatus::Running,
             },
             AgentTreeInput {
@@ -24,6 +26,8 @@ fn tree() -> AgentTreeSnapshot {
                 agent_path: Some("root/planner".to_string()),
                 agent_nickname: Some("Ada".to_string()),
                 agent_role: Some("planner".to_string()),
+                model_label: Some("5.6.L-H".to_string()),
+                elapsed: Some(std::time::Duration::from_secs(21)),
                 status: AgentTreeStatus::NeedsInput,
             },
             AgentTreeInput {
@@ -32,6 +36,8 @@ fn tree() -> AgentTreeSnapshot {
                 agent_path: Some("root/planner/worker".to_string()),
                 agent_nickname: Some("Grace".to_string()),
                 agent_role: Some("worker".to_string()),
+                model_label: Some("5.6.L-H".to_string()),
+                elapsed: Some(std::time::Duration::from_secs(42)),
                 status: AgentTreeStatus::Completed,
             },
         ],
@@ -78,9 +84,9 @@ fn wide_layout_clamps_the_panel_and_renders_tree_snapshot() {
     render_agent_tree_panel(panel, &tree, &viewport, &mut buffer);
     assert_snapshot!(buffer_text(&buffer, panel), @r"
 ┌ Subagents ────────────────────────
-│  ● Main [default]
-│›   ? Ada [planner]
-│      ✓ Grace [worker]
+│  ● Main [default] 5.6.L-M 21s
+│›   ? Ada [planner] 5.6.L-H 21s
+│      ✓ Grace [worker] 5.6.L-H 42s
 │
 │
 │
@@ -130,6 +136,8 @@ fn panel_snapshot_covers_active_and_terminal_statuses() {
             agent_path: None,
             agent_nickname: Some(format!("Agent {index}")),
             agent_role: Some("worker".to_string()),
+            model_label: Some("5.6.L-H".to_string()),
+            elapsed: Some(std::time::Duration::from_secs(index as u64 + 1)),
             status,
         })
         .collect::<Vec<_>>();
@@ -147,13 +155,13 @@ fn panel_snapshot_covers_active_and_terminal_statuses() {
 
     assert_snapshot!(buffer_text(&buffer, area), @r"
 ┌ Subagents ────────────────────
-│  ● Agent 0 [worker]
-│  ○ Agent 1 [worker]
-│  ! Agent 2 [worker]
-│› ? Agent 3 [worker]
-│  ✓ Agent 4 [worker]
-│  × Agent 5 [worker]
-│  – Agent 6 [worker]
+│  ● Agent 0 [worker] 5.6.L-H 1s
+│  ○ Agent 1 [worker] 5.6.L-H 2s
+│  ! Agent 2 [worker] 5.6.L-H 3s
+│› ? Agent 3 [worker] 5.6.L-H 4s
+│  ✓ Agent 4 [worker] 5.6.L-H 5s
+│  × Agent 5 [worker] 5.6.L-H 6s
+│  – Agent 6 [worker] 5.6.L-H 7s
 │
 ");
 }
@@ -171,6 +179,8 @@ fn panel_snapshot_marks_scroll_direction_without_changing_selected_agent() {
             agent_path: None,
             agent_nickname: Some(format!("Agent {index}")),
             agent_role: Some("worker".to_string()),
+            model_label: Some("5.6.L-H".to_string()),
+            elapsed: Some(std::time::Duration::from_secs(index as u64 + 1)),
             status: AgentTreeStatus::Waiting,
         }),
         None,
@@ -195,8 +205,8 @@ fn panel_snapshot_marks_scroll_direction_without_changing_selected_agent() {
     assert_eq!(viewport.selected_thread_id(), Some(selected_thread_id));
     assert_snapshot!(buffer_text(&buffer, area), @r"
 ┌ Subagents ↕ ──────────────────
-│  ○ Agent 4 [worker]
-│  ○ Agent 5 [worker]
-│› ○ Agent 6 [worker]
+│  ○ Agent 4 [worker] 5.6.L-H 5s
+│  ○ Agent 5 [worker] 5.6.L-H 6s
+│› ○ Agent 6 [worker] 5.6.L-H 7s
 ");
 }

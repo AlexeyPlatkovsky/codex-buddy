@@ -23,6 +23,7 @@ use super::agent_tree::AgentTreeInput;
 use super::agent_tree::AgentTreeLifecycleEvent;
 use super::agent_tree::AgentTreeSnapshot;
 use super::agent_tree::AgentTreeStatus;
+use super::agent_tree_metadata::AgentTreeMetadataState;
 use super::agent_tree_status_state::AgentTreeStatusState;
 use crate::multi_agents::AgentPickerThreadEntry;
 use crate::multi_agents::SubAgentActivityDisplay;
@@ -32,6 +33,7 @@ use crate::multi_agents::previous_agent_shortcut;
 use codex_app_server_protocol::ServerNotification;
 use codex_app_server_protocol::ServerRequest;
 use codex_protocol::ThreadId;
+use codex_protocol::openai_models::ReasoningEffort;
 use ratatui::text::Span;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -60,6 +62,8 @@ pub(crate) struct AgentNavigationState {
     picker_refresh: Option<(ThreadId, Uuid)>,
     /// Bounded, event-driven lifecycle state for tree rows.
     tree_statuses: AgentTreeStatusState,
+    /// Presentation-only model, runtime, and root-task boundary state for tree rows.
+    tree_metadata: AgentTreeMetadataState,
 }
 
 /// Direction of keyboard traversal through the stable picker order.
@@ -153,33 +157,54 @@ impl AgentNavigationState {
     }
 
     pub(crate) fn record_sub_agent_activity(&mut self, activity: SubAgentActivityDisplay) {
-        if !self.threads.contains_key(&activity.thread_id) {
-            self.order.push(activity.thread_id);
+        let SubAgentActivityDisplay {
+            thread_id,
+            agent_path,
+            is_running_hint,
+            agent_nickname,
+            agent_role,
+            model,
+            reasoning_effort,
+        } = activity;
+        if !self.threads.contains_key(&thread_id) {
+            self.order.push(thread_id);
         }
-        let entry =
-            self.threads
-                .entry(activity.thread_id)
-                .or_insert_with(|| AgentPickerThreadEntry {
-                    agent_nickname: None,
-                    agent_role: None,
-                    agent_path: None,
-                    is_running: false,
-                    is_closed: false,
-                });
-        entry.agent_path = Some(activity.agent_path);
-        if activity.is_running_hint
-            && !entry.is_closed
-            && !self.stopped_threads.contains(&activity.thread_id)
-        {
+        let entry = self
+            .threads
+            .entry(thread_id)
+            .or_insert_with(|| AgentPickerThreadEntry {
+                agent_nickname: None,
+                agent_role: None,
+                agent_path: None,
+                is_running: false,
+                is_closed: false,
+            });
+        entry.agent_path = Some(agent_path);
+        if agent_nickname.is_some() {
+            entry.agent_nickname = agent_nickname;
+        }
+        if agent_role.is_some() {
+            entry.agent_role = agent_role;
+        }
+        if is_running_hint && !entry.is_closed && !self.stopped_threads.contains(&thread_id) {
             entry.is_running = true;
         } else {
             entry.is_running = false;
-            self.stopped_threads.insert(activity.thread_id);
+            self.stopped_threads.insert(thread_id);
         }
         self.observe_tree_status(
-            activity.thread_id,
-            AgentTreeLifecycleEvent::from_activity_hint(activity.is_running_hint),
+            thread_id,
+            AgentTreeLifecycleEvent::from_activity_hint(is_running_hint),
         );
+        if let Some(model) = model {
+            self.tree_metadata
+                .record_model(thread_id, model, reasoning_effort.unwrap_or_default());
+        }
+        if is_running_hint {
+            self.tree_metadata.start_runtime(thread_id);
+        } else {
+            self.tree_metadata.finish_runtime(thread_id);
+        }
     }
 
     pub(crate) fn mark_running(&mut self, thread_id: ThreadId) {
@@ -193,12 +218,14 @@ impl AgentNavigationState {
         self.stopped_threads.remove(&thread_id);
         self.set_running(thread_id, /*is_running*/ true);
         self.observe_tree_status(thread_id, AgentTreeLifecycleEvent::TurnStarted);
+        self.tree_metadata.start_runtime(thread_id);
     }
 
     pub(crate) fn mark_stopped(&mut self, thread_id: ThreadId) {
         self.stopped_threads.insert(thread_id);
         self.set_running(thread_id, /*is_running*/ false);
         self.observe_tree_status(thread_id, AgentTreeLifecycleEvent::Waiting);
+        self.tree_metadata.finish_runtime(thread_id);
     }
 
     pub(crate) fn set_running(&mut self, thread_id: ThreadId, is_running: bool) {
@@ -232,6 +259,7 @@ impl AgentNavigationState {
             );
         }
         self.observe_tree_status(thread_id, AgentTreeLifecycleEvent::ThreadClosed);
+        self.tree_metadata.finish_runtime(thread_id);
     }
 
     /// Drops all cached picker state.
@@ -245,6 +273,7 @@ impl AgentNavigationState {
         self.parent_owned_threads.clear();
         self.picker_refresh = None;
         self.tree_statuses.clear();
+        self.tree_metadata.clear();
     }
 
     /// Removes a tracked thread entirely from picker metadata and traversal order.
@@ -258,6 +287,7 @@ impl AgentNavigationState {
         self.stopped_threads.remove(&thread_id);
         self.parent_owned_threads.remove(&thread_id);
         self.tree_statuses.remove(thread_id);
+        self.tree_metadata.remove(thread_id);
     }
 
     /// Returns richer event-driven status when it is available for a cached tree row.
@@ -273,6 +303,12 @@ impl AgentNavigationState {
     ) {
         if let Some(event) = AgentTreeLifecycleEvent::from_server_notification(notification) {
             self.observe_tree_status(thread_id, event);
+        }
+        if matches!(
+            notification,
+            ServerNotification::TurnCompleted(_) | ServerNotification::ThreadClosed(_)
+        ) {
+            self.tree_metadata.finish_runtime(thread_id);
         }
     }
 
@@ -297,6 +333,38 @@ impl AgentNavigationState {
         self.threads
             .keys()
             .any(|thread_id| Some(*thread_id) != primary_thread_id)
+    }
+
+    /// Starts a fresh root-task view while preserving picker and thread lifecycle history.
+    pub(crate) fn begin_fresh_primary_task(
+        &mut self,
+        primary_thread_id: ThreadId,
+        model: String,
+        effort: ReasoningEffort,
+    ) {
+        self.tree_metadata
+            .begin_root_task(self.order.len(), primary_thread_id, model, effort);
+    }
+
+    /// Records the model requested for a newly spawned agent and starts its visible runtime.
+    pub(crate) fn record_spawned_agent(
+        &mut self,
+        thread_id: ThreadId,
+        model: String,
+        effort: ReasoningEffort,
+    ) {
+        self.tree_metadata.record_model(thread_id, model, effort);
+        self.tree_metadata.start_runtime(thread_id);
+    }
+
+    /// Updates an agent row with the effective thread settings reported by app-server.
+    pub(crate) fn record_agent_model(
+        &mut self,
+        thread_id: ThreadId,
+        model: String,
+        effort: ReasoningEffort,
+    ) {
+        self.tree_metadata.record_model(thread_id, model, effort);
     }
 
     /// Returns live picker rows in the same order users cycle through them.
@@ -350,15 +418,28 @@ impl AgentNavigationState {
         current_thread_id: Option<ThreadId>,
     ) -> AgentTreeSnapshot {
         AgentTreeSnapshot::from_inputs(
-            self.ordered_threads()
-                .into_iter()
-                .map(|(thread_id, entry)| {
-                    AgentTreeInput::from_picker_entry(
+            self.order
+                .iter()
+                .enumerate()
+                .filter_map(|(index, thread_id)| {
+                    self.threads
+                        .get(thread_id)
+                        .map(|entry| (index, *thread_id, entry))
+                })
+                .filter(|(index, thread_id, _)| {
+                    self.tree_metadata
+                        .should_include(*index, *thread_id, primary_thread_id)
+                })
+                .map(|(_, thread_id, entry)| {
+                    let mut input = AgentTreeInput::from_picker_entry(
                         thread_id, entry, /*parent_thread_id*/ None,
                     )
-                    .with_status(self.tree_status(&thread_id).unwrap_or_else(
-                        || AgentTreeStatus::from_picker_metadata(entry.is_running, entry.is_closed),
-                    ))
+                    .with_status(self.tree_status(&thread_id).unwrap_or_else(|| {
+                        AgentTreeStatus::from_picker_metadata(entry.is_running, entry.is_closed)
+                    }));
+                    input.model_label = self.tree_metadata.model_label(thread_id);
+                    input.elapsed = self.tree_metadata.elapsed(thread_id);
+                    input
                 }),
             primary_thread_id,
             selected_thread_id,
@@ -620,6 +701,62 @@ mod tests {
             state.tree_status(&first_agent_id),
             Some(AgentTreeStatus::Completed)
         );
+    }
+
+    #[test]
+    fn fresh_primary_task_hides_prior_agents_without_changing_picker_navigation() {
+        let (mut state, main_thread_id, first_agent_id, second_agent_id) = populated_state();
+
+        state.begin_fresh_primary_task(
+            main_thread_id,
+            "gpt-5.6-luna".to_string(),
+            ReasoningEffort::High,
+        );
+        let current_task = state.tree_snapshot(Some(main_thread_id), None, Some(main_thread_id));
+
+        assert_eq!(
+            current_task
+                .rows
+                .iter()
+                .map(|row| row.thread_id)
+                .collect::<Vec<_>>(),
+            vec![main_thread_id]
+        );
+        assert_eq!(current_task.rows[0].model_label.as_deref(), Some("5.6.L-H"));
+        assert!(current_task.rows[0].elapsed.is_some());
+        assert_eq!(
+            state.ordered_thread_ids(),
+            vec![main_thread_id, first_agent_id, second_agent_id]
+        );
+
+        let next_agent_id = ThreadId::new();
+        state.upsert(
+            next_agent_id,
+            Some("New".to_string()),
+            Some("worker".to_string()),
+            /*is_closed*/ false,
+        );
+        state.record_spawned_agent(
+            next_agent_id,
+            "gpt-5.6-sol".to_string(),
+            ReasoningEffort::Medium,
+        );
+        state.record_agent_model(
+            next_agent_id,
+            "gpt-5.6-luna".to_string(),
+            ReasoningEffort::Low,
+        );
+        let current_task = state.tree_snapshot(Some(main_thread_id), None, Some(main_thread_id));
+
+        assert_eq!(
+            current_task
+                .rows
+                .iter()
+                .map(|row| row.thread_id)
+                .collect::<Vec<_>>(),
+            vec![main_thread_id, next_agent_id]
+        );
+        assert_eq!(current_task.rows[1].model_label.as_deref(), Some("5.6.L-L"));
     }
 
     #[test]

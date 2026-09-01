@@ -759,6 +759,13 @@ impl App {
                             final_output_json_schema.clone(),
                         )
                         .await?;
+                    if self.primary_thread_id == Some(thread_id) {
+                        self.agent_navigation.begin_fresh_primary_task(
+                            thread_id,
+                            model.to_string(),
+                            effort.clone().unwrap_or_default(),
+                        );
+                    }
                     if self.active_thread_id == Some(thread_id)
                         && self.chat_widget.thread_id() == Some(thread_id)
                     {
@@ -991,6 +998,19 @@ impl App {
             }
             self.chat_widget.on_misalignment_policy_violation();
         }
+        if let ServerNotification::ThreadSettingsUpdated(notification) = &notification {
+            self.agent_navigation.record_agent_model(
+                thread_id,
+                notification.thread_settings.model.clone(),
+                notification
+                    .thread_settings
+                    .effort
+                    .clone()
+                    .unwrap_or_default(),
+            );
+            self.apply_thread_settings_to_cached_session(thread_id, &notification.thread_settings)
+                .await;
+        }
         if matches!(
             notification,
             ServerNotification::ThreadSettingsUpdated(_) | ServerNotification::ThreadArchived(_)
@@ -999,10 +1019,6 @@ impl App {
             && !self.thread_event_channels.contains_key(&thread_id)
         {
             return Ok(());
-        }
-        if let ServerNotification::ThreadSettingsUpdated(notification) = &notification {
-            self.apply_thread_settings_to_cached_session(thread_id, &notification.thread_settings)
-                .await;
         }
         let inferred_session = if let ServerNotification::ThreadStarted(started) = &notification
             && self.primary_session_configured.is_some()
@@ -1123,6 +1139,7 @@ impl App {
         let Some(receiver_thread_ids) = collab_receiver_thread_ids(notification) else {
             return;
         };
+        let spawn_details = collab_spawn_details(notification);
 
         for receiver_thread_id in receiver_thread_ids {
             if collab_receiver_is_not_found(notification, receiver_thread_id) {
@@ -1136,6 +1153,14 @@ impl App {
                 );
                 continue;
             };
+
+            if let Some((_, model, effort)) = spawn_details {
+                self.agent_navigation.record_spawned_agent(
+                    thread_id,
+                    model.to_string(),
+                    effort.clone(),
+                );
+            }
 
             if self.agent_navigation.get(&thread_id).is_some() {
                 continue;

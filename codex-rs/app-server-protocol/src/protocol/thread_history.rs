@@ -981,6 +981,10 @@ impl ThreadHistoryBuilder {
             kind: payload.kind.into(),
             agent_thread_id: payload.agent_thread_id.to_string(),
             agent_path: String::from(payload.agent_path.clone()),
+            agent_nickname: None,
+            agent_role: None,
+            model: None,
+            reasoning_effort: None,
         });
     }
 
@@ -4530,6 +4534,10 @@ mod tests {
                     kind: CoreSubAgentActivityKind::Completed,
                     agent_thread_id: child_thread_id,
                     agent_path: child_path,
+                    agent_nickname: None,
+                    agent_role: None,
+                    model: None,
+                    reasoning_effort: None,
                 }),
                 started_at_ms: None,
                 completed_at_ms: 0,
@@ -4546,6 +4554,10 @@ mod tests {
                 kind: crate::protocol::v2::SubAgentActivityKind::Completed,
                 agent_thread_id: child_thread_id.to_string(),
                 agent_path: "/root/worker".into(),
+                agent_nickname: None,
+                agent_role: None,
+                model: None,
+                reasoning_effort: None,
             }]
         );
     }

@@ -52,3 +52,15 @@ class CheckBuddyVersionTests(unittest.TestCase):
                 "codex-rs/tui/src/version.rs has a non-SemVer Buddy version: 'fresh'",
             ],
         )
+
+    def test_version_bump_must_exceed_the_local_baseline(self) -> None:
+        self.assertEqual(
+            CHECK_BUDDY_VERSION.validate_version_bump("1.0.1", "1.0.1"),
+            [
+                "Codex Buddy version must increase for every completed task: "
+                "baseline=1.0.1, current=1.0.1"
+            ],
+        )
+        self.assertEqual(
+            CHECK_BUDDY_VERSION.validate_version_bump("1.0.1", "1.0.2"), []
+        )

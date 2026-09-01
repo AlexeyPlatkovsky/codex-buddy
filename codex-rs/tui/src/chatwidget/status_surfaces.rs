@@ -12,6 +12,8 @@ use crate::legacy_core::config::Config;
 use crate::status::format_credit_micros;
 use crate::status::format_estimated_usd_micros;
 use crate::status::format_tokens_compact;
+use crate::version::PRODUCT_DISPLAY_NAME;
+use crate::version::PRODUCT_DISPLAY_VERSION;
 use codex_app_server_protocol::AskForApproval;
 use codex_config::ConfigLayerSource;
 use codex_config::os_host_name;
@@ -23,8 +25,8 @@ use codex_utils_sandbox_summary::summarize_permission_profile;
 use super::status_state::TerminalTitleStatusKind;
 
 /// Items shown in the terminal title when the user has not configured a
-/// custom selection. Intentionally minimal: activity indicator + project name.
-pub(super) const DEFAULT_TERMINAL_TITLE_ITEMS: [&str; 2] = ["activity", "project-name"];
+/// custom selection. It identifies the product while remaining compact in tab bars.
+pub(super) const DEFAULT_TERMINAL_TITLE_ITEMS: [&str; 3] = ["activity", "app-name", "project-name"];
 
 /// Braille-pattern dot-spinner frames for the terminal title animation.
 pub(super) const TERMINAL_TITLE_SPINNER_FRAMES: [&str; 10] =
@@ -730,7 +732,7 @@ impl ChatWidget {
                 let label = limit_label_for_window(window.window_minutes, is_secondary);
                 self.status_line_limit_display(Some(window), &label)
             }
-            StatusLineItem::CodexVersion => Some(CODEX_CLI_VERSION.to_string()),
+            StatusLineItem::CodexVersion => Some(PRODUCT_DISPLAY_VERSION.to_string()),
             StatusLineItem::ContextWindowSize => self
                 .status_line_context_window_size()
                 .map(|cws| format!("{} window", format_tokens_compact(cws))),
@@ -801,7 +803,7 @@ impl ChatWidget {
         item: StatusSurfacePreviewItem,
     ) -> Option<String> {
         let status_line_item = match item {
-            StatusSurfacePreviewItem::AppName => return Some("codex".to_string()),
+            StatusSurfacePreviewItem::AppName => return Some(PRODUCT_DISPLAY_NAME.to_string()),
             StatusSurfacePreviewItem::ProjectName => return self.terminal_title_project_name(),
             StatusSurfacePreviewItem::ProjectRoot => StatusLineItem::ProjectRoot,
             StatusSurfacePreviewItem::Status => return Some(self.run_state_status_text()),
@@ -845,7 +847,7 @@ impl ChatWidget {
         now: Instant,
     ) -> Option<String> {
         match item {
-            TerminalTitleItem::AppName => Some("codex".to_string()),
+            TerminalTitleItem::AppName => Some(PRODUCT_DISPLAY_NAME.to_string()),
             TerminalTitleItem::Project => self.terminal_title_project_name(),
             TerminalTitleItem::CurrentDir => Some(Self::truncate_terminal_title_part(
                 format_directory_display(self.status_line_cwd(), /*max_width*/ None),
@@ -871,9 +873,7 @@ impl ChatWidget {
             TerminalTitleItem::WeeklyLimit => self
                 .status_line_value_for_item(StatusLineItem::WeeklyLimit)
                 .map(|value| Self::truncate_terminal_title_part(value, /*max_chars*/ 32)),
-            TerminalTitleItem::CodexVersion => self
-                .status_line_value_for_item(StatusLineItem::CodexVersion)
-                .map(|value| Self::truncate_terminal_title_part(value, /*max_chars*/ 32)),
+            TerminalTitleItem::CodexVersion => Some(PRODUCT_DISPLAY_VERSION.to_string()),
             TerminalTitleItem::UsedTokens => self
                 .status_line_value_for_item(StatusLineItem::UsedTokens)
                 .map(|value| Self::truncate_terminal_title_part(value, /*max_chars*/ 32)),

@@ -94,6 +94,12 @@ impl ChatWidget {
     pub(crate) fn note_rendered_width(&self, width: u16) {
         self.last_rendered_width.set(Some(width));
     }
+
+    /// Renders only the interactive bottom surface for a full-screen transcript layout.
+    pub(crate) fn as_composer_renderable(&self) -> RenderableItem<'_> {
+        self.bottom_pane
+            .as_renderable_with_composer_right_reserve(/*composer_right_reserve*/ 0)
+    }
 }
 
 struct TranscriptAreaRenderable<'a> {

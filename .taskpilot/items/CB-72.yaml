@@ -1,0 +1,15 @@
+schema_version: 1
+id: CB-72
+title: Pin and enrich the subagent tree panel
+priority: high
+type: task
+status: done
+created_at: '2026-08-30T19:22:26Z'
+updated_at: '2026-08-31T13:35:33Z'
+parent_id: CB-29
+tags:
+- tui
+- agents
+- ux
+description: 'Repair the subagent panel from live evidence: capture child model/effort metadata before inactive-thread routing returns; replace the scrollback-coupled overlay with a reliable fixed layout; automatically refresh authoritative child metadata after each spawn so names and roles appear without /subagents; restore Buddy terminal branding and /exit usage summary. Acceptance: live child rows show compact model/effort labels and names, the board remains fixed during transcript navigation, terminal titles identify Codex Buddy, /exit shows token usage, and focused tests/snapshots cover each behavior.'
+created_by: codex

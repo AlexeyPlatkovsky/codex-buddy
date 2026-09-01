@@ -81,11 +81,31 @@ In the codex-rs folder where the rust code lives:
 
 Run `just fmt` (in the `codex-rs` directory) automatically after you have finished making code changes anywhere in this repository; do not ask for approval to run it. Additionally, run the tests:
 
+## Test-driven development
+
+- For every behavior change or bug fix, write or update a focused regression test before the production change whenever the behavior can be exercised deterministically.
+- The test must cover the real boundary that failed (for example, an app-server notification route rather than manually seeded presentation state).
+- User-visible TUI changes require an `insta` snapshot in addition to behavioral coverage. Do not treat a unit test of a rendering helper as proof of terminal/scrollback behavior; add the narrowest available integration or interactive check.
+- Record any behavior that cannot be made deterministic locally, the reason, and the manual verification performed.
+
 1. Do not run `cargo test` directly. Use `just test` so test execution follows the repo defaults.
 2. Run the test for the specific project that was changed. For example, if changes were made in `codex-rs/tui`, run `just test -p codex-tui`.
 3. Once those pass, if any changes were made in common, core, or protocol, run the complete test suite with `just test`. Avoid `--all-features` for routine local runs because it expands the build matrix and can significantly increase `target/` disk usage; use it only when you specifically need full feature coverage. project-specific or individual tests can be run without asking the user, but do ask the user before running the complete test suite.
 
 Before finalizing a large change to `codex-rs`, run `just fix -p <project>` (in `codex-rs` directory) to fix any linter issues in the code. Prefer scoping with `-p` to avoid slow workspace‑wide Clippy builds; only run `just fix` without `-p` if you changed shared crates. Do not re-run tests after running `fix` or `fmt`.
+
+## Codex Buddy version policy
+
+- Every completed task, feature, or bug fix increments the Codex Buddy patch version, even when
+  the change is internal. For example, `1.0.1` becomes `1.0.2`.
+- Before a substantial release, ask the user whether to take the next minor version instead, for
+  example `1.0.1` to `1.1.0`. A major version remains the next first component, for example
+  `1.0.1` to `2.0.0`.
+- Keep `codex-rs/codex-buddy/Cargo.toml`, the `codex-buddy` entry in `codex-rs/Cargo.lock`, and
+  `codex-rs/tui/src/version.rs` identical. Before finalizing, run
+  `python3 scripts/buddy_release/check_buddy_version.py --require-bump-from-ref HEAD` from the
+  repository root. This validates both version consistency and that the working tree is newer than
+  the last local commit.
 
 ## The `codex-core` crate
 

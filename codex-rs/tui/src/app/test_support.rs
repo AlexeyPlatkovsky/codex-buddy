@@ -64,6 +64,8 @@ pub(super) async fn make_test_app() -> App {
         thread_event_listener_tasks: HashMap::new(),
         agent_navigation: AgentNavigationState::default(),
         agent_tree_viewport: crate::app::agent_tree_viewport::AgentTreeViewport::new(),
+        agent_tree_panel_entered_alt_screen: false,
+        pinned_transcript: None,
         agents_overview: Default::default(),
         side_threads: HashMap::new(),
         abandoned_side_threads: HashSet::new(),

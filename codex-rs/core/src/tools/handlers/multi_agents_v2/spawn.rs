@@ -230,10 +230,20 @@ async fn handle_spawn_agent(
         .agent_control
         .get_agent_config_snapshot(new_thread_id)
         .await;
-    let nickname = agent_snapshot
+    let agent_nickname = agent_snapshot
         .as_ref()
         .and_then(|snapshot| snapshot.session_source.get_nickname())
-        .or(spawned_agent.metadata.agent_nickname);
+        .or_else(|| spawned_agent.metadata.agent_nickname.clone());
+    let agent_role = agent_snapshot
+        .as_ref()
+        .and_then(|snapshot| snapshot.session_source.get_agent_role())
+        .or_else(|| spawned_agent.metadata.agent_role.clone());
+    let model = agent_snapshot
+        .as_ref()
+        .map(|snapshot| snapshot.model.clone());
+    let reasoning_effort = agent_snapshot
+        .as_ref()
+        .and_then(|snapshot| snapshot.reasoning_effort.clone());
     emit_sub_agent_activity(
         &session,
         turn,
@@ -242,6 +252,10 @@ async fn handle_spawn_agent(
             agent_thread_id: new_thread_id,
             agent_path: new_agent_path.clone(),
             kind: SubAgentActivityKind::Started,
+            agent_nickname: agent_nickname.clone(),
+            agent_role,
+            model,
+            reasoning_effort,
         },
     )
     .await;
@@ -259,7 +273,7 @@ async fn handle_spawn_agent(
     } else {
         SpawnAgentResult::WithNickname {
             task_name,
-            nickname,
+            nickname: agent_nickname,
         }
     };
     Ok((output, new_thread_id, agent_status, agent_snapshot))

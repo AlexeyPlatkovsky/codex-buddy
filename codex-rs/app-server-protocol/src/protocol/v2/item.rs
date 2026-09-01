@@ -384,6 +384,10 @@ pub enum ThreadItem {
         kind: SubAgentActivityKind,
         agent_thread_id: String,
         agent_path: String,
+        agent_nickname: Option<String>,
+        agent_role: Option<String>,
+        model: Option<String>,
+        reasoning_effort: Option<ReasoningEffort>,
     },
     WebSearch(WebSearchItem),
     #[serde(rename_all = "camelCase")]
@@ -964,6 +968,10 @@ impl From<CoreTurnItem> for ThreadItem {
                 kind: activity.kind.into(),
                 agent_thread_id: activity.agent_thread_id.to_string(),
                 agent_path: String::from(activity.agent_path),
+                agent_nickname: activity.agent_nickname,
+                agent_role: activity.agent_role,
+                model: activity.model,
+                reasoning_effort: activity.reasoning_effort,
             },
             CoreTurnItem::WebSearch(search) => ThreadItem::WebSearch(WebSearchItem {
                 id: search.id,
