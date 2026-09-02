@@ -56,14 +56,16 @@ which -a codex-buddy
 ```
 
 Your shell may find an older copy (for example, `~/bin/codex-buddy`) before the newly installed
-one. Replace that preferred copy with the path matching your installation method, then refresh the
-shell command cache:
+one. Replace that preferred copy atomically with the path matching your installation method, then
+refresh the shell command cache. Atomic replacement also avoids a stale macOS code-signing state
+that can otherwise terminate the executable with `zsh: killed`:
 
 ```shell
 # For `cargo install`:
-cp ~/.cargo/bin/codex-buddy ~/bin/codex-buddy
+install -m 755 ~/.cargo/bin/codex-buddy ~/bin/.codex-buddy.new
 # For the system-wide install below:
-# cp /usr/local/bin/codex-buddy ~/bin/codex-buddy
+# install -m 755 /usr/local/bin/codex-buddy ~/bin/.codex-buddy.new
+mv -f ~/bin/.codex-buddy.new ~/bin/codex-buddy
 hash -r
 codex-buddy --version
 ```
@@ -73,7 +75,8 @@ To install a release binary system-wide on macOS or Linux instead:
 ```shell
 cd codex-buddy/codex-rs
 cargo build --locked --release -p codex-buddy
-sudo install -m 755 target/release/codex-buddy /usr/local/bin/codex-buddy
+sudo install -m 755 target/release/codex-buddy /usr/local/bin/.codex-buddy.new
+sudo mv -f /usr/local/bin/.codex-buddy.new /usr/local/bin/codex-buddy
 ```
 
 The macOS DMG is a CLI binary, not a `.app`: mount it, copy `codex-buddy` to a directory on
