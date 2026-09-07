@@ -157,21 +157,23 @@ impl ChatWidget {
             self.collect_runtime_metrics_delta();
             let runtime_metrics =
                 (!self.turn_runtime_metrics.is_empty()).then_some(self.turn_runtime_metrics);
-            let show_work_separator = self.transcript.had_work_activity
+            let show_work_details = self.transcript.had_work_activity
                 && (self.transcript.needs_final_message_separator || runtime_metrics.is_some());
-            if show_work_separator || runtime_metrics.is_some() {
-                let elapsed_seconds = if show_work_separator {
-                    duration_ms
-                        .and_then(|duration_ms| u64::try_from(duration_ms).ok())
-                        .map(|duration_ms| duration_ms / 1_000)
-                        .or_else(|| {
-                            self.bottom_pane
-                                .status_elapsed()
-                                .map(|elapsed| elapsed.as_secs())
-                        })
-                } else {
-                    None
-                };
+            let has_assistant_message = last_agent_message.is_some()
+                || self.transcript.last_completed_agent_message.is_some();
+            let elapsed_seconds = if show_work_details {
+                duration_ms
+                    .and_then(|duration_ms| u64::try_from(duration_ms).ok())
+                    .map(|duration_ms| duration_ms / 1_000)
+                    .or_else(|| {
+                        self.bottom_pane
+                            .status_elapsed()
+                            .map(|elapsed| elapsed.as_secs())
+                    })
+            } else {
+                None
+            };
+            if has_assistant_message || show_work_details || runtime_metrics.is_some() {
                 self.add_to_history(history_cell::FinalMessageSeparator::new(
                     elapsed_seconds,
                     runtime_metrics,

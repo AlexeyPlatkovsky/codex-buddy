@@ -4,7 +4,7 @@ pub const CODEX_CLI_VERSION: &str = env!("CARGO_PKG_VERSION");
 #[cfg(feature = "buddy-branding")]
 pub(crate) const PRODUCT_DISPLAY_NAME: &str = "Codex Buddy";
 #[cfg(feature = "buddy-branding")]
-pub(crate) const PRODUCT_DISPLAY_VERSION: &str = "1.1.0";
+pub(crate) const PRODUCT_DISPLAY_VERSION: &str = "1.1.1";
 
 #[cfg(not(feature = "buddy-branding"))]
 pub(crate) const PRODUCT_DISPLAY_NAME: &str = "OpenAI Codex";

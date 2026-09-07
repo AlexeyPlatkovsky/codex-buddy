@@ -1,9 +1,7 @@
 ---
 source: tui/src/chatwidget/tests/exec_flow.rs
-expression: combined
+expression: "cells.iter().map(|lines| lines_to_single_string(lines)).collect::<String>()"
 ---
-• Waited for background terminal · cargo test -p codex-core
-
-• Final response.
+• A concise final answer.
 
 ────────────────────────────────────────────────────────────────────────────────

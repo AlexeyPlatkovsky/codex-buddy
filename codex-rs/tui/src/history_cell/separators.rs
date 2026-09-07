@@ -5,9 +5,9 @@ use super::*;
 #[derive(Debug)]
 /// A visual divider between turns, optionally showing how long the assistant "worked for".
 ///
-/// This separator is only emitted for turns that performed concrete work (e.g., running commands,
-/// applying patches, making MCP tool calls), so purely conversational turns do not show an empty
-/// divider.
+/// Completed live assistant messages emit this separator. Turns that performed concrete work
+/// (e.g., running commands, applying patches, making MCP tool calls) can also show duration and
+/// runtime metrics labels.
 pub struct FinalMessageSeparator {
     elapsed_seconds: Option<u64>,
     runtime_metrics: Option<RuntimeMetricsSummary>,

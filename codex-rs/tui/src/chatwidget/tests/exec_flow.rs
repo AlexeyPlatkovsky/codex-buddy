@@ -919,6 +919,42 @@ async fn unified_exec_wait_before_streamed_agent_message_snapshot() {
 }
 
 #[tokio::test]
+async fn completed_agent_message_ends_with_separator() {
+    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+    handle_turn_started(&mut chat, "turn-1");
+    complete_assistant_message(
+        &mut chat,
+        "msg-final",
+        "A concise final answer.",
+        Some(MessagePhase::FinalAnswer),
+    );
+    handle_turn_completed(&mut chat, "turn-1", /*duration_ms*/ None);
+
+    let cells = drain_insert_history(&mut rx);
+    let separator = cells.last().expect("final separator should be in history");
+    assert_eq!(
+        lines_to_single_string(separator),
+        format!("\n{}\n", "─".repeat(/*width*/ 80))
+    );
+    assert_chatwidget_snapshot!(
+        "completed_agent_message_ends_with_separator",
+        cells
+            .iter()
+            .map(|lines| lines_to_single_string(lines))
+            .collect::<String>()
+    );
+}
+
+#[tokio::test]
+async fn completed_turn_without_agent_message_does_not_add_empty_separator() {
+    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+    handle_turn_started(&mut chat, "turn-1");
+    handle_turn_completed(&mut chat, "turn-1", /*duration_ms*/ None);
+
+    assert!(drain_insert_history(&mut rx).is_empty());
+}
+
+#[tokio::test]
 async fn final_worked_for_uses_cumulative_turn_duration_snapshot() {
     for duration_ms in [Some(125_000), None] {
         let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
