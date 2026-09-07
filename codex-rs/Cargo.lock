@@ -2343,10 +2343,11 @@ dependencies = [
 
 [[package]]
 name = "codex-buddy"
-version = "1.0.10"
+version = "1.0.11"
 dependencies = [
  "anyhow",
  "clap",
+ "codex-app-server-daemon",
  "codex-arg0",
  "codex-chatgpt",
  "codex-cli",

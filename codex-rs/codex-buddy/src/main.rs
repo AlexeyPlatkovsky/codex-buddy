@@ -53,6 +53,8 @@ struct BuddyCli {
 
 #[derive(Debug, clap::Subcommand)]
 enum Command {
+    /// Browse all agent sessions on the shared app-server daemon.
+    Agents(AgentsCommand),
     /// Run Codex non-interactively.
     #[clap(visible_alias = "e")]
     Exec(ExecCli),
@@ -73,6 +75,31 @@ enum Command {
     Resume(ResumeCommand),
     /// Fork a previous interactive session.
     Fork(ForkCommand),
+}
+
+#[derive(Debug, Parser)]
+struct AgentsCommand {
+    /// Connect to a remote app server endpoint.
+    ///
+    /// Accepted forms: `ws://host:port`, `wss://host:port`, `unix://`, or `unix://PATH`.
+    #[arg(long = "remote", value_name = "ADDR")]
+    remote: Option<String>,
+
+    /// Name of the environment variable containing the bearer token for a remote app server.
+    #[arg(
+        long = "remote-auth-token-env",
+        value_name = "ENV_VAR",
+        requires = "remote"
+    )]
+    remote_auth_token_env: Option<String>,
+
+    /// Use this directory for new tasks on a remote server.
+    #[arg(long = "cd", short = 'C', value_name = "DIR")]
+    cwd: Option<std::path::PathBuf>,
+
+    /// Disable alternate screen mode.
+    #[arg(long = "no-alt-screen", default_value_t = false)]
+    no_alt_screen: bool,
 }
 
 #[derive(Debug, Parser)]
@@ -189,6 +216,68 @@ async fn run(paths: Arg0DispatchPaths) -> Result<()> {
                 paths,
                 LoaderOverrides::default(),
                 None,
+                BUDDY_RUNTIME_PRESET,
+            )
+            .await?;
+            print_buddy_exit_summary(exit_info);
+        }
+        Some(Command::Agents(agents)) => {
+            if interactive.prompt.is_some() || !interactive.images.is_empty() {
+                anyhow::bail!("`codex-buddy agents` does not accept an initial prompt or images");
+            }
+            interactive.cwd = agents.cwd.or(interactive.cwd.take());
+            interactive.no_alt_screen |= agents.no_alt_screen;
+            interactive.agents_overview = true;
+            interactive.config_overrides.prepend_root_overrides(root);
+
+            let mut remote_endpoint = match agents.remote {
+                Some(remote) => Some(
+                    codex_tui::resolve_remote_addr(&remote)
+                        .map_err(|error| anyhow::anyhow!(error.to_string()))?,
+                ),
+                None => {
+                    #[cfg(unix)]
+                    {
+                        codex_app_server_daemon::run(
+                            codex_app_server_daemon::LifecycleCommand::Start,
+                        )
+                        .await?;
+                        Some(
+                            codex_tui::resolve_remote_addr("unix://")
+                                .map_err(|error| anyhow::anyhow!(error.to_string()))?,
+                        )
+                    }
+                    #[cfg(not(unix))]
+                    {
+                        anyhow::bail!("`codex-buddy agents` requires `--remote` on this platform");
+                    }
+                }
+            };
+            if let Some(env_var_name) = agents.remote_auth_token_env {
+                let Some(endpoint) = remote_endpoint.as_ref() else {
+                    anyhow::bail!("`--remote-auth-token-env` requires `--remote`.");
+                };
+                if !codex_tui::remote_addr_supports_auth_token(endpoint) {
+                    anyhow::bail!(
+                        "`--remote-auth-token-env` requires a `wss://` or loopback `ws://` remote."
+                    );
+                }
+                let Some(codex_tui::RemoteAppServerEndpoint::WebSocket { auth_token, .. }) =
+                    remote_endpoint.as_mut()
+                else {
+                    unreachable!("auth token support requires a WebSocket endpoint");
+                };
+                *auth_token = Some(std::env::var(&env_var_name).map_err(|error| {
+                    anyhow::anyhow!(
+                        "failed to read remote auth token from environment variable {env_var_name}: {error}"
+                    )
+                })?);
+            }
+            let exit_info = codex_tui::run_main_with_runtime_preset(
+                interactive,
+                paths,
+                LoaderOverrides::default(),
+                remote_endpoint,
                 BUDDY_RUNTIME_PRESET,
             )
             .await?;
@@ -355,6 +444,7 @@ fn reject_root_strict_config_for_subcommand(
     }
     let unsupported = match command {
         None
+        | Some(Command::Agents(_))
         | Some(Command::Exec(_))
         | Some(Command::Review(_))
         | Some(Command::Resume(_))
@@ -381,10 +471,11 @@ fn reject_root_profile_for_subcommand(
     match command {
         Some(Command::Login(_)) | Some(Command::Logout(_)) | Some(Command::Apply(_)) => {
             anyhow::bail!(
-                "--profile only applies to runtime commands and `codex-buddy mcp`: `codex-buddy`, `codex-buddy exec`, `codex-buddy review`, `codex-buddy resume`, `codex-buddy fork`, `codex-buddy mcp`, and `codex-buddy sandbox`."
+                "--profile only applies to runtime commands and `codex-buddy mcp`: `codex-buddy`, `codex-buddy agents`, `codex-buddy exec`, `codex-buddy review`, `codex-buddy resume`, `codex-buddy fork`, `codex-buddy mcp`, and `codex-buddy sandbox`."
             )
         }
         None
+        | Some(Command::Agents(_))
         | Some(Command::Exec(_))
         | Some(Command::Review(_))
         | Some(Command::Mcp(_))
@@ -469,9 +560,17 @@ mod tests {
         assert_eq!(
             names,
             vec![
-                "apply", "exec", "fork", "login", "logout", "mcp", "resume", "review", "sandbox",
+                "agents", "apply", "exec", "fork", "login", "logout", "mcp", "resume", "review",
+                "sandbox",
             ]
         );
+    }
+
+    #[test]
+    fn agents_command_is_advertised_in_help() {
+        let help = BuddyCli::command().render_help().to_string();
+
+        assert!(help.lines().any(|line| line.starts_with("  agents ")));
     }
 
     #[test]

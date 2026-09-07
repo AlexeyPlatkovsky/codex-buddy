@@ -1,6 +1,6 @@
 [package]
 name = "codex-buddy"
-version = "1.0.10"
+version = "1.0.11"
 edition.workspace = true
 license.workspace = true
 
@@ -21,6 +21,7 @@ coding-runtime-extensions = [
 [dependencies]
 anyhow = { workspace = true }
 clap = { workspace = true }
+codex-app-server-daemon = { workspace = true }
 codex-arg0 = { workspace = true }
 codex-chatgpt = { workspace = true, default-features = false }
 codex-cli = { workspace = true, default-features = false }
