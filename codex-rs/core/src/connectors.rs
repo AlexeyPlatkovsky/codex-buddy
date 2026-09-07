@@ -10,6 +10,8 @@ pub use codex_connectors::AppInfo;
 pub use codex_connectors::AppMetadata;
 use codex_connectors::ConnectorDirectoryCacheContext;
 use codex_connectors::ConnectorDirectoryCacheKey;
+use codex_connectors::apps_config_from_layer_stack;
+use codex_connectors::connector_runtime_context_key;
 use codex_exec_server::EnvironmentManager;
 use codex_exec_server::ExecServerRuntimePaths;
 use codex_tools::DiscoverableConnectorInfo;
@@ -20,11 +22,10 @@ use tracing::warn;
 
 use crate::config::Config;
 use crate::mcp::McpManager;
-#[cfg(test)]
-use crate::mcp_approval_policy::mcp_approvals_reviewer_from_layers;
 use crate::plugins::list_tool_suggest_discoverable_plugins;
 use crate::plugins::plugins_manager_for_config;
 use crate::session::INITIAL_SUBMIT_ID;
+use codex_config::types::ApprovalsReviewer;
 use codex_config::types::ToolSuggestDiscoverableType;
 use codex_core_plugins::PluginsManager;
 use codex_features::Feature;
@@ -38,7 +39,6 @@ use codex_mcp::McpRuntimeInput;
 use codex_mcp::McpStartupPolicy;
 use codex_mcp::ToolInfo;
 use codex_mcp::ToolPluginProvenance;
-use codex_mcp::codex_apps_tools_cache_key;
 use codex_mcp::effective_mcp_servers;
 use codex_mcp::tool_plugin_provenance;
 use codex_protocol::mcp::ClientMcpExtensions;
@@ -274,7 +274,7 @@ pub async fn list_accessible_connectors_from_mcp_tools_with_mcp_manager(
         runtime_context,
         codex_apps_tools_cache: mcp_manager.codex_apps_tools_cache(),
         tool_catalog_cache: mcp_manager.tool_catalog_cache(),
-        codex_apps_tools_cache_key: codex_apps_tools_cache_key(auth.as_ref()),
+        codex_apps_tools_cache_key: connector_runtime_context_key(auth.as_ref()),
         client_mcp_extensions: ClientMcpExtensions::default(),
         auth: auth.clone(),
         auth_manager: codex_apps_auth_manager,
@@ -518,6 +518,45 @@ pub fn with_app_plugin_sources(
             .to_vec();
     }
     connectors
+}
+
+pub(crate) fn mcp_approvals_reviewer_from_layers(
+    config_layer_stack: &codex_config::ConfigLayerStack,
+    default_reviewer: ApprovalsReviewer,
+    model: Option<&str>,
+    server_name: &str,
+    connector_id: Option<&str>,
+    link_id: Option<&str>,
+) -> ApprovalsReviewer {
+    let requirements = config_layer_stack.requirements();
+    if model.is_some_and(|model| requirements.auto_review_required_for_model(model)) {
+        return ApprovalsReviewer::AutoReview;
+    }
+
+    let app_reviewer = if server_name == CODEX_APPS_MCP_SERVER_NAME {
+        apps_config_from_layer_stack(config_layer_stack).and_then(|apps_config| {
+            let app = connector_id.and_then(|connector_id| apps_config.apps.get(connector_id));
+            link_id
+                .and_then(|link_id| app?.links.as_ref()?.links.get(link_id))
+                .and_then(|link| link.approvals_reviewer)
+                .or_else(|| app.and_then(|app| app.approvals_reviewer))
+                .or_else(|| {
+                    apps_config
+                        .default
+                        .and_then(|defaults| defaults.approvals_reviewer)
+                })
+        })
+    } else {
+        None
+    };
+
+    if let Some(reviewer) = app_reviewer
+        && requirements.approvals_reviewer.can_set(&reviewer).is_ok()
+    {
+        return reviewer;
+    }
+
+    default_reviewer
 }
 
 #[cfg(test)]

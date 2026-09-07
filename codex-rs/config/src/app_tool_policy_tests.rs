@@ -51,6 +51,7 @@ fn evaluator_applies_managed_approval_before_local_tool_policy() {
         AppToolPolicyEvaluator::from_parts(Some(apps_config), Some(&requirements)).policy(
             AppToolPolicyInput {
                 connector_id: Some("calendar"),
+                link_id: None,
                 tool_name: "events/create",
                 tool_title: None,
                 destructive_hint: Some(true),

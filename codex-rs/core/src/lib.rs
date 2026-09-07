@@ -18,6 +18,11 @@ mod realtime_conversation;
 #[path = "realtime_conversation_disabled.rs"]
 mod realtime_conversation;
 #[cfg(feature = "realtime")]
+mod realtime_history;
+#[cfg(not(feature = "realtime"))]
+#[path = "realtime_history_disabled.rs"]
+mod realtime_history;
+#[cfg(feature = "realtime")]
 mod realtime_prompt;
 mod responses_metadata;
 mod responses_retry;
@@ -66,7 +71,6 @@ pub mod config;
 pub mod connectors;
 pub mod context;
 mod context_manager;
-mod context_usage;
 mod current_time;
 mod cyber_access_program;
 mod elicitation;
@@ -137,6 +141,7 @@ pub use thread_manager::ThreadManager;
 pub use thread_manager::ThreadShutdownReport;
 pub use thread_manager::build_models_manager;
 pub use thread_manager::local_agent_graph_store_from_state_db;
+pub use thread_manager::passthrough_image_store;
 pub use thread_manager::thread_store_from_config;
 pub use tools::handlers::WaitForEnvironmentToolConfig;
 pub use web_search::web_search_action_detail;

@@ -4,11 +4,13 @@ use std::collections::HashSet;
 
 pub use codex_skills::mention_syntax;
 
+mod bundled_hooks;
 mod load_outcome;
 pub mod manifest;
 mod plugin_app_config;
 mod provider;
 
+pub use bundled_hooks::is_allowlisted_bundled_cleanup_hook;
 pub use codex_plugin_types::AppConnectorId;
 pub use codex_plugin_types::AppDeclaration;
 pub use codex_plugin_types::ExecutorPluginHookSource;

@@ -989,6 +989,12 @@ pub struct ThreadMetadataUpdateParams {
     /// provide a string to replace the stored value.
     #[ts(optional = nullable)]
     pub git_info: Option<ThreadMetadataGitInfoUpdateParams>,
+    /// Save the client's Daybreak choice for this persistent thread.
+    /// Omitted or null leaves it unchanged. This does not select a turn's
+    /// `cyberAccessProgram` or grant access.
+    #[experimental("thread/metadata/update.daybreakEnabled")]
+    #[ts(optional = nullable)]
+    pub daybreak_enabled: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
@@ -1130,6 +1136,12 @@ pub struct ThreadShellCommandParams {
     /// such as pipes, redirects, and quoting. This runs unsandboxed with full
     /// access rather than inheriting the thread sandbox policy.
     pub command: String,
+    /// Maximum execution time in milliseconds. Defaults to one hour when omitted
+    /// or null. Must be non-negative; zero requests an immediate timeout, not
+    /// unlimited execution. Does not affect the immediate RPC acknowledgement.
+    #[ts(type = "number | null")]
+    #[ts(optional = nullable)]
+    pub timeout_ms: Option<i64>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
@@ -1381,6 +1393,11 @@ pub struct ThreadListParams {
     /// are returned. When omitted or empty, defaults to interactive sources.
     #[ts(optional = nullable)]
     pub source_kinds: Option<Vec<ThreadSourceKind>>,
+    /// Optional originator allowlist, matching any supplied value exactly.
+    /// Supported by hosted backends only; the local app-server rejects a nonempty list.
+    /// Omitted or empty lists leave originators unrestricted.
+    #[ts(optional = nullable)]
+    pub originators: Option<Vec<String>>,
     /// Optional archived filter; when set to true, only archived threads are returned.
     /// If false or null, only non-archived threads are returned.
     #[ts(optional = nullable)]
@@ -1861,12 +1878,14 @@ pub struct RawResponseCompletedNotification {
 #[ts(export_to = "v2/")]
 pub struct ResponseUsageMetadata {
     pub amount: Option<String>,
+    pub metadata: Option<JsonValue>,
 }
 
 impl From<codex_protocol::ResponseUsageMetadata> for ResponseUsageMetadata {
     fn from(value: codex_protocol::ResponseUsageMetadata) -> Self {
         Self {
             amount: value.amount,
+            metadata: value.metadata,
         }
     }
 }

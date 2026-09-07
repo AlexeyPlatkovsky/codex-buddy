@@ -33,8 +33,16 @@ use crate::config_types::ServiceTier;
 use crate::config_types::Verbosity;
 use crate::protocol::MultiAgentVersion;
 
+#[path = "openai_models/guardian.rs"]
+mod guardian;
+pub use guardian::GuardianModelPolicy;
+pub use guardian::GuardianReviewMode;
+pub use guardian::GuardianScope;
+
 #[path = "openai_models/guardian_v2.rs"]
 mod guardian_v2;
+#[path = "openai_models/reasoning_effort.rs"]
+mod reasoning_effort;
 
 pub use guardian_v2::GuardianV2ModelConfig;
 pub use guardian_v2::GuardianV2TranscriptModelConfig;
@@ -390,6 +398,11 @@ const fn is_true(value: &bool) -> bool {
 /// Model metadata returned by the Codex backend `/models` endpoint.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, TS, JsonSchema)]
 pub struct ModelInfo {
+    /// Model-owned approval coverage. Absent preserves legacy settings; an empty map disables
+    /// ordinary Guardian review. Keys are computer_use, shell, code_mode, file_changes, mcp, network,
+    /// and permissions. This does not override mandatory safety or administrator requirements.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub guardian: Option<GuardianModelPolicy>,
     pub slug: String,
     pub display_name: String,
     pub description: Option<String>,
@@ -457,6 +470,9 @@ pub struct ModelInfo {
     pub used_fallback_model_metadata: bool,
     #[serde(default)]
     pub supports_search_tool: bool,
+    /// Whether experimental context management may be activated at session startup.
+    #[serde(default)]
+    pub supports_experimental_context: bool,
     #[serde(default)]
     pub use_responses_lite: bool,
     #[serde(default)]
@@ -546,6 +562,8 @@ pub struct ModelMessages {
     /// instructions; an empty string disables them.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub persistent_instructions: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tools: Option<ToolMessages>,
     pub instructions_template: Option<String>,
     pub instructions_variables: Option<ModelInstructionsVariables>,
     pub approvals: Option<ApprovalMessages>,
@@ -573,9 +591,29 @@ pub struct ConfirmationPolicies {
     pub computer_use: Option<String>,
 }
 
+/// Model-owned messages for built-in tools.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Eq, TS, JsonSchema)]
+pub struct ToolMessages {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub send_user_message_async: Option<ToolMessage>,
+}
+
+/// Model-owned messages for a built-in tool.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Eq, TS, JsonSchema)]
+pub struct ToolMessage {
+    /// Missing or null uses the built-in description; an empty string leaves the description
+    /// empty without disabling the tool.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
 /// Model-owned defaults for the context-window token-budget feature.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, TS, JsonSchema)]
 pub struct ModelTokenBudgetConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub use_history_notes_extension: bool,
     pub reminder_threshold_tokens: i64,
     pub reminder_message_template: String,
     pub guidance_message: String,
@@ -601,6 +639,9 @@ pub struct CollaborationModeMessages {
 pub struct AutoReviewMessages {
     pub policy: Option<String>,
     pub policy_template: Option<String>,
+    /// Extra developer policy for `node_repl` and `cua_repl` reviews.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub node_repl_policy: Option<String>,
     pub rejection_instructions: Option<String>,
     pub timeout_instructions: Option<String>,
 }
@@ -627,6 +668,9 @@ pub struct MultiAgentRoleMessages {
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, TS, JsonSchema)]
 pub struct MultiAgentModeMessages {
     pub explicit: Option<String>,
+    /// Ultra-only mode instructions. Missing or null uses the built-in proactive hint;
+    /// an empty string suppresses the mode message. `hint_text` takes precedence.
+    pub proactive: Option<String>,
     pub hint_text: Option<String>,
 }
 
@@ -790,6 +834,7 @@ where
             {
                 let messages = model.model_messages.get_or_insert(ModelMessages {
                     persistent_instructions: None,
+                    tools: None,
                     instructions_template: None,
                     instructions_variables: None,
                     approvals: None,
@@ -932,7 +977,7 @@ mod tests {
         );
     }
 
-    fn test_model(spec: Option<ModelMessages>) -> ModelInfo {
+    pub(super) fn test_model(spec: Option<ModelMessages>) -> ModelInfo {
         ModelInfo {
             slug: "test-model".to_string(),
             display_name: "Test Model".to_string(),
@@ -969,7 +1014,9 @@ mod tests {
             input_modalities: default_input_modalities(),
             used_fallback_model_metadata: false,
             supports_search_tool: false,
+            supports_experimental_context: false,
             use_responses_lite: false,
+            guardian: None,
             node_repl_auto_review_required: false,
             node_repl_disabled: false,
             auto_review_model_override: None,
@@ -979,7 +1026,6 @@ mod tests {
             multi_agent_reasoning_effort: None,
         }
     }
-
     fn personality_variables() -> ModelInstructionsVariables {
         ModelInstructionsVariables {
             personality_default: Some("default".to_string()),
@@ -999,6 +1045,7 @@ mod tests {
             messages,
             ModelMessages {
                 persistent_instructions: None,
+                tools: None,
                 instructions_template: None,
                 instructions_variables: None,
                 approvals: None,
@@ -1011,6 +1058,61 @@ mod tests {
                 guardian_v2: None,
             }
         );
+    }
+
+    #[test]
+    fn send_user_message_async_description_preserves_missing_null_and_empty_values() {
+        for (value, expected) in [
+            (serde_json::json!({}), None),
+            (serde_json::json!({"tools": null}), None),
+            (serde_json::json!({"tools": {}}), Some(None)),
+            (
+                serde_json::json!({"tools": {"send_user_message_async": null}}),
+                Some(None),
+            ),
+            (
+                serde_json::json!({"tools": {"send_user_message_async": {}}}),
+                Some(Some(ToolMessage::default())),
+            ),
+            (
+                serde_json::json!({"tools": {"send_user_message_async": {"description": null}}}),
+                Some(Some(ToolMessage::default())),
+            ),
+            (
+                serde_json::json!({"tools": {"send_user_message_async": {"description": ""}}}),
+                Some(Some(ToolMessage {
+                    description: Some(String::new()),
+                })),
+            ),
+            (
+                serde_json::json!({"tools": {"send_user_message_async": {"description": "Catalog description"}}}),
+                Some(Some(ToolMessage {
+                    description: Some("Catalog description".to_string()),
+                })),
+            ),
+        ] {
+            let messages: ModelMessages =
+                serde_json::from_value(value).expect("model messages should deserialize");
+            let serialized =
+                serde_json::to_value(&messages).expect("model messages should serialize");
+            assert_eq!(
+                (
+                    messages.tools,
+                    serialized
+                        .get("tools")
+                        .map(|tools| tools.get("send_user_message_async").cloned()),
+                ),
+                (
+                    expected.as_ref().map(|tool| ToolMessages {
+                        send_user_message_async: tool.clone(),
+                    }),
+                    expected.map(|tool| tool.map(|tool| match tool.description {
+                        Some(description) => serde_json::json!({"description": description}),
+                        None => serde_json::json!({}),
+                    })),
+                )
+            );
+        }
     }
 
     #[test]
@@ -1057,6 +1159,7 @@ mod tests {
                 "auto_review": {
                     "policy": "policy",
                     "policy_template": "",
+                    "node_repl_policy": "",
                     "rejection_instructions": "",
                     "timeout_instructions": ""
                 }
@@ -1069,6 +1172,7 @@ mod tests {
             Some(AutoReviewMessages {
                 policy: Some("policy".to_string()),
                 policy_template: None,
+                node_repl_policy: None,
                 rejection_instructions: None,
                 timeout_instructions: None,
             })
@@ -1078,6 +1182,7 @@ mod tests {
             Some(AutoReviewMessages {
                 policy: Some("policy".to_string()),
                 policy_template: Some(String::new()),
+                node_repl_policy: Some(String::new()),
                 rejection_instructions: Some(String::new()),
                 timeout_instructions: Some(String::new()),
             })
@@ -1110,7 +1215,7 @@ mod tests {
     #[test]
     fn multi_agent_messages_preserve_missing_and_empty_values() {
         let messages: ModelMessages = from_str(
-            r#"{"instructions_template":null,"instructions_variables":null,"multi_agent":{"role":{"root":"","subagent":"subagent base"},"mode":{"explicit":"explicit mode","hint_text":""}}}"#,
+            r#"{"instructions_template":null,"instructions_variables":null,"multi_agent":{"role":{"root":"","subagent":"subagent base"},"mode":{"explicit":"explicit mode","proactive":"","hint_text":""}}}"#,
         )
         .expect("multi-agent messages should deserialize");
 
@@ -1123,6 +1228,7 @@ mod tests {
                 }),
                 mode: Some(MultiAgentModeMessages {
                     explicit: Some("explicit mode".to_string()),
+                    proactive: Some(String::new()),
                     hint_text: Some(String::new()),
                 }),
             })
@@ -1146,6 +1252,7 @@ mod tests {
             messages,
             ModelMessages {
                 persistent_instructions: None,
+                tools: None,
                 instructions_template: None,
                 instructions_variables: None,
                 approvals: None,
@@ -1239,6 +1346,7 @@ mod tests {
     fn get_model_instructions_uses_template_when_placeholder_present() {
         let model = test_model(Some(ModelMessages {
             persistent_instructions: None,
+            tools: None,
             instructions_template: Some("Hello {{ personality }}".to_string()),
             instructions_variables: Some(personality_variables()),
             approvals: None,
@@ -1260,6 +1368,7 @@ mod tests {
     fn get_model_instructions_strips_placeholder_with_incomplete_variables() {
         let model = test_model(Some(ModelMessages {
             persistent_instructions: None,
+            tools: None,
             instructions_template: Some("Hello\n{{ personality }}".to_string()),
             instructions_variables: Some(ModelInstructionsVariables {
                 personality_default: None,
@@ -1286,6 +1395,7 @@ mod tests {
 
         let model_no_personality = test_model(Some(ModelMessages {
             persistent_instructions: None,
+            tools: None,
             instructions_template: Some("Hello\n{{ personality }}".to_string()),
             instructions_variables: Some(ModelInstructionsVariables {
                 personality_default: None,
@@ -1323,6 +1433,7 @@ mod tests {
     fn get_model_instructions_is_empty_when_template_is_missing() {
         let model = test_model(Some(ModelMessages {
             persistent_instructions: None,
+            tools: None,
             instructions_template: None,
             instructions_variables: Some(ModelInstructionsVariables {
                 personality_default: None,
@@ -1370,6 +1481,7 @@ mod tests {
             model.model_messages,
             Some(ModelMessages {
                 persistent_instructions: None,
+                tools: None,
                 instructions_template: Some("legacy instructions".to_string()),
                 instructions_variables: None,
                 approvals: None,
@@ -1420,6 +1532,7 @@ mod tests {
         let response = ModelsResponse {
             models: vec![test_model(Some(ModelMessages {
                 persistent_instructions: None,
+                tools: None,
                 instructions_template: Some("before {{ personality }} after".to_string()),
                 instructions_variables: Some(ModelInstructionsVariables {
                     personality_default: Some("default".to_string()),
@@ -1449,6 +1562,11 @@ mod tests {
     fn models_response_prefers_template_and_preserves_message_siblings() {
         let messages = ModelMessages {
             persistent_instructions: Some("Persistent catalog instructions".to_string()),
+            tools: Some(ToolMessages {
+                send_user_message_async: Some(ToolMessage {
+                    description: Some("Catalog description".to_string()),
+                }),
+            }),
             instructions_template: None,
             instructions_variables: None,
             approvals: Some(ApprovalMessages {
@@ -1464,6 +1582,7 @@ mod tests {
             auto_review: Some(AutoReviewMessages {
                 policy: Some("policy".to_string()),
                 policy_template: None,
+                node_repl_policy: None,
                 rejection_instructions: Some("rejection instructions".to_string()),
                 timeout_instructions: Some("timeout instructions".to_string()),
             }),
@@ -1515,6 +1634,11 @@ mod tests {
 
         let canonical_messages = ModelMessages {
             persistent_instructions: Some(String::new()),
+            tools: Some(ToolMessages {
+                send_user_message_async: Some(ToolMessage {
+                    description: Some(String::new()),
+                }),
+            }),
             instructions_template: Some("canonical instructions".to_string()),
             instructions_variables: None,
             approvals: None,
@@ -1652,6 +1776,7 @@ mod tests {
         assert!(!model.supports_image_detail_original);
         assert_eq!(model.web_search_tool_type, WebSearchToolType::Text);
         assert!(!model.supports_search_tool);
+        assert!(!model.supports_experimental_context);
         assert!(!model.use_responses_lite);
         assert!(!model.node_repl_auto_review_required);
         assert!(!model.node_repl_disabled);
@@ -1962,21 +2087,6 @@ mod tests {
             model.service_tier_for_request(Some("unsupported".to_string())),
             None
         );
-        assert_eq!(model.service_tier_for_request(/*service_tier*/ None), None);
-    }
-
-    #[test]
-    fn service_tier_for_request_does_not_apply_catalog_default() {
-        let model = ModelInfo {
-            default_service_tier: Some(ServiceTier::Fast.request_value().to_string()),
-            service_tiers: vec![ModelServiceTier {
-                id: ServiceTier::Fast.request_value().to_string(),
-                name: "Fast".to_string(),
-                description: "Priority processing.".to_string(),
-            }],
-            ..test_model(/*spec*/ None)
-        };
-
         assert_eq!(model.service_tier_for_request(/*service_tier*/ None), None);
     }
 }

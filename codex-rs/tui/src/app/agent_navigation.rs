@@ -59,7 +59,7 @@ pub(crate) struct AgentNavigationState {
     /// Spawned child threads whose instructions are owned by their parent agent.
     parent_owned_threads: HashSet<ThreadId>,
     /// Coalesces root refreshes while rejecting replies from a previous session.
-    picker_refresh: Option<(ThreadId, Uuid)>,
+    pub(super) picker_refresh: Option<(ThreadId, Uuid)>,
     /// Bounded, event-driven lifecycle state for tree rows.
     tree_statuses: AgentTreeStatusState,
     /// Presentation-only model, runtime, and root-task boundary state for tree rows.

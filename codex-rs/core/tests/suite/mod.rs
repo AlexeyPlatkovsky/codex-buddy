@@ -72,14 +72,17 @@ mod extension_sandbox;
 mod external_auth;
 mod fork_thread;
 mod git_enrichment;
+mod guardian_authorization;
+mod guardian_history;
 mod guardian_mcp_elicitation;
+mod guardian_retained_context;
 #[cfg(not(target_os = "windows"))]
 mod guardian_review;
 #[cfg(not(target_os = "windows"))]
 mod guardian_review_cancellation;
 #[cfg(not(target_os = "windows"))]
 mod guardian_subagent_authorization;
-#[cfg(not(target_os = "windows"))]
+#[cfg(all(not(target_os = "windows"), feature = "plugins"))]
 mod hooks;
 #[cfg(not(target_os = "windows"))]
 mod hooks_executor;
@@ -91,7 +94,6 @@ mod injected_models_cache;
 mod interrupt_hooks;
 mod items;
 mod json_result;
-mod lazy_mcp;
 mod live_cli;
 mod mcp_auth_elicitation;
 mod mcp_auth_refresh;
@@ -102,6 +104,7 @@ mod mcp_startup_refresh_http_proxy;
 mod mcp_tool_cache;
 mod mcp_tool_exposure;
 mod mcp_turn_metadata;
+mod mcp_user_verification;
 mod model_overrides;
 mod model_runtime_selectors;
 mod model_switching;
@@ -119,18 +122,16 @@ mod override_updates;
 mod pending_input;
 mod permissions_messages;
 mod personality;
-#[cfg(feature = "plugins")]
+#[cfg(all(feature = "connectors", feature = "plugins"))]
 mod plugins;
 mod prompt_cache_key;
 mod prompt_caching;
 mod prompt_debug_tests;
 mod quota_exceeded;
-#[cfg(feature = "realtime")]
 mod realtime_conversation;
-#[cfg(feature = "realtime")]
 mod realtime_initial_items;
-#[cfg(not(feature = "realtime"))]
-mod realtime_unavailable;
+mod realtime_sideband_endpoint;
+mod reasoning_effort_override;
 mod remote_env;
 mod remote_models;
 mod request_compression;
@@ -138,9 +139,10 @@ mod request_compression;
 mod request_permissions;
 #[cfg(not(target_os = "windows"))]
 mod request_permissions_tool;
-#[cfg(feature = "plugins")]
+#[cfg(all(feature = "connectors", feature = "plugins"))]
 mod request_plugin_install;
 mod request_user_input;
+mod request_user_input_async;
 mod responses_api_proxy_headers;
 mod responses_lite;
 #[cfg(target_os = "linux")]
@@ -151,12 +153,11 @@ mod retry_after;
 mod review;
 mod rmcp_client;
 mod rollout_budget;
+mod rollout_compression;
 mod rollout_list_find;
-mod runtime_profile;
 mod safety_buffering;
 mod safety_check_downgrade;
 mod search_tool;
-mod send_user_message_async;
 mod settings_commits;
 mod settings_constraints;
 mod shell_snapshot;
@@ -172,6 +173,7 @@ mod stream_no_completed;
 mod subagent_notifications;
 mod subagent_service_tier;
 mod token_budget;
+mod token_usage_rollout;
 mod tool_harness;
 mod tool_lifecycle;
 mod tool_parallelism;

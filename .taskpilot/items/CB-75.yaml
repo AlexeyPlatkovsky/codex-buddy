@@ -1,0 +1,13 @@
+schema_version: 1
+id: CB-75
+title: Resolve upstream merge and restore Buddy composition
+priority: high
+type: task
+status: done
+created_at: '2026-09-07T15:47:00Z'
+updated_at: '2026-09-07T16:41:25Z'
+parent_id: CB-73
+tags:
+- upstream
+- runtime
+description: Resolve merge conflicts and make the CLI, app-server, MCP extension, core, and TUI feature gates compile in both Buddy coding and upstream full profiles.

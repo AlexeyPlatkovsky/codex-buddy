@@ -13,8 +13,22 @@ use codex_mcp::CODEX_APPS_MCP_SERVER_NAME;
 #[cfg(feature = "plugin-runtime")]
 use codex_mcp::hosted_plugin_runtime_mcp_server_config;
 
+#[cfg(all(test, feature = "plugin-runtime"))]
+#[path = "event_stream_tests.rs"]
+mod event_stream_tests;
 #[cfg(feature = "plugin-runtime")]
 mod executor_plugin;
+#[cfg(feature = "plugin-runtime")]
+mod stream_manager;
+
+#[cfg(feature = "plugin-runtime")]
+pub use stream_manager::McpEventStreamManager;
+#[cfg(feature = "plugin-runtime")]
+pub use stream_manager::McpEventStreamUpdate;
+
+#[cfg(all(test, feature = "plugin-runtime"))]
+#[path = "stream_manager_tests.rs"]
+mod stream_manager_tests;
 
 #[cfg(feature = "plugin-runtime")]
 struct HostedPluginRuntimeExtension;

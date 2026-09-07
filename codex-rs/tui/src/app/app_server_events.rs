@@ -7,10 +7,9 @@ use super::app_server_event_targets::server_notification_thread_target;
 use super::app_server_event_targets::server_request_thread_id;
 use crate::app_command::AppCommand;
 use crate::app_event::AppEvent;
+use crate::app_event::RateLimitRefreshOrigin;
 use crate::app_server_session::AppServerSession;
-use crate::app_server_session::source_agent_path;
 use crate::app_server_session::status_account_display_from_auth_mode;
-use crate::app_server_session::thread_blocks_direct_input;
 use codex_app_server_client::AppServerEvent;
 use codex_app_server_protocol::AuthMode;
 use codex_app_server_protocol::ClientRequest;
@@ -19,7 +18,6 @@ use codex_app_server_protocol::RequestId;
 use codex_app_server_protocol::ServerNotification;
 use codex_app_server_protocol::ServerRequest;
 use codex_app_server_protocol::SessionSource;
-use codex_app_server_protocol::SubAgentActivityKind;
 use codex_app_server_protocol::ThreadItem;
 use codex_app_server_protocol::ThreadReadParams;
 use codex_app_server_protocol::ThreadReadResponse;
@@ -69,17 +67,37 @@ impl App {
                 );
                 self.refresh_mcp_startup_expected_servers_from_config();
                 self.chat_widget.finish_mcp_startup_after_lag();
+                if let Some(task) = self.agents_overview.refresh_task.take() {
+                    task.abort();
+                }
+                self.agents_overview.request_id = None;
+                self.agents_overview.refresh_pending = false;
+                self.agents_overview.refresh_notifications.clear();
+                self.agents_overview.activity.clear();
+                self.agents_overview.last_messages.clear();
+                self.repaint_agents_overview();
                 self.refresh_agents_overview_threads(app_server_client);
             }
             AppServerEvent::ServerNotification(notification) => {
+                let request_resolved = matches!(
+                    notification.as_ref(),
+                    ServerNotification::ServerRequestResolved(_)
+                );
                 self.handle_server_notification_event(app_server_client, *notification)
                     .await;
+                if request_resolved {
+                    self.repaint_agents_overview();
+                }
             }
             AppServerEvent::ServerRequest(request) => {
                 self.handle_server_request_event(app_server_client, *request)
                     .await;
+                self.repaint_agents_overview();
             }
             AppServerEvent::Disconnected { message } => {
+                if self.begin_reconnect() {
+                    return;
+                }
                 tracing::warn!("app-server event stream disconnected: {message}");
                 self.chat_widget.add_error_message(message.clone());
                 self.app_event_tx.send(AppEvent::FatalExitRequest(message));
@@ -92,11 +110,6 @@ impl App {
         app_server_client: &AppServerSession,
         notification: ServerNotification,
     ) {
-        // Collab spawn events can arrive before the child has a local event channel. Cache their
-        // receiver id and requested model before the routing guard below can discard an early
-        // nested-agent event.
-        self.cache_collab_receiver_threads_for_notification(&notification);
-
         if let ServerNotification::ThreadStatusChanged(status) = &notification {
             let _ = self.dynamic_tool_status_updates.send(status.clone());
         }
@@ -128,39 +141,6 @@ impl App {
 
         if let ServerNotification::ThreadStarted(started) = &notification
             && let SessionSource::SubAgent(SubAgentSource::ThreadSpawn {
-                parent_thread_id,
-                agent_nickname: source_nickname,
-                agent_role: source_role,
-                ..
-            }) = &started.thread.source
-            && let Some(primary_thread_id) = self.primary_thread_id
-            && (*parent_thread_id == primary_thread_id
-                || self.thread_event_channels.contains_key(parent_thread_id)
-                || self.agent_navigation.get(parent_thread_id).is_some())
-            && let Ok(thread_id) = codex_protocol::ThreadId::from_string(&started.thread.id)
-        {
-            self.upsert_agent_picker_thread(
-                thread_id,
-                started
-                    .thread
-                    .agent_nickname
-                    .clone()
-                    .or_else(|| source_nickname.clone()),
-                started
-                    .thread
-                    .agent_role
-                    .clone()
-                    .or_else(|| source_role.clone()),
-                /*is_closed*/ false,
-            );
-            self.agent_navigation
-                .set_agent_path(thread_id, source_agent_path(&started.thread.source));
-            if thread_blocks_direct_input(&started.thread) {
-                self.agent_navigation.mark_parent_owned(thread_id);
-            }
-        }
-        if let ServerNotification::ThreadStarted(started) = &notification
-            && let SessionSource::SubAgent(SubAgentSource::ThreadSpawn {
                 parent_thread_id, ..
             }) = &started.thread.source
             && self
@@ -174,6 +154,7 @@ impl App {
                 .entry(thread_id)
                 .or_default();
         }
+        self.track_agents_overview_notification(&notification);
         if matches!(
             &notification,
             ServerNotification::ThreadStarted(_)
@@ -184,38 +165,8 @@ impl App {
                 | ServerNotification::ThreadDeleted(_)
                 | ServerNotification::ThreadClosed(_)
         ) {
-            self.refresh_agents_overview_threads(app_server_client);
-        }
-        if super::collab_spawn_details(&notification).is_some()
-            && let ServerNotificationThreadTarget::Thread(sender_thread_id) =
-                server_notification_thread_target(&notification)
-            && let Some(primary_thread_id) = self.primary_thread_id
-            && (sender_thread_id == primary_thread_id
-                || self.thread_event_channels.contains_key(&sender_thread_id)
-                || self.agent_navigation.get(&sender_thread_id).is_some())
-        {
-            // Spawn lifecycle items intentionally contain only the new thread id, model, and
-            // effort. Refresh the bounded root-scoped listing immediately so the fixed panel gets
-            // the authoritative nickname and role without requiring the user to open
-            // `/subagents`.
-            self.refresh_agent_picker_threads(app_server_client, primary_thread_id);
-        }
-        if matches!(
-            super::sub_agent_activity_item(&notification),
-            Some(ThreadItem::SubAgentActivity {
-                kind: SubAgentActivityKind::Started,
-                ..
-            })
-        ) && let ServerNotificationThreadTarget::Thread(sender_thread_id) =
-            server_notification_thread_target(&notification)
-            && let Some(primary_thread_id) = self.primary_thread_id
-            && (sender_thread_id == primary_thread_id
-                || self.thread_event_channels.contains_key(&sender_thread_id)
-                || self.agent_navigation.get(&sender_thread_id).is_some())
-        {
-            // Older app-server peers omit activity metadata. The live listing is a bounded
-            // fallback for their nickname and role, and no `/subagents` command is required.
-            self.refresh_agent_picker_threads(app_server_client, primary_thread_id);
+            self.repaint_agents_overview();
+            self.refresh_changed_agents_overview_threads(app_server_client);
         }
         match &notification {
             ServerNotification::ServerRequestResolved(notification) => {
@@ -239,9 +190,6 @@ impl App {
                     .pending_app_server_requests
                     .resolve_notification(&notification.thread_id, &notification.request_id)
                 {
-                    if let Some(thread_id) = notification_thread_id {
-                        self.agent_navigation.resolve_server_request(thread_id);
-                    }
                     self.chat_widget.dismiss_app_server_request(&request);
                     if self.startup_pending_protected_request {
                         self.startup_pending_protected_request =
@@ -253,7 +201,7 @@ impl App {
                 self.refresh_mcp_startup_expected_servers_from_config();
             }
             ServerNotification::AccountRateLimitsUpdated(notification) => {
-                if matches!(
+                let workspace_hard_stop = matches!(
                     notification.rate_limits.rate_limit_reached_type,
                     Some(
                         RateLimitReachedType::WorkspaceOwnerCreditsDepleted
@@ -261,16 +209,25 @@ impl App {
                             | RateLimitReachedType::WorkspaceOwnerUsageLimitReached
                             | RateLimitReachedType::WorkspaceMemberUsageLimitReached
                     )
-                ) || notification.rate_limits.spend_control_reached == Some(true)
-                {
+                ) || notification.rate_limits.spend_control_reached
+                    == Some(true);
+                if workspace_hard_stop {
                     self.rate_limit_hard_stop_generation =
                         self.rate_limit_hard_stop_generation.wrapping_add(1);
                 }
                 self.chat_widget
                     .on_rolling_rate_limit_snapshot(notification.rate_limits.clone());
+                if workspace_hard_stop && self.chat_widget.has_chatgpt_account() {
+                    // Background inference may publish a hard stop without a foreground Error.
+                    self.refresh_rate_limits(app_server_client, RateLimitRefreshOrigin::Recovery);
+                }
                 return;
             }
             ServerNotification::AccountUpdated(notification) => {
+                self.chat_widget.cyber_policy_notice = Default::default();
+                self.rate_limit_hard_stop_generation =
+                    self.rate_limit_hard_stop_generation.wrapping_add(1);
+                self.rate_limit_refresh_state.invalidate_recovery();
                 // Deferred terminal writes must never carry the previous account's billing into
                 // the newly authenticated identity, even when both accounts share one thread.
                 self.last_thread_usage_status_cell = None;
@@ -295,6 +252,13 @@ impl App {
                         .is_some_and(AuthMode::has_chatgpt_account),
                     has_codex_backend_auth,
                 );
+                if self.chat_widget.has_chatgpt_account() {
+                    crate::daybreak::prefetch_notice(
+                        &self.config,
+                        app_server_client,
+                        self.chat_widget.cyber_policy_notice.clone(),
+                    );
+                }
                 return;
             }
             ServerNotification::ExternalAgentConfigImportCompleted(notification) => {
@@ -329,6 +293,34 @@ impl App {
 
         match server_notification_thread_target(&notification) {
             ServerNotificationThreadTarget::Thread(thread_id) => {
+                if self.current_displayed_thread_id() != Some(thread_id)
+                    && let ServerNotification::ItemCompleted(item) = &notification
+                    && let ThreadItem::UserMessage {
+                        client_id: Some(client_id),
+                        ..
+                    } = &item.item
+                {
+                    // Acknowledge by ID before routing can discard the receipt. ID-less receipts
+                    // cannot safely distinguish identical pending submissions.
+                    let mut store = match self.thread_event_channels.get(&thread_id) {
+                        Some(channel) => Some(channel.store.lock().await),
+                        None => None,
+                    };
+                    for input in store
+                        .as_mut()
+                        .and_then(|store| store.input_state.as_mut())
+                        .into_iter()
+                        .chain(self.agents_overview.input_states.get_mut(&thread_id))
+                    {
+                        if input
+                            .pending_steers
+                            .front()
+                            .is_some_and(|pending| pending.client_id == *client_id)
+                        {
+                            input.pending_steers.pop_front();
+                        }
+                    }
+                }
                 if self.primary_thread_id.is_none() && !self.pending_startup_thread_start {
                     return;
                 }
@@ -550,7 +542,7 @@ impl App {
                     },
                 })
                 .await;
-            let Ok(ThreadReadResponse { thread }) = thread else {
+            let Ok(ThreadReadResponse { thread, .. }) = thread else {
                 return;
             };
             let SessionSource::SubAgent(SubAgentSource::ThreadSpawn {
@@ -600,11 +592,6 @@ impl App {
                 tracing::warn!("{err}");
             }
             return;
-        }
-
-        if let Some(thread_id) = thread_id {
-            self.agent_navigation
-                .observe_server_request(thread_id, &request);
         }
 
         let Some(thread_id) = thread_id else {

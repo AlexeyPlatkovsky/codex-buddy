@@ -1,6 +1,6 @@
 [package]
 name = "codex-buddy"
-version = "1.0.11"
+version = "1.1.0"
 edition.workspace = true
 license.workspace = true
 
@@ -10,13 +10,6 @@ path = "src/main.rs"
 
 [lints]
 workspace = true
-
-[features]
-default = ["coding-runtime-extensions"]
-coding-runtime-extensions = [
-    "codex-exec/coding-runtime-extensions",
-    "codex-tui/coding-runtime-extensions",
-]
 
 [dependencies]
 anyhow = { workspace = true }
@@ -34,4 +27,5 @@ tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [dev-dependencies]
 codex-core = { workspace = true }
+codex-protocol = { workspace = true }
 tempfile = { workspace = true }

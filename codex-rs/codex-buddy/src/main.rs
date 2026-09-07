@@ -547,8 +547,10 @@ mod tests {
     use super::*;
     use clap::CommandFactory;
     use codex_core::config::ConfigBuilder;
+    use codex_protocol::ThreadId;
     use codex_tui::AppExitInfo;
     use codex_tui::ExitReason;
+    use codex_tui::ResumableThread;
     use codex_tui::TokenUsage;
     use tempfile::TempDir;
 
@@ -785,7 +787,11 @@ mod tests {
                     ..Default::default()
                 },
                 thread_id: None,
-                resume_hint: Some("codex resume session-name".to_string()),
+                resume_hint: Some(ResumableThread {
+                    thread_id: ThreadId::from_string("123e4567-e89b-12d3-a456-426614174000")
+                        .expect("valid thread ID"),
+                    thread_name: Some("session-name".to_string()),
+                }),
                 disconnect_info: None,
                 update_action: None,
                 exit_reason: ExitReason::UserRequested,
@@ -797,7 +803,9 @@ mod tests {
             lines,
             vec![
                 "Token usage: total=12 input=7 output=5".to_string(),
-                "To continue this session, run codex-buddy resume session-name".to_string(),
+                "To continue this session, run:".to_string(),
+                "  codex-buddy resume 123e4567-e89b-12d3-a456-426614174000".to_string(),
+                "Or run codex-buddy resume and select session-name.".to_string(),
             ]
         );
     }

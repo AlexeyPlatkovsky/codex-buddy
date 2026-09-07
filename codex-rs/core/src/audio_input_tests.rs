@@ -1,7 +1,9 @@
+use codex_protocol::models::ConfigurationReasoning;
 use codex_protocol::models::ContentItem;
 use codex_protocol::models::FunctionCallOutputContentItem;
 use codex_protocol::models::FunctionCallOutputPayload;
 use codex_protocol::models::ResponseItem;
+use codex_protocol::openai_models::ReasoningEffort;
 use pretty_assertions::assert_eq;
 
 use super::UNSUPPORTED_AUDIO_PLACEHOLDER;
@@ -32,6 +34,11 @@ fn slim_build_replaces_message_and_tool_audio() {
             ]),
             internal_chat_message_metadata_passthrough: None,
         },
+        ResponseItem::ConfigurationUpdate {
+            reasoning: ConfigurationReasoning {
+                effort: ReasoningEffort::High,
+            },
+        },
     ];
 
     prepare_response_items(&mut items);
@@ -59,6 +66,11 @@ fn slim_build_replaces_message_and_tool_audio() {
                     },
                 ]),
                 internal_chat_message_metadata_passthrough: None,
+            },
+            ResponseItem::ConfigurationUpdate {
+                reasoning: ConfigurationReasoning {
+                    effort: ReasoningEffort::High,
+                },
             },
         ]
     );
