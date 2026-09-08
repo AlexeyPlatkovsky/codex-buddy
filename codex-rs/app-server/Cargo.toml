@@ -26,7 +26,11 @@ workspace = true
 
 [features]
 default = ["full-runtime-extensions"]
-coding-runtime-extensions = []
+coding-runtime-extensions = [
+    "codex-core/audio-input",
+    "codex-core/code-mode",
+    "codex-core/memories",
+]
 full-runtime-extensions = [
     "coding-runtime-extensions",
     "codex-core/audio-input",
@@ -152,6 +156,9 @@ tracing = { workspace = true, features = ["log"] }
 tracing-subscriber = { workspace = true, features = ["env-filter", "fmt", "json"] }
 url = { workspace = true }
 uuid = { workspace = true, features = ["serde", "v7"] }
+
+[target.'cfg(all(target_os = "linux", target_env = "musl", any(target_arch = "x86_64", target_arch = "aarch64")))'.dependencies]
+tikv-jemallocator = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 codex-windows-sandbox = { workspace = true }

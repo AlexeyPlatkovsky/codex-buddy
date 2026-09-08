@@ -511,6 +511,13 @@ fn has_parameter(spec: &ToolSpec, parameter_name: &str) -> bool {
         .is_some()
 }
 
+fn has_windows_shell_guidance(spec: &ToolSpec) -> bool {
+    let ToolSpec::Function(tool) = spec else {
+        return false;
+    };
+    tool.description.contains("Windows safety rules:")
+}
+
 fn apply_patch_accepts_environment_id(spec: &ToolSpec) -> bool {
     match spec {
         ToolSpec::Freeform(tool) if tool.name == "apply_patch" => {
@@ -534,6 +541,7 @@ async fn internal_guardian_sessions_exclude_optional_core_tools() {
         &session,
         step_context.turn.as_ref(),
         step_context.turn.model_info(),
+        step_context.settings.model_info.model_messages.as_ref(),
         &step_context.environments,
         &step_context.mcp,
         /*apps_enabled*/ false,
@@ -586,6 +594,7 @@ async fn internal_guardian_sessions_respect_managed_shell_restrictions() {
             &session,
             step_context.turn.as_ref(),
             step_context.turn.model_info(),
+            step_context.settings.model_info.model_messages.as_ref(),
             &step_context.environments,
             &step_context.mcp,
             /*apps_enabled*/ false,
@@ -622,6 +631,7 @@ async fn internal_guardian_sessions_preserve_code_mode() {
         &session,
         step_context.turn.as_ref(),
         step_context.turn.model_info(),
+        step_context.settings.model_info.model_messages.as_ref(),
         &step_context.environments,
         &step_context.mcp,
         /*apps_enabled*/ false,
@@ -692,6 +702,7 @@ async fn internal_guardian_sessions_require_managed_secondary_environments() {
             &session,
             step_context.turn.as_ref(),
             step_context.turn.model_info(),
+            step_context.settings.model_info.model_messages.as_ref(),
             &step_context.environments,
             &step_context.mcp,
             /*apps_enabled*/ false,
@@ -951,18 +962,18 @@ async fn coding_runtime_profile_honors_disabled_client_tool_source() {
 
 #[tokio::test]
 async fn update_plan_tool_respects_config_gate() {
-    let enabled = probe(|_| {}).await;
-    enabled.assert_visible_contains(&["update_plan"]);
-    enabled.assert_registered_contains(&["update_plan"]);
+    let disabled = probe(|_| {}).await;
+    disabled.assert_visible_lacks(&["update_plan"]);
+    disabled.assert_registered_lacks(&["update_plan"]);
 
-    let disabled = probe(|turn| {
+    let enabled = probe(|turn| {
         update_config(turn, |config| {
-            config.update_plan_enabled = false;
+            config.update_plan_enabled = true;
         });
     })
     .await;
-    disabled.assert_visible_lacks(&["update_plan"]);
-    disabled.assert_registered_lacks(&["update_plan"]);
+    enabled.assert_visible_contains(&["update_plan"]);
+    enabled.assert_registered_contains(&["update_plan"]);
 }
 
 #[tokio::test]
@@ -1005,6 +1016,45 @@ async fn shell_family_registers_only_unified_exec_tools() {
     plan.assert_registered_contains(&["exec_command", "write_stdin"]);
     assert!(plan.has_terminal_controls);
     assert!(has_parameter(plan.visible_spec("exec_command"), "shell"));
+}
+
+#[tokio::test]
+async fn exec_command_guidance_follows_executor_platform_and_fallbacks() {
+    let opposite_host_os = if cfg!(windows) { "linux" } else { "windows" };
+    for (platform_os, multiple_environments, expect_windows_guidance) in [
+        (Some("windows"), false, true),
+        (Some("linux"), false, false),
+        (None, false, cfg!(windows)),
+        (Some(opposite_host_os), true, cfg!(windows)),
+    ] {
+        let plan = probe(|turn| {
+            set_features(turn, &[Feature::ShellTool, Feature::UnifiedExec]);
+            set_feature(turn, Feature::ShellZshFork, /*enabled*/ false);
+            update_turn_settings_for_test(turn, |settings| {
+                Arc::make_mut(&mut settings.model_info).shell_type =
+                    ConfigShellToolType::UnifiedExec;
+            });
+            let TurnEnvironmentState::Ready(environment) = turn
+                .environments
+                .environments
+                .first_mut()
+                .expect("primary environment")
+            else {
+                panic!("primary environment should be ready");
+            };
+            environment.executor_platform_os = platform_os.map(str::to_string);
+            if multiple_environments {
+                duplicate_primary_environment(turn);
+            }
+        })
+        .await;
+
+        assert_eq!(
+            has_windows_shell_guidance(plan.visible_spec("exec_command")),
+            expect_windows_guidance,
+            "unexpected guidance for executor platform {platform_os:?} with multiple_environments={multiple_environments}"
+        );
+    }
 }
 
 #[tokio::test]
@@ -1976,6 +2026,7 @@ async fn strict_tool_collisions_reject_external_and_synthetic_duplicates() {
         let (_session, mut turn) = make_session_and_context().await;
         update_config(&mut turn, |config| {
             config.tool_registry.error_on_tool_collisions = true;
+            config.update_plan_enabled = true;
         });
         if code_mode_enabled {
             set_feature(&mut turn, Feature::CodeMode, /*enabled*/ true);
@@ -2679,6 +2730,7 @@ async fn code_mode_only_exposes_default_namespace_tools_directly() {
     let plan = probe(|turn| {
         set_features(turn, &[Feature::CodeMode, Feature::CodeModeOnly]);
         update_config(turn, |config| {
+            config.update_plan_enabled = true;
             config.code_mode.direct_only_tool_namespaces = vec!["functions".to_string()];
         });
     })
@@ -2738,6 +2790,7 @@ async fn code_mode_excludes_default_namespace_tools() {
     let plan = probe(|turn| {
         set_feature(turn, Feature::CodeMode, /*enabled*/ true);
         update_config(turn, |config| {
+            config.update_plan_enabled = true;
             config.code_mode.excluded_tool_namespaces = vec!["functions".to_string()];
         });
     })

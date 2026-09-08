@@ -36,6 +36,12 @@ impl ChatWidget {
                 || self.review.is_review_mode
                 || self.mcp_startup_status.is_some(),
         );
+        if self.mcp_startup_status.is_some()
+            && !self.turn_lifecycle.agent_turn_running
+            && !self.review.is_review_mode
+        {
+            self.bottom_pane.hide_status_indicator();
+        }
         self.refresh_status_surfaces();
     }
 
@@ -68,6 +74,7 @@ impl ChatWidget {
     // Raw reasoning uses the same flow as summarized reasoning
 
     pub(super) fn on_task_started(&mut self) {
+        self.clear_context_compaction();
         self.input_queue.user_turn_pending_start = false;
         self.reset_safety_buffering_for_turn_start();
         self.turn_lifecycle.start(Instant::now());
@@ -82,6 +89,8 @@ impl ChatWidget {
         self.quit_shortcut_expires_at = None;
         self.quit_shortcut_key = None;
         self.update_task_running_state();
+        self.bottom_pane.ensure_status_indicator();
+        self.bottom_pane.reset_status_timer(Duration::ZERO);
         self.status_state.retry_status_header = None;
         self.clear_active_hook_cell();
         self.status_state.pending_status_indicator_restore = false;
@@ -144,26 +153,27 @@ impl ChatWidget {
             self.request_pending_usage_output_insertion_after_stream_shutdown();
         }
         self.flush_unified_exec_wait_streak();
-        self.flush_completed_command_activity();
         if !from_replay {
             self.collect_runtime_metrics_delta();
             let runtime_metrics =
                 (!self.turn_runtime_metrics.is_empty()).then_some(self.turn_runtime_metrics);
-            let show_work_separator = self.transcript.had_work_activity
+            let show_work_details = self.transcript.had_work_activity
                 && (self.transcript.needs_final_message_separator || runtime_metrics.is_some());
-            if show_work_separator || runtime_metrics.is_some() {
-                let elapsed_seconds = if show_work_separator {
-                    duration_ms
-                        .and_then(|duration_ms| u64::try_from(duration_ms).ok())
-                        .map(|duration_ms| duration_ms / 1_000)
-                        .or_else(|| {
-                            self.bottom_pane
-                                .status_widget()
-                                .map(crate::status_indicator_widget::StatusIndicatorWidget::elapsed_seconds)
-                        })
-                } else {
-                    None
-                };
+            let has_assistant_message = last_agent_message.is_some()
+                || self.transcript.last_completed_agent_message.is_some();
+            let elapsed_seconds = if show_work_details {
+                duration_ms
+                    .and_then(|duration_ms| u64::try_from(duration_ms).ok())
+                    .map(|duration_ms| duration_ms / 1_000)
+                    .or_else(|| {
+                        self.bottom_pane
+                            .status_elapsed()
+                            .map(|elapsed| elapsed.as_secs())
+                    })
+            } else {
+                None
+            };
+            if has_assistant_message || show_work_details || runtime_metrics.is_some() {
                 self.add_to_history(history_cell::FinalMessageSeparator::new(
                     elapsed_seconds,
                     runtime_metrics,
@@ -177,6 +187,7 @@ impl ChatWidget {
             self.refresh_thread_usage_after_turn();
         }
         // Mark task stopped and request redraw now that all content is in history.
+        self.clear_context_compaction();
         self.status_state.pending_status_indicator_restore = false;
         self.input_queue.user_turn_pending_start = false;
         self.clear_active_hook_cell();
@@ -316,6 +327,7 @@ impl ChatWidget {
     /// This does not clear MCP startup tracking, because MCP startup can overlap with turn cleanup
     /// and should continue to drive the bottom-pane running indicator while it is in progress.
     pub(super) fn finalize_turn(&mut self) {
+        self.clear_context_compaction();
         self.clear_safety_buffering();
         // Drop preview-only stream tail content on any termination path before
         // failed-cell finalization, so transient tail cells are never persisted.
@@ -389,12 +401,16 @@ impl ChatWidget {
     pub(super) fn on_cyber_policy_error(&mut self) {
         self.input_queue.submit_pending_steers_after_interrupt = false;
         self.finalize_turn();
-        let plan_type = if self.has_chatgpt_account {
-            self.plan_type
+        let notice = if self.config.model_provider_id == "openai" {
+            self.cyber_policy_notice
+                .get()
+                .copied()
+                .unwrap_or_default()
+                .for_model(self.current_model())
         } else {
-            None
+            crate::daybreak::Notice::Limited
         };
-        self.add_to_history(history_cell::new_cyber_policy_error_event(plan_type));
+        self.add_to_history(history_cell::new_cyber_policy_error_event(notice));
         self.request_redraw();
 
         // After an error ends the turn, try sending the next queued input.
@@ -402,6 +418,9 @@ impl ChatWidget {
     }
 
     pub(super) fn on_rate_limit_error(&mut self, error_kind: RateLimitErrorKind, message: String) {
+        self.invalidate_ordinary_usage_recovery();
+        // on_error can drain queued input, before the asynchronous recovery read completes.
+        self.input_queue.rate_limit_recovery_pending = self.has_chatgpt_account;
         let usage_limit_error = matches!(error_kind, RateLimitErrorKind::UsageLimit);
         let rate_limit_reached_type = self.codex_rate_limit_reached_type.map(|kind| {
             if usage_limit_error {
@@ -418,31 +437,38 @@ impl ChatWidget {
                 kind
             }
         });
+        if self.codex_rate_limit_reached_type != rate_limit_reached_type {
+            self.clear_backend_banner();
+        }
         self.codex_rate_limit_reached_type = rate_limit_reached_type;
-        match rate_limit_reached_type {
-            Some(RateLimitReachedType::WorkspaceOwnerCreditsDepleted) => {
-                self.on_error(
+        // Keep owner remediation in history even when the optional backend banner is unavailable.
+        let (message, nudge) = match rate_limit_reached_type {
+            Some(RateLimitReachedType::WorkspaceOwnerCreditsDepleted) => (
                     "You're out of credits. Your workspace is out of credits. Add credits to continue using Codex."
                         .to_string(),
-                );
-            }
-            Some(RateLimitReachedType::WorkspaceOwnerUsageLimitReached) => {
-                self.on_error(
+                    None,
+            ),
+            Some(RateLimitReachedType::WorkspaceOwnerUsageLimitReached) => (
                     "Usage limit reached. You've reached your usage limit. Increase your limits to continue using codex."
                         .to_string(),
-                );
-            }
-            Some(RateLimitReachedType::WorkspaceMemberCreditsDepleted) => {
-                self.on_error(message);
-                self.open_workspace_owner_nudge_prompt(AddCreditsNudgeCreditType::Credits);
-            }
-            Some(RateLimitReachedType::WorkspaceMemberUsageLimitReached) => {
-                self.on_error(message);
-                self.open_workspace_owner_nudge_prompt(AddCreditsNudgeCreditType::UsageLimit);
-            }
-            Some(RateLimitReachedType::RateLimitReached) | None => {
-                self.on_error(message);
-            }
+                    None,
+            ),
+            Some(RateLimitReachedType::WorkspaceMemberCreditsDepleted) =>
+                (message, Some(AddCreditsNudgeCreditType::Credits)),
+            Some(RateLimitReachedType::WorkspaceMemberUsageLimitReached) =>
+                (message, Some(AddCreditsNudgeCreditType::UsageLimit)),
+            Some(RateLimitReachedType::RateLimitReached) | None => (message, None),
+        };
+        self.on_error(message);
+        if !self.has_applicable_backend_banner()
+            && let Some(credit_type) = nudge
+        {
+            self.open_workspace_owner_nudge_prompt(credit_type);
+        }
+        if self.has_chatgpt_account {
+            self.app_event_tx.send(AppEvent::RefreshRateLimits {
+                origin: crate::app_event::RateLimitRefreshOrigin::Recovery,
+            });
         }
     }
 

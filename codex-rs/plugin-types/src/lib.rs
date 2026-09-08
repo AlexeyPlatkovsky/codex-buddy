@@ -8,6 +8,8 @@ use codex_utils_path_uri::PathUri;
 pub use plugin_id::PluginId;
 pub use plugin_id::PluginIdError;
 pub use plugin_id::validate_plugin_segment;
+use serde_json::Map;
+use serde_json::Value;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AppConnectorId(pub String);
@@ -45,6 +47,10 @@ pub struct PluginHookSource {
 pub struct ExecutorPluginHookSource {
     pub plugin_id: PluginId,
     pub environment_id: String,
+    /// An admitted MCP target can run outside the plugin's source environment.
+    pub mcp_environment_id: Option<String>,
+    /// Trusted MCP routing metadata for this cleanup target.
+    pub mcp_metadata: Option<Map<String, Value>>,
     pub plugin_root: PathUri,
     pub manifest_path: PathUri,
     pub source_relative_path: String,

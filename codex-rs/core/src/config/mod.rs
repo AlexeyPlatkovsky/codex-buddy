@@ -123,6 +123,7 @@ use codex_protocol::permissions::ReadDenyMatcher;
 use codex_protocol::protocol::AskForApproval;
 use codex_protocol::protocol::MultiAgentVersion;
 use codex_protocol::protocol::SandboxPolicy;
+use codex_rmcp_client::McpOAuthRefreshMode;
 use codex_runtime_profile::ExternalSource;
 use codex_runtime_profile::ExternalSourcePolicy;
 use codex_runtime_profile::ResolvedRuntimeProfile;
@@ -176,6 +177,7 @@ mod requirements;
 mod resolved_permission_profile;
 #[cfg(test)]
 mod schema;
+mod token_budget_startup;
 pub use auth_keyring::bootstrap_auth_config;
 pub use auth_keyring::resolve_bootstrap_auth_keyring_backend_kind;
 pub use codex_agent_roles::AgentRoleConfig;
@@ -201,6 +203,7 @@ pub use permissions::compile_permission_profile;
 pub(crate) use permissions::is_builtin_permission_profile_name;
 pub use permissions::resolve_permission_profile;
 pub(crate) use resolved_permission_profile::PermissionProfileState;
+pub use token_budget_startup::TokenBudgetStartupConfig;
 
 const DEFAULT_IGNORE_LARGE_UNTRACKED_DIRS: i64 = 200;
 const DEFAULT_IGNORE_LARGE_UNTRACKED_FILES: i64 = 10 * 1024 * 1024;
@@ -750,14 +753,21 @@ pub struct Config {
     /// Enable ASCII animations and shimmer effects in the TUI.
     pub animations: bool,
 
+    /// Enable decorative TUI effects such as Astra composer stars.
+    pub tui_whimsy: bool,
+
     /// Show startup tooltips in the TUI welcome screen.
     pub show_tooltips: bool,
+
+    /// Generate automatic TUI recaps. Manual `/recap` remains available when disabled.
+    pub tui_auto_recap: bool,
 
     /// Persisted startup availability NUX state for model tooltips.
     pub model_availability_nux: ModelAvailabilityNuxConfig,
 
     /// Start the composer in Vim mode (`Normal`) by default.
     pub tui_vim_mode_default: bool,
+    pub tui_question_esc_back: bool,
 
     /// Start the TUI in raw scrollback mode for copy-friendly transcript output.
     pub tui_raw_output_mode: bool,
@@ -1044,6 +1054,9 @@ pub struct Config {
     /// Default: `300000` (5 minutes).
     pub background_terminal_max_timeout: u64,
 
+    /// Idle timeout for unsubscribed app-server threads, resolved at server startup.
+    pub thread_unload_delay: Duration,
+
     /// Compatibility-only settings retained for legacy `ghost_snapshot`
     /// config loading.
     pub ghost_snapshot: GhostSnapshotConfig,
@@ -1053,6 +1066,8 @@ pub struct Config {
 
     /// Context-window token budget configuration, when enabled.
     pub token_budget: Option<TokenBudgetConfig>,
+    /// Runtime snapshot of configured token-budget preferences before startup activation.
+    pub token_budget_startup_config: Option<TokenBudgetStartupConfig>,
     /// Shared token budget for the root thread and its sub-agents.
     pub rollout_budget: Option<RolloutBudgetConfig>,
     /// Current-time reminder and clock tool configuration, when enabled.
@@ -1775,6 +1790,11 @@ impl Config {
             apps_mcp_product_sku: self.apps_mcp_product_sku.clone(),
             codex_home: self.codex_home.to_path_buf(),
             mcp_oauth_credentials_store_mode: self.mcp_oauth_credentials_store_mode,
+            oauth_refresh_mode: if self.features.enabled(Feature::McpOAuthRefreshCoordination) {
+                McpOAuthRefreshMode::Coordinated
+            } else {
+                McpOAuthRefreshMode::Legacy
+            },
             auth_keyring_backend_kind: self.auth_keyring_backend_kind(),
             mcp_oauth_callback_port: self.mcp_oauth_callback_port,
             mcp_oauth_callback_url: self.mcp_oauth_callback_url.clone(),
@@ -1890,7 +1910,7 @@ impl Config {
             .map(AbsolutePathBuf::try_from)
             .transpose()?;
 
-        Self::load_config_with_layer_stack_and_runtime_preset(
+        Self::load_config_with_layer_stack(
             LOCAL_FS.as_ref(),
             cfg,
             ConfigOverrides {
@@ -1900,7 +1920,6 @@ impl Config {
             },
             refreshed_config.codex_home.clone(),
             config_layer_stack,
-            self.runtime_profile.preset(),
         )
         .await
     }
@@ -2697,7 +2716,7 @@ fn resolve_update_plan_enabled(config_toml: &ConfigToml) -> bool {
         .tools
         .as_ref()
         .and_then(|tools| tools.update_plan.as_ref())
-        .is_none_or(|config| config.enabled)
+        .is_some_and(|config| config.enabled)
 }
 
 fn resolve_orchestrator_feature_enabled(
@@ -2810,7 +2829,7 @@ fn resolve_multi_agent_v2_config(config_toml: &ConfigToml) -> MultiAgentV2Config
     }
 }
 
-fn resolve_token_budget_config(
+pub(crate) fn resolve_token_budget_config(
     config_toml: &ConfigToml,
     features: &ManagedFeatures,
 ) -> std::io::Result<Option<TokenBudgetConfig>> {
@@ -3283,6 +3302,7 @@ impl Config {
             exec_policy: _,
             enforce_residency,
             network: network_requirements,
+            application: _,
             filesystem: filesystem_requirements,
             additional_developer_instructions: _,
             guardian_policy_config_source: _,
@@ -3879,6 +3899,17 @@ impl Config {
             .background_terminal_max_timeout
             .unwrap_or(DEFAULT_MAX_BACKGROUND_TERMINAL_TIMEOUT_MS)
             .max(MIN_EMPTY_YIELD_TIME_MS);
+        let thread_unload_delay =
+            Duration::from_secs(cfg.thread_unload_delay_secs.unwrap_or(/*default*/ 60));
+        if std::time::Instant::now()
+            .checked_add(thread_unload_delay)
+            .is_none()
+        {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "thread_unload_delay_secs is too large",
+            ));
+        }
 
         let ghost_snapshot = {
             let mut config = GhostSnapshotConfig::default();
@@ -4152,17 +4183,14 @@ impl Config {
         }) = filesystem_requirements.as_ref()
             && let Some(managed_file_system_policy) = managed_deny_read_policy.as_ref()
         {
-            let _initial_matcher =
-                ReadDenyMatcher::try_new(managed_file_system_policy, resolved_cwd.as_path())
+            let managed_deny_matcher =
+                ReadDenyMatcher::try_new_for_local_paths(managed_file_system_policy, resolved_cwd.as_path())
                     .map_err(std::io::Error::other)?;
             let managed_file_system_policy = Arc::clone(managed_file_system_policy);
-            let permission_cwd = resolved_cwd.clone();
             let requirement_source = requirement_source.clone();
             constrained_permission_profile
                 .value
                 .add_validator(move |permission_profile| {
-                    let managed_deny_matcher =
-                        ReadDenyMatcher::new(&managed_file_system_policy, permission_cwd.as_path());
                     let file_system_policy = permission_profile.file_system_sandbox_policy();
                     let missing_required_deny = managed_file_system_policy
                         .entries
@@ -4179,7 +4207,7 @@ impl Config {
                             let path = path.to_abs_path().ok()?;
                             managed_deny_matcher
                                 .as_ref()
-                                .is_some_and(|matcher| matcher.is_read_denied(path.as_path()))
+                                .is_some_and(|matcher| matcher.is_local_path_read_denied(path.as_path()))
                                 .then_some(path)
                         });
                     if missing_required_deny || violating_root.is_some() {
@@ -4376,9 +4404,11 @@ impl Config {
             tool_registry,
             code_mode,
             background_terminal_max_timeout,
+            thread_unload_delay,
             ghost_snapshot,
             multi_agent_v2,
             token_budget,
+            token_budget_startup_config: None,
             rollout_budget,
             current_time_reminder,
             sleep_tool_mode,
@@ -4389,7 +4419,12 @@ impl Config {
             active_project,
             notices,
             check_for_update_on_startup,
-            disable_paste_burst: cfg.disable_paste_burst.unwrap_or(false),
+            disable_paste_burst: cfg
+                .tui
+                .as_ref()
+                .and_then(|tui| tui.disable_paste_burst)
+                .or(cfg.disable_paste_burst)
+                .unwrap_or(false),
             analytics_enabled: cfg.analytics.as_ref().and_then(|a| a.enabled),
             feedback_enabled: cfg
                 .feedback
@@ -4403,12 +4438,15 @@ impl Config {
                 .map(|t| t.notification_settings.clone())
                 .unwrap_or_default(),
             animations: cfg.tui.as_ref().map(|t| t.animations).unwrap_or(true),
+            tui_whimsy: cfg.tui.as_ref().map(|t| t.whimsy).unwrap_or(true),
             show_tooltips: cfg.tui.as_ref().map(|t| t.show_tooltips).unwrap_or(true),
+            tui_auto_recap: cfg.tui.as_ref().map(|t| t.auto_recap).unwrap_or(/*default*/ true),
             model_availability_nux: cfg
                 .tui
                 .as_ref()
                 .map(|t| t.model_availability_nux.clone())
                 .unwrap_or_default(),
+            tui_question_esc_back: cfg.tui.as_ref().map(|t| t.question_esc_back).unwrap_or(true),
             tui_vim_mode_default: cfg
                 .tui
                 .as_ref()

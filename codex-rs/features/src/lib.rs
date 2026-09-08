@@ -18,6 +18,7 @@ mod feature_configs;
 mod legacy;
 pub use feature_configs::CodeModeConfigToml;
 pub use feature_configs::CodeModeHostConfigToml;
+pub use feature_configs::ContextManagementConfigToml;
 pub use feature_configs::CurrentTimeReminderConfigToml;
 pub use feature_configs::CurrentTimeReminderDeliveryMode;
 pub use feature_configs::CurrentTimeSource;
@@ -123,6 +124,8 @@ pub enum Feature {
     CodeModeOnly,
     /// Use the single unified PTY-backed exec tool.
     UnifiedExec,
+    /// Allow unified exec commands to allocate an interactive terminal.
+    UnifiedExecTty,
     /// Route shell tool execution through the zsh exec bridge.
     ShellZshFork,
     /// Allow unified exec to compose with the zsh exec bridge.
@@ -171,8 +174,11 @@ pub enum Feature {
     MemoryTool,
     /// Enable importing project-scoped memory from external agents.
     ExternalAgentMemoryImport,
-    /// Compress cold local thread-store rollout files.
+    /// Compress cold local thread-store rollout files, including shared histories.
+    /// Requires every reader of the Codex home to support compressed shared histories.
     LocalThreadStoreCompression,
+    /// Removed compatibility flag; local_thread_store_compression controls all rollout files.
+    LocalThreadStoreSharedCompression,
     /// Migrate legacy local rollout files to paginated history in the background.
     BackgroundPaginatedRolloutMigration,
     /// Enable the Chronicle sidecar for passive screen-context memories.
@@ -183,6 +189,8 @@ pub enum Feature {
     UnboundedConnectionRetries,
     /// Start the managed network proxy for sandboxed sessions.
     NetworkProxy,
+    /// Enable managed worktree creation and repository-aware sessions.
+    Worktrees,
     /// Respect host system proxy settings for Codex-owned network clients.
     RespectSystemProxy,
     /// Enable collab tools.
@@ -201,6 +209,8 @@ pub enum Feature {
     EnableMcpApps,
     /// Enable MCP protocol version 2026-07-28 support.
     Mcp20260728,
+    /// Let RMCP coordinate OAuth refresh through the configured credential store.
+    McpOAuthRefreshCoordination,
     /// Removed compatibility flag for the legacy Apps MCP path override.
     AppsMcpPathOverride,
     /// Removed compatibility flag retained as a no-op now that tool_search is always enabled.
@@ -267,6 +277,8 @@ pub enum Feature {
     ExternalMigration,
     /// Enable extension-backed image generation.
     ImageGeneration,
+    /// Omit inline image and audio content from app-server item notifications.
+    OmitAppServerNotificationMedia,
     /// Tell the model when a prompt image was resized and include its dimensions.
     ImageResizeNotice,
     /// Apply one shared pixel and token budget to every image, regardless of legacy detail hints.
@@ -291,6 +303,9 @@ pub enum Feature {
     SendAsyncMessage,
     /// Enable automatic review for approval prompts.
     GuardianApproval,
+    /// Select thread-owned context for both Guardian reviewers.
+    /// Read once from the thread's fixed feature set when Guardian evidence is initialized.
+    GuardianThreadContext,
     /// Reuse encrypted parent compaction when restarting Guardian review sessions.
     GuardianReuseParentCompaction,
     /// Include completed node_repl or cua_repl Code Mode responses in Guardian reviews.
@@ -305,8 +320,12 @@ pub enum Feature {
     Goals,
     /// Add current context-window metadata to model-visible context.
     TokenBudget,
+    /// Enables experimental context management.
+    ContextManagement,
     /// Track and report a shared token budget across a session's agent threads.
     RolloutBudget,
+    /// Append trusted response configuration items when the selected reasoning effort changes.
+    ReasoningEffortOverride,
     /// Add current-time reminders to model-visible context.
     CurrentTimeReminder,
     /// Route MCP tool approval prompts through the MCP elicitation request path.
@@ -323,7 +342,7 @@ pub enum Feature {
     FastMode,
     /// Enable explicitly requested model changes for later step captures.
     StepModelSwitching,
-    /// Enable experimental realtime voice conversation mode in the TUI.
+    /// Removed compatibility flag. Realtime sessions no longer require a per-thread opt-in.
     RealtimeConversation,
     /// Prevent idle system sleep while a turn is actively running.
     PreventIdleSleep,
@@ -357,6 +376,8 @@ pub enum Feature {
     WindowsSandbox,
     /// Use the elevated Windows sandbox pipeline (setup + runner).
     WindowsSandboxElevated,
+    /// Attempt elevated Windows sandbox provisioning through the installed service.
+    WindowsSandboxService,
     /// Legacy remote models flag kept for backward compatibility.
     RemoteModels,
     /// Removed legacy git commit attribution guidance flag.
@@ -470,6 +491,12 @@ impl Features {
 
     pub fn apps_enabled_for_auth(&self, has_chatgpt_auth: bool) -> bool {
         self.enabled(Feature::Apps) && has_chatgpt_auth
+    }
+
+    pub fn plugin_recommendations_enabled(&self) -> bool {
+        self.enabled(Feature::Apps)
+            && self.enabled(Feature::Plugins)
+            && (self.enabled(Feature::ToolSuggest) || self.enabled(Feature::RecommendedPlugins))
     }
 
     pub fn use_legacy_landlock(&self) -> bool {
@@ -748,6 +775,8 @@ pub struct FeaturesToml {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub token_budget: Option<FeatureToml<TokenBudgetConfigToml>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_management: Option<FeatureToml<ContextManagementConfigToml>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rollout_budget: Option<FeatureToml<RolloutBudgetConfigToml>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub current_time_reminder: Option<FeatureToml<CurrentTimeReminderConfigToml>>,
@@ -788,11 +817,23 @@ impl FeaturesToml {
         if let Some(enabled) = self.guardianv2.as_ref().and_then(FeatureToml::enabled) {
             entries.insert(Feature::GuardianV2.key().to_string(), enabled);
         }
+        if let Some(FeatureToml::Config(config)) = &self.guardianv2
+            && let Some(enabled) = config.thread_context
+        {
+            entries.insert(Feature::GuardianThreadContext.key().to_string(), enabled);
+        }
         if let Some(enabled) = self.multi_agent_v2.as_ref().and_then(FeatureToml::enabled) {
             entries.insert(Feature::MultiAgentV2.key().to_string(), enabled);
         }
         if let Some(enabled) = self.token_budget.as_ref().and_then(FeatureToml::enabled) {
             entries.insert(Feature::TokenBudget.key().to_string(), enabled);
+        }
+        if let Some(enabled) = self
+            .context_management
+            .as_ref()
+            .and_then(FeatureToml::enabled)
+        {
+            entries.insert(Feature::ContextManagement.key().to_string(), enabled);
         }
         if let Some(enabled) = self.rollout_budget.as_ref().and_then(FeatureToml::enabled) {
             entries.insert(Feature::RolloutBudget.key().to_string(), enabled);
@@ -897,6 +938,12 @@ pub const FEATURES: &[FeatureSpec] = &[
     FeatureSpec {
         id: Feature::UnifiedExec,
         key: "unified_exec",
+        stage: Stage::Stable,
+        default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::UnifiedExecTty,
+        key: "unified_exec_tty",
         stage: Stage::Stable,
         default_enabled: true,
     },
@@ -1069,6 +1116,12 @@ pub const FEATURES: &[FeatureSpec] = &[
         default_enabled: false,
     },
     FeatureSpec {
+        id: Feature::LocalThreadStoreSharedCompression,
+        key: "local_thread_store_shared_compression",
+        stage: Stage::Removed,
+        default_enabled: false,
+    },
+    FeatureSpec {
         id: Feature::BackgroundPaginatedRolloutMigration,
         key: "background_paginated_rollout_migration",
         stage: Stage::UnderDevelopment,
@@ -1153,6 +1206,12 @@ pub const FEATURES: &[FeatureSpec] = &[
         default_enabled: false,
     },
     FeatureSpec {
+        id: Feature::WindowsSandboxService,
+        key: "windows_sandbox_service",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
         id: Feature::RemoteModels,
         key: "remote_models",
         stage: Stage::Removed,
@@ -1177,6 +1236,16 @@ pub const FEATURES: &[FeatureSpec] = &[
             name: "Network proxy",
             menu_description: "Apply network proxy restrictions to sandboxed sessions that already have network access.",
             announcement: "NEW: Network proxy can now be enabled from /experimental. Restart Codex after enabling it.",
+        },
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::Worktrees,
+        key: "worktrees",
+        stage: Stage::Experimental {
+            name: "Worktrees",
+            menu_description: "Create isolated Git worktrees and group sessions by repository.",
+            announcement: "NEW: Worktrees can now be enabled from /experimental. Restart Codex after enabling it.",
         },
         default_enabled: false,
     },
@@ -1231,6 +1300,12 @@ pub const FEATURES: &[FeatureSpec] = &[
     FeatureSpec {
         id: Feature::Mcp20260728,
         key: "mcp_2026_07_28",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::McpOAuthRefreshCoordination,
+        key: "mcp_oauth_refresh_coordination",
         stage: Stage::UnderDevelopment,
         default_enabled: false,
     },
@@ -1385,6 +1460,12 @@ pub const FEATURES: &[FeatureSpec] = &[
         default_enabled: true,
     },
     FeatureSpec {
+        id: Feature::OmitAppServerNotificationMedia,
+        key: "omit_app_server_notification_media",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
         id: Feature::ImageResizeNotice,
         key: "image_resize_notice",
         stage: Stage::UnderDevelopment,
@@ -1469,6 +1550,12 @@ pub const FEATURES: &[FeatureSpec] = &[
         default_enabled: true,
     },
     FeatureSpec {
+        id: Feature::GuardianThreadContext,
+        key: "guardianv2.thread_context",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
         id: Feature::GuardianReuseParentCompaction,
         key: "guardian_reuse_parent_compaction",
         stage: Stage::UnderDevelopment,
@@ -1511,8 +1598,20 @@ pub const FEATURES: &[FeatureSpec] = &[
         default_enabled: false,
     },
     FeatureSpec {
+        id: Feature::ContextManagement,
+        key: "context_management",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
         id: Feature::RolloutBudget,
         key: "rollout_budget",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::ReasoningEffortOverride,
+        key: "reasoning_effort_override",
         stage: Stage::UnderDevelopment,
         default_enabled: false,
     },
@@ -1573,7 +1672,7 @@ pub const FEATURES: &[FeatureSpec] = &[
     FeatureSpec {
         id: Feature::RealtimeConversation,
         key: "realtime_conversation",
-        stage: Stage::UnderDevelopment,
+        stage: Stage::Removed,
         default_enabled: false,
     },
     FeatureSpec {

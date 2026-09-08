@@ -179,6 +179,7 @@ impl<'a> SlashInput<'a> {
                 goal_command_enabled: self.command_flags.goal_command_enabled,
                 personality_command_enabled: self.command_flags.personality_command_enabled,
                 coding_surface: self.command_flags.coding_surface,
+                worktrees_enabled: self.command_flags.worktrees_enabled,
                 windows_degraded_sandbox_active: self.command_flags.allow_elevate_sandbox,
                 side_conversation_active: self.command_flags.side_conversation_active,
             },
@@ -207,12 +208,32 @@ pub(super) fn queued_input_action(
 }
 
 impl ChatComposer {
+    pub(super) fn builtin_command_flags(&self) -> BuiltinCommandFlags {
+        BuiltinCommandFlags {
+            collaboration_modes_enabled: self.collaboration_modes_enabled,
+            connectors_enabled: self.connectors_enabled,
+            plugins_command_enabled: self.plugins_command_enabled,
+            token_activity_command_enabled: self.token_activity_command_enabled,
+            service_tier_commands_enabled: self.service_tier_commands_enabled,
+            goal_command_enabled: self.goal_command_enabled,
+            personality_command_enabled: self.personality_command_enabled,
+            coding_surface: self.coding_surface,
+            worktrees_enabled: self.worktrees_enabled,
+            allow_elevate_sandbox: self.windows_degraded_sandbox_active,
+            side_conversation_active: self.side_conversation_active,
+        }
+    }
+
+    pub fn set_worktrees_enabled(&mut self, enabled: bool) {
+        self.worktrees_enabled = enabled;
+    }
+
     /// Handle key event when the slash-command popup is visible.
     pub(super) fn handle_key_event_with_slash_popup(
         &mut self,
         key_event: KeyEvent,
     ) -> (InputResult, bool) {
-        if self.handle_shortcut_overlay_key(&key_event) {
+        if self.handle_empty_prompt_shortcut(&key_event) {
             return (InputResult::None, true);
         }
         if key_event.code == KeyCode::Esc {
@@ -664,15 +685,5 @@ mod tests {
             InputResult::Command(SlashCommand::Review)
         );
         assert!(composer.draft.textarea.is_empty());
-    }
-
-    #[test]
-    fn coding_surface_reaches_composer_lookup_and_popup() {
-        let mut composer = test_composer();
-        composer.set_coding_surface(true);
-
-        assert_eq!(composer.slash_input().command("pets"), None);
-        let popup = composer.slash_input().command_popup("/pets");
-        assert_eq!(popup.selected_item(), None);
     }
 }

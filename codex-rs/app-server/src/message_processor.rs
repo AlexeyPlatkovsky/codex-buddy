@@ -26,6 +26,9 @@ use crate::outgoing_message::ConnectionId;
 use crate::outgoing_message::ConnectionRequestId;
 use crate::outgoing_message::OutgoingMessageSender;
 use crate::outgoing_message::RequestContext;
+#[cfg(feature = "connectors")]
+use crate::plugin_config_reload;
+use crate::plugin_config_reload::PluginStartupConfig;
 use crate::request_processors::AccountRequestProcessor;
 #[cfg(feature = "connectors")]
 use crate::request_processors::AppsRequestProcessor;
@@ -101,7 +104,6 @@ use tokio::sync::broadcast;
 use tokio::sync::watch;
 use tokio::time::Duration;
 use tokio::time::timeout;
-#[cfg(feature = "connectors")]
 use tokio_util::sync::CancellationToken;
 use tracing::Instrument;
 
@@ -271,7 +273,8 @@ pub(crate) struct MessageProcessorArgs {
     pub(crate) code_mode_session_provider: Option<Arc<dyn CodeModeSessionProvider>>,
     pub(crate) rpc_transport: AppServerRpcTransport,
     pub(crate) remote_control_handle: Option<RemoteControlHandle>,
-    pub(crate) plugin_startup_tasks: crate::PluginStartupTasks,
+    /// `None` skips startup tasks; otherwise preserve the initial config-loading path.
+    pub(crate) plugin_startup_tasks: Option<PluginStartupConfig>,
 }
 
 impl MessageProcessor {
@@ -297,9 +300,8 @@ impl MessageProcessor {
             remote_control_handle,
             plugin_startup_tasks,
         } = args;
-        #[cfg(not(feature = "connectors"))]
-        let _ = plugin_startup_tasks;
         let thread_state_manager = ThreadStateManager::new();
+        outgoing.watch_user_verification_auth(Arc::clone(&auth_manager));
         // The thread store is intentionally process-scoped. Config reloads can
         // affect per-thread behavior, but they must not move newly started,
         // resumed, or forked threads to a different persistence backend/root.
@@ -307,17 +309,15 @@ impl MessageProcessor {
         let extension_composition = ExtensionComposition::from_profile(&config.runtime_profile);
         // Queue persistence requires SQLite, so in-memory thread stores and
         // app servers without a state database do not have a queue backend.
-        let queue_store: Option<Arc<dyn QueueStore>> =
-            if extension_composition.installs(ExtensionComponent::Queue) {
-                match &config.experimental_thread_store {
-                    ThreadStoreConfig::Local => state_db.as_ref().map(|state_db| {
-                        Arc::new(LocalQueueStore::new(Arc::clone(state_db))) as Arc<dyn QueueStore>
-                    }),
-                    ThreadStoreConfig::InMemory { .. } => None,
-                }
-            } else {
-                None
-            };
+        let queue_store: Option<Arc<dyn QueueStore>> = extension_composition
+            .installs(ExtensionComponent::Queue)
+            .then(|| match &config.experimental_thread_store {
+                ThreadStoreConfig::Local => state_db.as_ref().map(|state_db| {
+                    Arc::new(LocalQueueStore::new(Arc::clone(state_db))) as Arc<dyn QueueStore>
+                }),
+                ThreadStoreConfig::InMemory { .. } => None,
+            })
+            .flatten();
         let environment_manager_for_requests = Arc::clone(&environment_manager);
         let environment_manager_for_extensions = Arc::clone(&environment_manager);
         let restriction_product = session_source.restriction_product();
@@ -377,6 +377,7 @@ impl MessageProcessor {
                     config.codex_home.clone(),
                 )),
                 Some(analytics_events_client.clone()),
+                codex_core::passthrough_image_store(),
                 Arc::clone(&thread_store),
                 codex_core::local_agent_graph_store_from_state_db(state_db.as_ref()),
                 installation_id,
@@ -414,7 +415,6 @@ impl MessageProcessor {
         let thread_watch_manager =
             crate::thread_status::ThreadWatchManager::new_with_outgoing(outgoing.clone());
         let thread_list_state_permit = Arc::new(Semaphore::new(/*permits*/ 1));
-        #[cfg(feature = "connectors")]
         let app_list_shutdown_token = CancellationToken::new();
         let request_serialization_queues = RequestSerializationQueues::default();
         let config_processor = ConfigRequestProcessor::new(
@@ -424,6 +424,15 @@ impl MessageProcessor {
             #[cfg(feature = "connectors")]
             analytics_events_client.clone(),
         );
+        #[cfg(feature = "connectors")]
+        let on_effective_plugins_changed =
+            crate::effective_plugin_change::effective_plugins_changed_callback(
+                auth_manager.clone(),
+                Arc::clone(&thread_manager),
+                config_manager.clone(),
+                config_processor.clone(),
+                request_serialization_queues.clone(),
+            );
         let account_processor = AccountRequestProcessor::new(
             auth_manager.clone(),
             Arc::clone(&thread_manager),
@@ -492,14 +501,6 @@ impl MessageProcessor {
         );
         #[cfg(feature = "connectors")]
         let plugin_processor = extension_composition.starts_plugin_tasks().then(|| {
-            let on_effective_plugins_changed =
-                crate::effective_plugin_change::effective_plugins_changed_callback(
-                    auth_manager.clone(),
-                    Arc::clone(&thread_manager),
-                    config_manager.clone(),
-                    config_processor.clone(),
-                    request_serialization_queues.clone(),
-                );
             PluginRequestProcessor::new(
                 auth_manager.clone(),
                 Arc::clone(&thread_manager),
@@ -518,7 +519,7 @@ impl MessageProcessor {
             Arc::clone(&config),
             thread_state_manager.clone(),
             state_db.clone(),
-            goal_service,
+            goal_service.unwrap_or_else(|| Arc::new(GoalService::new())),
         );
         #[cfg(not(feature = "goals"))]
         let thread_goal_processor = ThreadGoalRequestProcessor::new();
@@ -568,16 +569,25 @@ impl MessageProcessor {
             turn_cost_worker.as_ref().map(TurnCostWorker::handle),
         );
         #[cfg(feature = "connectors")]
-        if matches!(plugin_startup_tasks, crate::PluginStartupTasks::Start)
+        if let Some(startup_config) = plugin_startup_tasks
             && let Some(plugin_processor) = plugin_processor.as_ref()
         {
             // Keep plugin startup warmups aligned at app-server startup.
+            let reload_config = match startup_config {
+                PluginStartupConfig::Current => {
+                    plugin_config_reload::for_cwd(config_manager.clone(), config.cwd.clone())
+                }
+                PluginStartupConfig::Defaults => {
+                    plugin_config_reload::defaults(config_manager.clone())
+                }
+            };
             let on_effective_plugins_changed =
                 plugin_processor.effective_plugins_changed_callback();
             thread_manager
                 .plugins_manager()
                 .maybe_start_plugin_startup_tasks_for_config(
                     &config.plugins_config_input(),
+                    reload_config,
                     Some(on_effective_plugins_changed),
                 );
         }
@@ -878,6 +888,9 @@ impl MessageProcessor {
         session_state: &ConnectionSessionState,
     ) {
         session_state.rpc_gate.close().await;
+        self.outgoing
+            .disconnect_user_verification_connection(connection_id)
+            .await;
         session_state.mcp_event_streams.clear().await;
         if timeout(
             CONNECTION_RPC_DRAIN_TIMEOUT,
@@ -909,14 +922,22 @@ impl MessageProcessor {
     }
 
     /// Handle a standalone JSON-RPC response originating from the peer.
-    pub(crate) async fn process_response(&self, response: JSONRPCResponse) {
+    pub(crate) async fn process_response(
+        &self,
+        connection_id: ConnectionId,
+        response: JSONRPCResponse,
+    ) {
         let JSONRPCResponse { id, result, .. } = response;
-        self.outgoing.notify_client_response(id, result).await
+        self.outgoing
+            .notify_client_response(connection_id, id, result)
+            .await
     }
 
     /// Handle an error object received from the peer.
-    pub(crate) async fn process_error(&self, err: JSONRPCError) {
-        self.outgoing.notify_client_error(err.id, err.error).await;
+    pub(crate) async fn process_error(&self, connection_id: ConnectionId, err: JSONRPCError) {
+        self.outgoing
+            .notify_client_error(connection_id, err.id, err.error)
+            .await;
     }
 
     async fn handle_client_request(
@@ -1053,6 +1074,12 @@ impl MessageProcessor {
         let result: Result<Option<ClientResponsePayload>, JSONRPCErrorError> = match codex_request {
             ClientRequest::Initialize { .. } => {
                 panic!("Initialize should be handled before initialized request dispatch");
+            }
+            ClientRequest::UserVerificationStatus { .. }
+            | ClientRequest::UserVerificationEnroll { .. }
+            | ClientRequest::UserVerificationDelete { .. }
+            | ClientRequest::UserVerificationVerify { .. } => {
+                Err(crate::user_verification::unavailable())
             }
             ClientRequest::ServerDiagnostics { .. } => Ok(Some(read_server_diagnostics().into())),
             ClientRequest::ConfigRead { params, .. } => self
@@ -1473,25 +1500,6 @@ impl MessageProcessor {
                     .marketplace_upgrade(params)
                     .await
             }
-            #[cfg(not(feature = "connectors"))]
-            ClientRequest::MarketplaceAdd { .. }
-            | ClientRequest::MarketplaceRemove { .. }
-            | ClientRequest::MarketplaceUpgrade { .. }
-            | ClientRequest::PluginList { .. }
-            | ClientRequest::PluginSearch { .. }
-            | ClientRequest::PluginInstalled { .. }
-            | ClientRequest::PluginRead { .. }
-            | ClientRequest::PluginSkillRead { .. }
-            | ClientRequest::PluginShareSave { .. }
-            | ClientRequest::PluginShareUpdateTargets { .. }
-            | ClientRequest::PluginShareList { .. }
-            | ClientRequest::PluginShareCheckout { .. }
-            | ClientRequest::PluginShareDelete { .. }
-            | ClientRequest::AppsRead { .. }
-            | ClientRequest::AppsList { .. }
-            | ClientRequest::AppsInstalled { .. }
-            | ClientRequest::PluginInstall { .. }
-            | ClientRequest::PluginUninstall { .. } => self.connectors_unavailable(),
             #[cfg(feature = "connectors")]
             ClientRequest::PluginList { params, .. } => {
                 self.plugin_processor()?.plugin_list(params).await
@@ -1503,6 +1511,16 @@ impl MessageProcessor {
             #[cfg(feature = "connectors")]
             ClientRequest::PluginInstalled { params, .. } => {
                 self.plugin_processor()?.plugin_installed(params).await
+            }
+            #[cfg(feature = "connectors")]
+            ClientRequest::PluginReconcile { params, .. } => {
+                self.plugin_processor()?
+                    .plugin_reconcile(
+                        params,
+                        self.config_processor.clone(),
+                        &self.request_serialization_queues,
+                    )
+                    .await
             }
             #[cfg(feature = "connectors")]
             ClientRequest::PluginRead { params, .. } => {
@@ -1548,6 +1566,26 @@ impl MessageProcessor {
                 .apps_installed(params)
                 .await
                 .map(|response| Some(response.into())),
+            #[cfg(not(feature = "connectors"))]
+            ClientRequest::MarketplaceAdd { .. }
+            | ClientRequest::MarketplaceRemove { .. }
+            | ClientRequest::MarketplaceUpgrade { .. }
+            | ClientRequest::PluginList { .. }
+            | ClientRequest::PluginSearch { .. }
+            | ClientRequest::PluginInstalled { .. }
+            | ClientRequest::PluginReconcile { .. }
+            | ClientRequest::PluginRead { .. }
+            | ClientRequest::PluginSkillRead { .. }
+            | ClientRequest::PluginShareSave { .. }
+            | ClientRequest::PluginShareUpdateTargets { .. }
+            | ClientRequest::PluginShareList { .. }
+            | ClientRequest::PluginShareCheckout { .. }
+            | ClientRequest::PluginShareDelete { .. }
+            | ClientRequest::AppsRead { .. }
+            | ClientRequest::AppsList { .. }
+            | ClientRequest::AppsInstalled { .. }
+            | ClientRequest::PluginInstall { .. }
+            | ClientRequest::PluginUninstall { .. } => self.connectors_unavailable(),
             ClientRequest::SkillsConfigWrite { params, .. } => {
                 self.catalog_processor.skills_config_write(params).await
             }
@@ -1712,8 +1750,8 @@ impl MessageProcessor {
             ClientRequest::GetAuthStatus { params, .. } => {
                 self.account_processor.get_auth_status(params).await
             }
-            ClientRequest::GetAccountRateLimits { .. } => {
-                self.account_processor.get_account_rate_limits().await
+            ClientRequest::GetAccountRateLimits { params, .. } => {
+                self.account_processor.get_account_rate_limits(params).await
             }
             ClientRequest::ConsumeAccountRateLimitResetCredit { params, .. } => {
                 self.account_processor

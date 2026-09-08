@@ -19,8 +19,6 @@ pub(crate) use codex_core_plugins::ResolvedPluginMetricsOperation;
 #[cfg(feature = "plugins")]
 pub(crate) use codex_core_plugins::TrustedPluginRoots;
 #[cfg(feature = "plugins")]
-pub(crate) use codex_core_plugins::executor_plugin_hook_sources;
-#[cfg(feature = "plugins")]
 pub(crate) use codex_core_plugins::recognize_artifact_operation;
 #[cfg(feature = "plugins")]
 pub(crate) use codex_core_plugins::strip_output_env;
@@ -165,6 +163,13 @@ mod disabled {
 
         pub async fn plugins_for_config(&self, _config: &PluginsConfigInput) -> PluginLoadOutcome {
             PluginLoadOutcome::default()
+        }
+
+        pub async fn recommended_plugins_mode_for_config(
+            &self,
+            _config: &PluginsConfigInput,
+            _auth: Option<&CodexAuth>,
+        ) {
         }
 
         pub fn plugin_skill_snapshots_for_config(
@@ -358,8 +363,6 @@ pub(crate) use disabled::RecommendedPluginCandidatesInput;
 pub(crate) use disabled::ResolvedPluginMetricsOperation;
 #[cfg(not(feature = "plugins"))]
 pub(crate) use disabled::TrustedPluginRoots;
-#[cfg(not(feature = "plugins"))]
-pub(crate) use disabled::executor_plugin_hook_sources;
 #[cfg(not(feature = "plugins"))]
 pub(crate) use disabled::recognize_artifact_operation;
 #[cfg(not(feature = "plugins"))]

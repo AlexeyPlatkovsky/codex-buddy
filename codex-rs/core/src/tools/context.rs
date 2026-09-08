@@ -1,4 +1,4 @@
-use crate::context_manager::truncate_function_output_payload;
+use crate::audio_input::estimate_audio_token_count;
 use crate::original_image_detail::sanitize_original_image_detail;
 use crate::session::session::Session;
 use crate::session::step_context::StepContext;
@@ -19,6 +19,7 @@ use codex_tools::ToolName;
 use codex_utils_output_truncation::TruncationPolicy;
 use codex_utils_output_truncation::approx_token_count;
 use codex_utils_output_truncation::formatted_truncate_text;
+use codex_utils_output_truncation::truncate_function_output_payload;
 use codex_utils_output_truncation::truncate_text;
 use serde::Serialize;
 use serde_json::Value as JsonValue;
@@ -122,6 +123,10 @@ impl ToolOutput for McpToolOutput {
         self.result.success()
     }
 
+    fn fallback_token_limit_override(&self) -> Option<usize> {
+        Some((self.truncation_policy * 1.2).token_budget())
+    }
+
     fn to_response_item(&self, call_id: &str, _payload: &ToolPayload) -> ResponseInputItem {
         ResponseInputItem::FunctionCallOutput {
             call_id: call_id.to_string(),
@@ -165,13 +170,13 @@ impl McpToolOutput {
             }
         }
 
-        // This is the context-injection form, so keep it aligned with the
-        // function-call output truncation that conversation history already
-        // applies. Code-mode consumers still get the raw `CallToolResult`.
-        //
-        // The text is serialized again inside the Responses payload, so allow
-        // a small buffer for JSON escaping and wrapper overhead.
-        truncate_function_output_payload(&payload, self.truncation_policy * 1.2)
+        // History receives this budget in tokens. Code Mode keeps the raw result.
+        truncate_function_output_payload(
+            &mut payload,
+            self.truncation_policy * 1.2,
+            estimate_audio_token_count,
+        );
+        payload
     }
 }
 

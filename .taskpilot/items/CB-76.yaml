@@ -1,0 +1,12 @@
+schema_version: 1
+id: CB-76
+title: Run 1.1.0 release gates
+priority: high
+type: task
+status: done
+created_at: '2026-09-07T15:47:01Z'
+updated_at: '2026-09-07T17:31:13Z'
+parent_id: CB-73
+tags:
+- release
+description: Regenerate schemas and locks, run focused tests and snapshots, validate versions, dependency boundaries, and merge readiness before committing locally.

@@ -1,0 +1,13 @@
+schema_version: 1
+id: CB-74
+title: Audit the coding-runtime boundary against upstream
+priority: high
+type: task
+status: done
+created_at: '2026-09-07T15:46:59Z'
+updated_at: '2026-09-07T17:31:13Z'
+parent_id: CB-73
+tags:
+- upstream
+- runtime
+description: Confirmed the default Buddy dependency graph excludes Code Mode host/runtime, audio, memory, connector, plugin-runtime, realtime, and cloud-task packages while retaining the coding-focused CLI, MCP, skills, and tool surface.

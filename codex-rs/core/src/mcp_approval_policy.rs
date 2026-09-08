@@ -9,6 +9,7 @@ pub(crate) fn mcp_approvals_reviewer_from_layers(
     model: Option<&str>,
     server_name: &str,
     connector_id: Option<&str>,
+    link_id: Option<&str>,
 ) -> ApprovalsReviewer {
     let requirements = config_layer_stack.requirements();
     if model.is_some_and(|model| requirements.auto_review_required_for_model(model)) {
@@ -19,7 +20,12 @@ pub(crate) fn mcp_approvals_reviewer_from_layers(
         apps_config_from_layer_stack(config_layer_stack).and_then(|apps_config| {
             connector_id
                 .and_then(|connector_id| apps_config.apps.get(connector_id))
-                .and_then(|app| app.approvals_reviewer)
+                .and_then(|app| {
+                    link_id
+                        .and_then(|link_id| app.links.as_ref()?.links.get(link_id))
+                        .and_then(|link| link.approvals_reviewer)
+                        .or(app.approvals_reviewer)
+                })
                 .or_else(|| {
                     apps_config
                         .default
