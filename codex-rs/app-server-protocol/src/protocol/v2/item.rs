@@ -949,6 +949,24 @@ impl From<CoreTurnItem> for ThreadItem {
                     .and_then(|duration| i64::try_from(duration.as_millis()).ok()),
             },
             CoreTurnItem::CollabAgentToolCall(call) => ThreadItem::CollabAgentToolCall {
+                agents_states: {
+                    let receiver_agents = call
+                        .receiver_agents
+                        .into_iter()
+                        .map(|agent| (agent.thread_id, agent))
+                        .collect::<HashMap<_, _>>();
+                    call.agents_states
+                        .into_iter()
+                        .map(|(thread_id, status)| {
+                            let mut state = CollabAgentState::from(status);
+                            if let Some(agent) = receiver_agents.get(&thread_id) {
+                                state.agent_nickname.clone_from(&agent.agent_nickname);
+                                state.agent_role.clone_from(&agent.agent_role);
+                            }
+                            (thread_id.to_string(), state)
+                        })
+                        .collect()
+                },
                 id: call.id,
                 tool: call.tool.into(),
                 status: call.status.into(),
@@ -961,11 +979,6 @@ impl From<CoreTurnItem> for ThreadItem {
                 prompt: call.prompt,
                 model: call.model,
                 reasoning_effort: call.reasoning_effort,
-                agents_states: call
-                    .agents_states
-                    .into_iter()
-                    .map(|(thread_id, status)| (thread_id.to_string(), status.into()))
-                    .collect(),
             },
             CoreTurnItem::SubAgentActivity(activity) => ThreadItem::SubAgentActivity {
                 id: activity.id,
@@ -1286,6 +1299,8 @@ pub enum CollabAgentStatus {
 pub struct CollabAgentState {
     pub status: CollabAgentStatus,
     pub message: Option<String>,
+    pub agent_nickname: Option<String>,
+    pub agent_role: Option<String>,
 }
 
 impl From<CoreAgentStatus> for CollabAgentState {
@@ -1294,30 +1309,44 @@ impl From<CoreAgentStatus> for CollabAgentState {
             CoreAgentStatus::PendingInit => Self {
                 status: CollabAgentStatus::PendingInit,
                 message: None,
+                agent_nickname: None,
+                agent_role: None,
             },
             CoreAgentStatus::Running => Self {
                 status: CollabAgentStatus::Running,
                 message: None,
+                agent_nickname: None,
+                agent_role: None,
             },
             CoreAgentStatus::Interrupted => Self {
                 status: CollabAgentStatus::Interrupted,
                 message: None,
+                agent_nickname: None,
+                agent_role: None,
             },
             CoreAgentStatus::Completed(message) => Self {
                 status: CollabAgentStatus::Completed,
                 message,
+                agent_nickname: None,
+                agent_role: None,
             },
             CoreAgentStatus::Errored(message) => Self {
                 status: CollabAgentStatus::Errored,
                 message: Some(message),
+                agent_nickname: None,
+                agent_role: None,
             },
             CoreAgentStatus::Shutdown => Self {
                 status: CollabAgentStatus::Shutdown,
                 message: None,
+                agent_nickname: None,
+                agent_role: None,
             },
             CoreAgentStatus::NotFound => Self {
                 status: CollabAgentStatus::NotFound,
                 message: None,
+                agent_nickname: None,
+                agent_role: None,
             },
         }
     }

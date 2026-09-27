@@ -59,6 +59,7 @@ mod transcript_composer;
 mod turn_submission;
 
 use super::*;
+use crate::app::agent_tree::AgentTreeStatus;
 use crate::app_backtrack::BacktrackSelection;
 use crate::app_backtrack::BacktrackState;
 use crate::app_backtrack::user_count;
@@ -1906,6 +1907,112 @@ async fn collab_receiver_notification_caches_thread_without_app_server_read() {
 }
 
 #[tokio::test]
+async fn agent_tree_uses_session_and_spawn_metadata_before_opening_picker() -> Result<()> {
+    let mut app = make_test_app().await;
+    let primary_thread_id =
+        ThreadId::from_string("00000000-0000-0000-0000-000000000125").expect("valid thread id");
+    let child_thread_id =
+        ThreadId::from_string("00000000-0000-0000-0000-000000000126").expect("valid thread id");
+    let mut primary_session = test_thread_session(primary_thread_id, test_path_buf("/tmp/project"));
+    primary_session.model = "gpt-5.6-luna".to_string();
+    primary_session.reasoning_effort = Some(ReasoningEffortConfig::High);
+    app.enqueue_primary_thread_session(primary_session, Vec::new())
+        .await?;
+
+    app.handle_thread_event_now(ThreadBufferedEvent::Notification(Box::new(
+        ServerNotification::ItemCompleted(codex_app_server_protocol::ItemCompletedNotification {
+            thread_id: primary_thread_id.to_string(),
+            turn_id: "turn-1".to_string(),
+            completed_at_ms: 0,
+            item: ThreadItem::CollabAgentToolCall {
+                id: "spawn-1".to_string(),
+                tool: codex_app_server_protocol::CollabAgentTool::SpawnAgent,
+                status: codex_app_server_protocol::CollabAgentToolCallStatus::Completed,
+                sender_thread_id: primary_thread_id.to_string(),
+                receiver_thread_ids: vec![child_thread_id.to_string()],
+                prompt: Some("Investigate the regression".to_string()),
+                model: Some("gpt-5.6-sol".to_string()),
+                reasoning_effort: Some(ReasoningEffortConfig::Medium),
+                agents_states: HashMap::from([(
+                    child_thread_id.to_string(),
+                    codex_app_server_protocol::CollabAgentState {
+                        status: codex_app_server_protocol::CollabAgentStatus::Running,
+                        message: None,
+                        agent_nickname: Some("Ada".to_string()),
+                        agent_role: Some("planner".to_string()),
+                    },
+                )]),
+            },
+        }),
+    )));
+
+    let tree =
+        app.agent_navigation
+            .tree_snapshot(Some(primary_thread_id), None, Some(primary_thread_id));
+    let visible_rows = tree
+        .rows
+        .iter()
+        .map(|row| {
+            format!(
+                "{} | {} | {:?}",
+                row.label,
+                row.model_label.as_deref().unwrap_or("<missing>"),
+                row.status,
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert_snapshot!(visible_rows, @r"
+    Main [default] | 5.6.L-H | Waiting
+    Ada [planner] | 5.6.S-M | Running
+    ");
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn agent_tree_tracks_running_approval_and_completion_from_thread_events() -> Result<()> {
+    let mut app = make_test_app().await;
+    let thread_id =
+        ThreadId::from_string("00000000-0000-0000-0000-000000000127").expect("valid thread id");
+    app.upsert_agent_picker_thread(
+        thread_id,
+        Some("Ada".to_string()),
+        Some("worker".to_string()),
+        /*is_closed*/ false,
+    );
+
+    app.enqueue_thread_notification(thread_id, turn_started_notification(thread_id, "turn-1"))
+        .await?;
+    assert_eq!(
+        app.agent_navigation.tree_status(&thread_id),
+        Some(AgentTreeStatus::Running)
+    );
+
+    app.enqueue_thread_request(
+        thread_id,
+        exec_approval_request(thread_id, "turn-1", "item-1", /*approval_id*/ None),
+    )
+    .await?;
+    assert_eq!(
+        app.agent_navigation.tree_status(&thread_id),
+        Some(AgentTreeStatus::NeedsApproval)
+    );
+
+    app.enqueue_thread_notification(
+        thread_id,
+        turn_completed_notification(thread_id, "turn-1", TurnStatus::Completed),
+    )
+    .await?;
+    assert_eq!(
+        app.agent_navigation.tree_status(&thread_id),
+        Some(AgentTreeStatus::Completed)
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn collab_receiver_notification_does_not_cache_not_found_thread() {
     let mut app = make_test_app().await;
     let receiver_thread_id =
@@ -1930,6 +2037,8 @@ async fn collab_receiver_notification_does_not_cache_not_found_thread() {
                     codex_app_server_protocol::CollabAgentState {
                         status: codex_app_server_protocol::CollabAgentStatus::NotFound,
                         message: None,
+                        agent_nickname: None,
+                        agent_role: None,
                     },
                 )]),
             },

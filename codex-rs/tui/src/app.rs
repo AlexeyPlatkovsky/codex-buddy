@@ -193,6 +193,8 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 use std::time::Instant;
+use std::time::SystemTime;
+use std::time::UNIX_EPOCH;
 use tokio::select;
 use tokio::sync::Mutex;
 use tokio::sync::mpsc;
@@ -346,23 +348,18 @@ fn sub_agent_activity_item(notification: &ServerNotification) -> Option<&ThreadI
     }
 }
 
-fn collab_receiver_is_not_found(
-    notification: &ServerNotification,
+fn collab_receiver_state<'a>(
+    notification: &'a ServerNotification,
     receiver_thread_id: &str,
-) -> bool {
+) -> Option<&'a codex_app_server_protocol::CollabAgentState> {
     match notification {
         ServerNotification::ItemCompleted(notification) => match &notification.item {
             ThreadItem::CollabAgentToolCall { agents_states, .. } => {
-                agents_states.get(receiver_thread_id).is_some_and(|state| {
-                    matches!(
-                        &state.status,
-                        codex_app_server_protocol::CollabAgentStatus::NotFound
-                    )
-                })
+                agents_states.get(receiver_thread_id)
             }
-            _ => false,
+            _ => None,
         },
-        _ => false,
+        _ => None,
     }
 }
 
@@ -1102,6 +1099,26 @@ impl App {
             viewport.update(&tree, current_thread_id);
             tree.with_selection(viewport.selected_thread_id(), current_thread_id)
         });
+        let animations_enabled = self.local_settings.tui.animations;
+        let animation_tick = if animations_enabled {
+            let tick = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis()
+                / agent_tree_panel::AGENT_TREE_SPINNER_INTERVAL.as_millis();
+            u64::try_from(tick).unwrap_or_default()
+        } else {
+            0
+        };
+        if animations_enabled
+            && tree
+                .rows
+                .iter()
+                .any(|row| row.status == agent_tree::AgentTreeStatus::Running)
+        {
+            tui.frame_requester()
+                .schedule_frame_in(agent_tree_panel::AGENT_TREE_SPINNER_INTERVAL);
+        }
         let pinned_transcript = self.pinned_transcript.as_mut();
         let transcript_cells = &self.transcript_cells;
         let mut rendered_area = Rect::default();
@@ -1144,6 +1161,7 @@ impl App {
                     panel_area,
                     selected_tree,
                     viewport,
+                    animation_tick,
                     frame.buffer,
                 );
             }

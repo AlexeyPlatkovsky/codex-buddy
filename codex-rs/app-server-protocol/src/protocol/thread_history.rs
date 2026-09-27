@@ -4180,6 +4180,8 @@ mod tests {
                     CollabAgentState {
                         status: crate::protocol::v2::CollabAgentStatus::Completed,
                         message: None,
+                        agent_nickname: None,
+                        agent_role: None,
                     },
                 )]
                 .into_iter()
@@ -4240,6 +4242,8 @@ mod tests {
                     CollabAgentState {
                         status: crate::protocol::v2::CollabAgentStatus::Running,
                         message: None,
+                        agent_nickname: None,
+                        agent_role: None,
                     },
                 )]
                 .into_iter()
@@ -4312,6 +4316,8 @@ mod tests {
                     CollabAgentState {
                         status: crate::protocol::v2::CollabAgentStatus::Interrupted,
                         message: None,
+                        agent_nickname: None,
+                        agent_role: None,
                     },
                 )]
                 .into_iter()

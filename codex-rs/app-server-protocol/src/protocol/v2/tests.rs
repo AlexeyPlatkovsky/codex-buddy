@@ -619,6 +619,8 @@ fn collab_agent_state_maps_interrupted_status() {
         CollabAgentState {
             status: CollabAgentStatus::Interrupted,
             message: None,
+            agent_nickname: None,
+            agent_role: None,
         }
     );
 }
@@ -3307,7 +3309,11 @@ fn core_turn_item_into_thread_item_converts_supported_variants() {
         status: CoreCollabAgentToolCallStatus::Completed,
         sender_thread_id,
         receiver_thread_ids: vec![receiver_thread_id],
-        receiver_agents: Vec::new(),
+        receiver_agents: vec![codex_protocol::protocol::CollabAgentRef {
+            thread_id: receiver_thread_id,
+            agent_nickname: Some("Ada".to_string()),
+            agent_role: Some("researcher".to_string()),
+        }],
         prompt: Some("continue".to_string()),
         model: None,
         reasoning_effort: None,
@@ -3332,6 +3338,8 @@ fn core_turn_item_into_thread_item_converts_supported_variants() {
                 CollabAgentState {
                     status: CollabAgentStatus::Completed,
                     message: None,
+                    agent_nickname: Some("Ada".to_string()),
+                    agent_role: Some("researcher".to_string()),
                 },
             )]
             .into_iter()

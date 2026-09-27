@@ -8,10 +8,12 @@ use super::session_lifecycle::ThreadAttachPresentation;
 use super::*;
 use crate::app_event::ThreadTitleDestination;
 use crate::chatwidget::ThreadInputStateRestoreMode;
+use codex_app_server_protocol::SessionSource;
 use codex_app_server_protocol::ThreadStartedNotification;
 use codex_app_server_protocol::TurnInterruptParams;
 use codex_app_server_protocol::TurnInterruptResponse;
 use codex_app_server_protocol::WarningNotification;
+use codex_protocol::protocol::SubAgentSource;
 
 impl App {
     pub(super) async fn shutdown_current_thread(&mut self, app_server: &mut AppServerSession) {
@@ -954,6 +956,7 @@ impl App {
             .await
         {
             Ok(()) => {
+                self.agent_navigation.resolve_server_request(thread_id);
                 if ThreadEventStore::op_can_change_pending_replay_state(op) {
                     self.note_thread_outbound_op(thread_id, op).await;
                     self.refresh_pending_thread_approvals().await;
@@ -1062,6 +1065,15 @@ impl App {
         }
         let mut permission_change_confirmed = false;
         if let ServerNotification::ThreadSettingsUpdated(notification) = &notification {
+            self.agent_navigation.record_agent_model(
+                thread_id,
+                notification.thread_settings.model.clone(),
+                notification
+                    .thread_settings
+                    .effort
+                    .clone()
+                    .unwrap_or_default(),
+            );
             self.apply_thread_settings_to_cached_session(thread_id, &notification.thread_settings)
                 .await;
             if self
@@ -1088,10 +1100,20 @@ impl App {
         let inferred_session = if let ServerNotification::ThreadStarted(started) = &notification
             && self.primary_session_configured.is_some()
         {
+            let (source_nickname, source_role) = match &started.thread.source {
+                SessionSource::SubAgent(SubAgentSource::ThreadSpawn {
+                    agent_nickname,
+                    agent_role,
+                    ..
+                }) => (agent_nickname.clone(), agent_role.clone()),
+                _ => (None, None),
+            };
+            let agent_nickname = started.thread.agent_nickname.clone().or(source_nickname);
+            let agent_role = started.thread.agent_role.clone().or(source_role);
             self.upsert_agent_picker_thread(
                 thread_id,
-                started.thread.agent_nickname.clone(),
-                started.thread.agent_role.clone(),
+                agent_nickname,
+                agent_role,
                 /*is_closed*/ false,
             );
 
@@ -1111,6 +1133,8 @@ impl App {
         } else {
             None
         };
+        self.agent_navigation
+            .observe_server_notification(thread_id, &notification);
         let is_turn_started = matches!(notification, ServerNotification::TurnStarted(_));
         let is_thread_closed = matches!(notification, ServerNotification::ThreadClosed(_));
         let notification_status_change = SideParentStatusChange::for_notification(&notification);
@@ -1211,12 +1235,17 @@ impl App {
             return;
         }
 
+        let spawned_agent = collab_spawn_details(notification)
+            .map(|(_, model, reasoning_effort)| (model.to_string(), reasoning_effort.clone()));
         let Some(receiver_thread_ids) = collab_receiver_thread_ids(notification) else {
             return;
         };
 
         for receiver_thread_id in receiver_thread_ids {
-            if collab_receiver_is_not_found(notification, receiver_thread_id) {
+            let receiver_state = collab_receiver_state(notification, receiver_thread_id);
+            if receiver_state.is_some_and(|state| {
+                state.status == codex_app_server_protocol::CollabAgentStatus::NotFound
+            }) {
                 continue;
             }
 
@@ -1228,14 +1257,30 @@ impl App {
                 continue;
             };
 
-            if self.agent_navigation.get(&thread_id).is_some() {
-                continue;
-            }
-
+            let existing = self.agent_navigation.get(&thread_id);
+            let agent_nickname = receiver_state
+                .and_then(|state| state.agent_nickname.clone())
+                .or_else(|| existing.and_then(|entry| entry.agent_nickname.clone()));
+            let agent_role = receiver_state
+                .and_then(|state| state.agent_role.clone())
+                .or_else(|| existing.and_then(|entry| entry.agent_role.clone()));
             self.upsert_agent_picker_thread(
-                thread_id, /*agent_nickname*/ None, /*agent_role*/ None,
+                thread_id,
+                agent_nickname,
+                agent_role,
                 /*is_closed*/ false,
             );
+            if let Some(state) = receiver_state {
+                self.agent_navigation
+                    .observe_collab_status(thread_id, &state.status);
+            }
+            if let Some((model, reasoning_effort)) = &spawned_agent {
+                self.agent_navigation.record_spawned_agent(
+                    thread_id,
+                    model.clone(),
+                    reasoning_effort.clone(),
+                );
+            }
         }
     }
 
@@ -1266,6 +1311,8 @@ impl App {
         thread_id: ThreadId,
         request: ServerRequest,
     ) -> Result<()> {
+        self.agent_navigation
+            .observe_server_request(thread_id, &request);
         let inactive_interactive_request = if self.active_thread_id != Some(thread_id) {
             self.interactive_request_for_thread_request(thread_id, &request)
                 .await?
@@ -1393,8 +1440,14 @@ impl App {
 
         let thread_id = session.thread_id;
         self.pending_server_profiles.remove(&thread_id);
-        if self.primary_thread_id != Some(thread_id) {
+        let starts_fresh_primary_task = self.primary_thread_id != Some(thread_id);
+        if starts_fresh_primary_task {
             self.recap.reset_for_new_thread(Instant::now());
+            self.agent_navigation.begin_fresh_primary_task(
+                thread_id,
+                session.model.clone(),
+                session.reasoning_effort.clone().unwrap_or_default(),
+            );
         }
         self.primary_thread_id = Some(thread_id);
         self.agents_overview.threads.entry(thread_id).or_default();

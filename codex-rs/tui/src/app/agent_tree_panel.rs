@@ -8,6 +8,8 @@ use super::agent_tree::AgentTreeRow;
 use super::agent_tree::AgentTreeSnapshot;
 use super::agent_tree::AgentTreeStatus;
 use super::agent_tree_viewport::AgentTreeViewport;
+use crate::style::StatusTone;
+use crate::style::status_style;
 use crate::text_formatting::truncate_text;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Constraint;
@@ -25,6 +27,8 @@ use std::time::Duration;
 const MIN_PANEL_TERMINAL_WIDTH: u16 = 100;
 const MIN_PANEL_WIDTH: u16 = 28;
 const MAX_PANEL_WIDTH: u16 = 36;
+pub(crate) const AGENT_TREE_SPINNER_INTERVAL: Duration = Duration::from_millis(100);
+const AGENT_TREE_SPINNER_FRAMES: [&str; 10] = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
 /// The two drawing rectangles chosen for one app frame.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -70,6 +74,7 @@ pub(crate) fn render_agent_tree_panel(
     area: Rect,
     tree: &AgentTreeSnapshot,
     viewport: &AgentTreeViewport,
+    animation_tick: u64,
     buffer: &mut Buffer,
 ) {
     if area.is_empty() {
@@ -96,12 +101,12 @@ pub(crate) fn render_agent_tree_panel(
     let lines = visible
         .rows
         .iter()
-        .map(|row| render_row(row, content_area.width))
+        .map(|row| render_row(row, content_area.width, animation_tick))
         .collect::<Vec<_>>();
     Paragraph::new(lines).render(content_area, buffer);
 }
 
-fn render_row(row: &AgentTreeRow, width: u16) -> Line<'static> {
+fn render_row(row: &AgentTreeRow, width: u16, animation_tick: u64) -> Line<'static> {
     let indent = "  ".repeat(row.depth.min(12));
     let details = row_details(row);
     let available = usize::from(width)
@@ -125,7 +130,7 @@ fn render_row(row: &AgentTreeRow, width: u16) -> Line<'static> {
     let mut spans = vec![
         selection,
         indent.into(),
-        status_symbol(row.status),
+        status_symbol(row.status, animation_tick),
         " ".into(),
         label,
     ];
@@ -157,11 +162,14 @@ fn format_elapsed(elapsed: Duration) -> String {
     format!("{}h{:02}m", minutes / 60, minutes % 60)
 }
 
-fn status_symbol(status: AgentTreeStatus) -> Span<'static> {
+fn status_symbol(status: AgentTreeStatus, animation_tick: u64) -> Span<'static> {
     match status {
-        AgentTreeStatus::Running => "●".cyan(),
+        AgentTreeStatus::Running => Span::styled(
+            AGENT_TREE_SPINNER_FRAMES[animation_tick as usize % AGENT_TREE_SPINNER_FRAMES.len()],
+            status_style(StatusTone::Attention),
+        ),
         AgentTreeStatus::Waiting => "○".dim(),
-        AgentTreeStatus::NeedsApproval => "!".red(),
+        AgentTreeStatus::NeedsApproval => "●".red(),
         AgentTreeStatus::NeedsInput => "?".cyan(),
         AgentTreeStatus::Completed => "✓".green(),
         AgentTreeStatus::Failed => "×".red(),

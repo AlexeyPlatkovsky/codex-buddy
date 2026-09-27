@@ -3,6 +3,7 @@ use crate::app::test_support::make_test_app;
 use crate::history_cell::PlainHistoryCell;
 use crate::tui::test_support::make_test_tui;
 use pretty_assertions::assert_eq;
+use ratatui::buffer::Buffer;
 use std::sync::Arc;
 
 #[tokio::test]
@@ -146,6 +147,76 @@ async fn pinned_transcript_leaves_popup_navigation_to_the_active_menu() {
             .selected_index_for_present_view("pinned-popup-navigation"),
         None
     );
+}
+
+#[tokio::test]
+async fn pinned_transcript_navigation_does_not_recall_composer_history() {
+    let mut app = make_test_app().await;
+    let mut tui = make_test_tui().expect("test tui");
+    let mut app_server = crate::start_embedded_app_server_for_picker(&app.config)
+        .await
+        .expect("embedded app server");
+    for character in "previous prompt".chars() {
+        app.chat_widget
+            .handle_key_event(KeyEvent::new(KeyCode::Char(character), KeyModifiers::NONE));
+    }
+    app.chat_widget
+        .handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+    assert!(app.chat_widget.composer_text_with_pending().is_empty());
+
+    let cells: Vec<Arc<dyn HistoryCell>> = vec![Arc::new(PlainHistoryCell::new(
+        (1..=12)
+            .map(|line| format!("AI output line {line}").into())
+            .collect(),
+    ))];
+    app.pinned_transcript = Some(pinned_transcript::PinnedTranscript::new(
+        cells.clone(),
+        app.keymap.pager.clone(),
+    ));
+    let area = Rect::new(
+        /*x*/ 0, /*y*/ 0, /*width*/ 24, /*height*/ 4,
+    );
+    let render_transcript = |app: &mut App| {
+        let mut buffer = Buffer::empty(area);
+        app.pinned_transcript
+            .as_mut()
+            .expect("pinned transcript")
+            .sync_and_render(area, &mut buffer, &cells, &app.chat_widget);
+        area.rows()
+            .map(|row| {
+                row.positions()
+                    .map(|position| buffer[position].symbol())
+                    .collect::<String>()
+                    .trim_end()
+                    .to_string()
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    let before_scroll = render_transcript(&mut app);
+
+    app.handle_key_event(
+        &mut tui,
+        &mut app_server,
+        KeyEvent::new(KeyCode::Up, KeyModifiers::NONE),
+    )
+    .await;
+
+    assert!(app.chat_widget.composer_text_with_pending().is_empty());
+    let after_scroll = render_transcript(&mut app);
+    insta::assert_snapshot!(format!("before:\n{before_scroll}\n\nafter:\n{after_scroll}"), @r"
+    before:
+    AI output line 9
+    AI output line 10
+    AI output line 11
+    AI output line 12
+
+    after:
+    AI output line 8
+    AI output line 9
+    AI output line 10
+    AI output line 11
+    ");
 }
 
 #[tokio::test]
