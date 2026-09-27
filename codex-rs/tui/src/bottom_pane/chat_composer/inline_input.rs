@@ -1,19 +1,55 @@
 //! Embed the composer in question rows, resetting history navigation when drafts change.
+//! Recovered appends cancel pending Vim commands before moving the cursor and stay out of dot repeat.
+//! Normal-mode recovery is one undoable edit; active insert/replace sessions keep their grouping.
+//! Paste payloads stay intact and sparkle stays dismissed.
 
+use super::super::textarea::VimPersistentState;
 use super::*;
 
-impl ComposerDraft {
-    pub(in crate::bottom_pane) fn text_with_pending(&self) -> String {
-        ChatComposer::expand_pending_pastes(
-            &self.text,
-            self.text_elements.clone(),
-            &self.pending_pastes,
-        )
-        .0
-    }
-}
-
 impl ChatComposer {
+    pub(in crate::bottom_pane) fn append_recovered_drafts(&mut self, drafts: &str) {
+        self.edit_recovered_draft(|composer| {
+            if !composer.current_text().is_empty() {
+                composer.insert_str("\n");
+            }
+            composer.insert_recovered_text(drafts);
+        });
+    }
+
+    pub(super) fn edit_recovered_draft(&mut self, append: impl FnOnce(&mut Self)) {
+        self.flush_pending_input();
+        self.dismiss_sparkle();
+        if self.draft.textarea.is_vim_operator_pending() {
+            self.draft.textarea.enter_vim_normal_mode();
+        }
+        self.finish_vim_edit();
+        let mut vim_state = VimPersistentState::default();
+        self.draft
+            .textarea
+            .swap_vim_persistent_state(&mut vim_state);
+        let started_vim_edit = self.begin_direct_vim_edit();
+        self.move_cursor_to_end();
+        append(self);
+        self.draft
+            .textarea
+            .swap_vim_persistent_state(&mut vim_state);
+        if started_vim_edit {
+            self.finish_vim_edit();
+        }
+    }
+
+    pub(super) fn insert_recovered_text(&mut self, text: &str) {
+        let char_count = text.chars().count();
+        if char_count > LARGE_PASTE_CHAR_THRESHOLD {
+            let placeholder = self.next_large_paste_placeholder(char_count);
+            self.draft.textarea.insert_element(&placeholder);
+            self.draft.pending_pastes.push((placeholder, text.into()));
+            self.sync_popups();
+        } else {
+            self.insert_str(text);
+        }
+    }
+
     pub(in crate::bottom_pane) fn restore_inline_draft(&mut self, draft: ComposerDraft) {
         self.history.reset_navigation();
         self.restore_draft(draft);
@@ -66,10 +102,10 @@ impl ChatComposer {
                     || self.vim_normal_keymap.move_down.is_pressed(key)))
     }
 
-    /// Finish buffered typing before another answer takes over this editor.
+    /// Integrate already-classified buffered typing before another answer takes over this editor.
     pub(crate) fn flush_pending_input(&mut self) {
         if let Some(text) = self.draft.paste_burst.flush_before_modified_input() {
-            self.handle_paste(text);
+            self.apply_paste(text);
         }
         self.draft.paste_burst.clear_after_explicit_paste();
     }

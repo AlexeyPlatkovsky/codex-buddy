@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-use codex_exec_server::ExecutorFileSystem;
+use codex_exec_server::EnvironmentAccess;
+use codex_exec_server::EnvironmentAccessExt;
 use codex_exec_server::GetMetadataOptions;
 use codex_exec_server::ReadFileOptions;
 use codex_exec_server_protocol::DISCOVERABLE_PLUGIN_MANIFEST_PATHS;
@@ -19,18 +20,14 @@ struct RawPluginManifestName {
 
 /// Returns the plugin manifest name defined directly below `plugin_root`.
 async fn plugin_namespace_for_root_uri(
-    fs: &dyn ExecutorFileSystem,
+    fs: &dyn EnvironmentAccess,
     plugin_root: &PathUri,
 ) -> Option<String> {
     let mut manifest_path = None;
     for relative_path in DISCOVERABLE_PLUGIN_MANIFEST_PATHS {
         let candidate = plugin_root.join(relative_path).ok()?;
         match fs
-            .get_metadata(
-                &candidate,
-                GetMetadataOptions::default(),
-                /*sandbox*/ None,
-            )
+            .get_metadata(&candidate, GetMetadataOptions::default())
             .await
         {
             Ok(metadata) if metadata.is_file => {
@@ -41,11 +38,7 @@ async fn plugin_namespace_for_root_uri(
         }
     }
     let contents = fs
-        .read_file_text(
-            &manifest_path?,
-            ReadFileOptions::default(),
-            /*sandbox*/ None,
-        )
+        .read_file_text(&manifest_path?, ReadFileOptions::default())
         .await
         .ok()?;
     let RawPluginManifestName { name: raw_name } = serde_json::from_str(&contents).ok()?;
@@ -86,7 +79,7 @@ impl SkillNamespaceResolver {
     }
 
     pub(crate) async fn discover(
-        fs: &dyn ExecutorFileSystem,
+        fs: &dyn EnvironmentAccess,
         root: &PathUri,
         skill_paths: &[PathUri],
         plugin_roots: HashSet<PathUri>,

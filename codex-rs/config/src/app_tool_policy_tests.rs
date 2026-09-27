@@ -40,6 +40,7 @@ fn evaluator_applies_managed_approval_before_local_tool_policy() {
                         "events/create".to_string(),
                         AppToolRequirementToml {
                             approval_mode: Some(AppToolApproval::Approve),
+                            analytics_result_source: None,
                         },
                     )]),
                 }),

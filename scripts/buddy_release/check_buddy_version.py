@@ -13,6 +13,8 @@ from typing import Callable
 BUDDY_CARGO_TOML = Path("codex-rs/codex-buddy/Cargo.toml")
 CARGO_LOCK = Path("codex-rs/Cargo.lock")
 TUI_VERSION_RS = Path("codex-rs/tui/src/version.rs")
+UPSTREAM_VERSION = Path("scripts/buddy_release/upstream-version.txt")
+WORKSPACE_CARGO_TOML = Path("codex-rs/Cargo.toml")
 SEMVER_RE = re.compile(
     r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"
     r"(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?"
@@ -84,6 +86,19 @@ def validate_versions(versions: BuddyVersions) -> list[str]:
     return errors
 
 
+def validate_upstream_version(buddy: str, upstream: str) -> list[str]:
+    """Keep Buddy's minor and patch numbers identical to its upstream release."""
+
+    if re.fullmatch(r"0\.(0|[1-9]\d*)\.(0|[1-9]\d*)", upstream) is None:
+        return ["Upstream version must be a stable 0.x.x release"]
+    expected = "1" + upstream[1:]
+    if buddy != expected:
+        return [
+            f"Codex Buddy must track upstream {upstream} as {expected}, got {buddy}"
+        ]
+    return []
+
+
 def validate_version_bump(previous: str, current: str) -> list[str]:
     """Require the checked Buddy version to be newer than a local baseline."""
 
@@ -102,7 +117,7 @@ def validate_version_bump(previous: str, current: str) -> list[str]:
     )
     if current_core <= previous_core:
         return [
-            "Codex Buddy version must increase for every completed task: "
+            "Codex Buddy version must increase for an upstream release sync: "
             f"baseline={previous}, current={current}"
         ]
     return []
@@ -172,11 +187,22 @@ def main() -> int:
             read(CARGO_LOCK),
             read(TUI_VERSION_RS),
         )
+        upstream = read(UPSTREAM_VERSION).strip()
+        workspace_version = _extract_version(
+            read(WORKSPACE_CARGO_TOML),
+            r'(?ms)^\[workspace\.package\]\n(?:(?!^\[).)*?^version = "([^"]+)"$',
+            WORKSPACE_CARGO_TOML,
+        )
     except (OSError, ValueError) as error:
         print(f"Buddy version check failed: {error}", file=sys.stderr)
         return 1
 
     errors = validate_versions(versions)
+    errors.extend(validate_upstream_version(versions.cargo_toml, upstream))
+    if upstream != workspace_version:
+        errors.append(
+            f"Pinned upstream version {upstream} differs from Codex workspace version {workspace_version}"
+        )
     if args.require_bump_from_ref is not None:
         try:
             previous_version = version_from_git_ref(

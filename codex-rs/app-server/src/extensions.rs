@@ -9,20 +9,15 @@ use codex_app_server_protocol::ThreadGoal;
 use codex_app_server_protocol::ThreadGoalUpdatedNotification;
 use codex_app_server_protocol::ThreadQueueChangedNotification;
 use codex_app_server_protocol::WarningNotification;
-use codex_core::NewThread;
-use codex_core::StartThreadOptions;
 use codex_core::ThreadManager;
 use codex_core::config::Config;
 #[cfg(feature = "connectors")]
 use codex_exec_server::EnvironmentManager;
-use codex_extension_api::AgentSpawnFuture;
-use codex_extension_api::AgentSpawner;
 use codex_extension_api::ExtensionEventSink;
 use codex_extension_api::ExtensionRegistry;
 use codex_extension_api::ExtensionRegistryBuilder;
 use codex_extension_api::ExtensionWarning;
-use codex_extension_api::InternalSessionSpawnFuture;
-use codex_extension_api::InternalSessionSpawner;
+use codex_extension_api::TurnStartAdmission;
 #[cfg(feature = "goals")]
 use codex_goal_extension::GoalExtensionConfig;
 #[cfg(feature = "goals")]
@@ -30,7 +25,6 @@ use codex_goal_extension::GoalService;
 use codex_http_client::HttpClientFactory;
 use codex_login::AuthManager;
 use codex_protocol::ThreadId;
-use codex_protocol::error::CodexErr;
 use codex_protocol::protocol::Event;
 use codex_protocol::protocol::EventMsg;
 #[cfg(feature = "goals")]
@@ -62,15 +56,12 @@ pub(crate) struct ThreadExtensionDependencies {
     /// Process-scoped queue shared by idle dispatch and app-server requests.
     pub(crate) queue_runtime: QueueRuntime,
     pub(crate) composition: ExtensionComposition,
+    pub(crate) turn_start_admission: Option<Arc<dyn TurnStartAdmission>>,
 }
 
-pub(crate) fn thread_extensions<S>(
-    guardian_agent_spawner: S,
+pub(crate) fn thread_extensions(
     dependencies: ThreadExtensionDependencies,
-) -> Arc<ExtensionRegistry<Config>>
-where
-    S: AgentSpawner<StartThreadOptions, Spawned = NewThread, Error = CodexErr> + 'static,
-{
+) -> Arc<ExtensionRegistry<Config>> {
     let ThreadExtensionDependencies {
         event_sink,
         auth_manager,
@@ -88,8 +79,13 @@ where
         http_client_factory,
         queue_runtime,
         composition,
+        turn_start_admission,
     } = dependencies;
     let mut builder = ExtensionRegistryBuilder::<Config>::with_event_sink(Arc::clone(&event_sink));
+    if let Some(admission) = turn_start_admission {
+        builder.turn_start_admission(admission);
+    }
+    codex_core::install_agent_message_board(&mut builder, thread_manager.clone());
     if composition.installs(ExtensionComponent::Queue) {
         queue_runtime.install(&mut builder);
     }
@@ -123,13 +119,7 @@ where
         );
     }
     if composition.installs(ExtensionComponent::Guardian) {
-        codex_guardian_v2::install(
-            &mut builder,
-            guardian_agent_spawner,
-            internal_session_spawner(thread_manager.clone()),
-            auth_manager.clone(),
-            thread_manager,
-        );
+        codex_guardian_v2::install(&mut builder, auth_manager.clone(), thread_manager);
     }
     #[cfg(feature = "memories")]
     if composition.installs(ExtensionComponent::Memories) {
@@ -140,8 +130,12 @@ where
     }
     #[cfg(feature = "connectors")]
     if composition.installs(ExtensionComponent::ExecutorPlugins) {
-        codex_mcp_extension::install_executor_plugins(&mut builder, environment_manager);
+        codex_mcp_extension::install_plugins(&mut builder, environment_manager);
     }
+    #[allow(
+        clippy::redundant_clone,
+        reason = "image-generation also uses auth_manager"
+    )]
     if composition.installs(ExtensionComponent::WebSearch) {
         codex_web_search_extension::install(&mut builder, auth_manager.clone());
     }
@@ -157,11 +151,6 @@ where
         let mut skill_providers = codex_skills_extension::SkillProviders::new();
         if let Some(executor_skill_provider) = executor_skill_provider {
             skill_providers = skill_providers.with_executor_provider(executor_skill_provider);
-        }
-        if orchestrator_skills_enabled {
-            skill_providers = skill_providers.with_orchestrator_provider(Arc::new(
-                codex_skills_extension::OrchestratorSkillProvider::new(),
-            ));
         }
         skill_providers = skill_providers
             .with_host_provider(Arc::new(codex_skills_extension::HostSkillProvider::new()));
@@ -179,8 +168,7 @@ where
                 bundled_skills_enabled: config.bundled_skills_enabled()
                     && config.runtime_profile.preset()
                         == codex_runtime_profile::RuntimePreset::Full,
-                orchestrator_skills_enabled: config.orchestrator_skills_enabled
-                    && orchestrator_skills_enabled,
+                cloud_skill_enabled: config.cloud_skill_enabled && orchestrator_skills_enabled,
                 executor_skills_enabled,
                 shadow_selection_enabled: config
                     .features
@@ -360,42 +348,6 @@ impl ExtensionEventSink for AppServerExtensionEventSink {
             }
             send_thread_warning(&outgoing, &thread_state_manager, thread_id, message).await;
         });
-    }
-}
-
-pub(crate) fn guardian_agent_spawner(
-    thread_manager: Weak<ThreadManager>,
-) -> impl AgentSpawner<StartThreadOptions, Spawned = NewThread, Error = CodexErr> {
-    move |forked_from_thread_id: ThreadId,
-          options: StartThreadOptions|
-          -> AgentSpawnFuture<'static, NewThread, CodexErr> {
-        let thread_manager = thread_manager.clone();
-        Box::pin(async move {
-            let thread_manager = thread_manager.upgrade().ok_or_else(|| {
-                CodexErr::UnsupportedOperation("thread manager dropped".to_string())
-            })?;
-            thread_manager
-                .spawn_subagent(forked_from_thread_id, options)
-                .await
-        })
-    }
-}
-
-fn internal_session_spawner(
-    thread_manager: Weak<ThreadManager>,
-) -> impl InternalSessionSpawner<StartThreadOptions, Spawned = NewThread, Error = CodexErr> {
-    move |parent_thread_id: ThreadId,
-          options: StartThreadOptions|
-          -> InternalSessionSpawnFuture<'static, NewThread, CodexErr> {
-        let thread_manager = thread_manager.clone();
-        Box::pin(async move {
-            let thread_manager = thread_manager.upgrade().ok_or_else(|| {
-                CodexErr::UnsupportedOperation("thread manager dropped".to_string())
-            })?;
-            thread_manager
-                .spawn_internal_session(parent_thread_id, options)
-                .await
-        })
     }
 }
 

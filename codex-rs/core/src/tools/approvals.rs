@@ -6,13 +6,13 @@ use crate::guardian::GuardianNetworkAccessTrigger;
 use crate::guardian::GuardianReviewContext;
 use crate::guardian::GuardianReviewOptions;
 use crate::guardian::decide_approval;
-use crate::guardian::guardian_timeout_message;
 use crate::guardian::new_guardian_review_id;
 use crate::guardian::spawn_approval_decision;
 use crate::hook_runtime::run_permission_request_hooks;
 use crate::mcp_tool_call::request_mcp_tool_user_approval;
 use crate::sandboxing::SandboxPermissions;
 use crate::session::session::Session;
+use crate::state::ExplicitApprovalAbortSignal;
 use crate::tools::hook_names::HookToolName;
 use crate::tools::runtimes::apply_patch::ApplyPatchApprovalKey;
 use crate::tools::runtimes::unified_exec::UnifiedExecApprovalKey;
@@ -24,6 +24,7 @@ use codex_analytics::GuardianApprovalRequestSource;
 use codex_config::types::AppToolApproval;
 use codex_hooks::PermissionRequestDecision;
 use codex_otel::ToolDecisionSource;
+use codex_prompts::ResolvedModelMessages;
 use codex_protocol::approvals::ExecApprovalKind;
 use codex_protocol::approvals::ExecPolicyAmendment;
 #[cfg(unix)]
@@ -333,6 +334,7 @@ impl ApprovalAction {
             #[cfg(unix)]
             Self::Execve {
                 id,
+                environment_id,
                 source,
                 program,
                 argv,
@@ -341,6 +343,7 @@ impl ApprovalAction {
                 ..
             } => crate::guardian::GuardianApprovalRequest::Execve {
                 id,
+                environment_id,
                 source,
                 program: program.to_string_lossy().into_owned(),
                 argv,
@@ -388,6 +391,7 @@ impl ApprovalAction {
             Self::NetworkAccess {
                 id,
                 turn_id,
+                environment_id,
                 target,
                 host,
                 protocol,
@@ -397,6 +401,7 @@ impl ApprovalAction {
             } => crate::guardian::GuardianApprovalRequest::NetworkAccess {
                 id,
                 turn_id,
+                environment_id,
                 target,
                 host,
                 protocol,
@@ -454,9 +459,12 @@ impl ApprovalResolution {
                 Err(ToolError::Rejected(rejection.to_string()))
             }
             ReviewDecision::Denied { rejection } => Err(ToolError::Rejected(rejection)),
-            ReviewDecision::TimedOut => {
-                Err(ToolError::Rejected(guardian_timeout_message(model_info)))
-            }
+            ReviewDecision::TimedOut => Err(ToolError::Rejected(
+                ResolvedModelMessages::from_model(model_info)
+                    .auto_review()
+                    .timeout_instructions
+                    .to_string(),
+            )),
             ReviewDecision::Abort => Err(ToolError::Codex(CodexErr::TurnAborted)),
             decision => Ok(decision),
         }
@@ -468,6 +476,26 @@ impl Session {
         self: &Arc<Self>,
         action: ApprovalAction,
         ctx: ApprovalContext,
+    ) -> Result<ReviewDecision, ToolError> {
+        self.request_approval_with_abort_signal(action, ctx, /*abort_signal*/ None)
+            .await
+    }
+
+    pub(crate) async fn request_approval_tracking_explicit_abort(
+        self: &Arc<Self>,
+        action: ApprovalAction,
+        ctx: ApprovalContext,
+        abort_signal: ExplicitApprovalAbortSignal,
+    ) -> Result<ReviewDecision, ToolError> {
+        self.request_approval_with_abort_signal(action, ctx, Some(abort_signal))
+            .await
+    }
+
+    async fn request_approval_with_abort_signal(
+        self: &Arc<Self>,
+        action: ApprovalAction,
+        ctx: ApprovalContext,
+        abort_signal: Option<ExplicitApprovalAbortSignal>,
     ) -> Result<ReviewDecision, ToolError> {
         // Stdin that exceeds current permissions needs a fresh sandbox approval.
         // Strict review of ordinary input follows the same routing as ordinary exec.
@@ -495,7 +523,7 @@ impl Session {
         // 2. If StrictAutoReview || Guardian enabled, then Guardian. Else, user.
         let resolution = match run_permission_request_hooks(
             self,
-            ctx.review_context.turn(),
+            &ctx.review_context,
             &permission_request_run_id,
             action.permission_request_payload(),
         )
@@ -509,7 +537,10 @@ impl Session {
                 decision: ReviewDecision::denied(message),
                 source: ApprovalResolutionSource::Hook,
             },
-            None => self.request_reviewer_approval(action, &ctx).await,
+            None => {
+                self.request_reviewer_approval(action, &ctx, abort_signal.clone())
+                    .await
+            }
         };
         // Network approvals record their final telemetry after validation and persistence.
         if !is_network_approval {
@@ -543,6 +574,7 @@ impl Session {
         self: &Arc<Self>,
         action: ApprovalAction,
         ctx: &ApprovalContext,
+        abort_signal: Option<ExplicitApprovalAbortSignal>,
     ) -> ApprovalResolution {
         if let Some(decision) = self.request_guardian_approval(action.clone(), ctx).await {
             ApprovalResolution {
@@ -551,7 +583,7 @@ impl Session {
             }
         } else {
             ApprovalResolution {
-                decision: self.request_user_approval(&action, ctx).await,
+                decision: self.request_user_approval(&action, ctx, abort_signal).await,
                 source: ApprovalResolutionSource::User,
             }
         }
@@ -668,6 +700,7 @@ impl Session {
         &self,
         action: &ApprovalAction,
         ctx: &ApprovalContext,
+        abort_signal: Option<ExplicitApprovalAbortSignal>,
     ) -> ReviewDecision {
         match action {
             ApprovalAction::ExecCommand {
@@ -701,6 +734,7 @@ impl Session {
                     self.request_command_approval(
                         ctx.review_context.turn(),
                         ExecApprovalKind::Command,
+                        ctx.review_context.model_context(),
                         ctx.call_id.clone(),
                         /*approval_id*/ None,
                         Some(environment_id.clone()),
@@ -711,6 +745,7 @@ impl Session {
                         proposed_execpolicy_amendment.clone(),
                         additional_permissions.clone(),
                         /*available_decisions*/ None,
+                        /*abort_signal*/ None,
                         /*plugin_attribution_override*/ None,
                     )
                     .await
@@ -730,6 +765,7 @@ impl Session {
                 self.request_command_approval(
                     ctx.review_context.turn(),
                     ExecApprovalKind::WriteStdin,
+                    ctx.review_context.model_context(),
                     id.clone(),
                     Some(approval_id.clone()),
                     Some(environment_id.clone()),
@@ -745,6 +781,7 @@ impl Session {
                     /*proposed_execpolicy_amendment*/ None,
                     additional_permissions.clone(),
                     Some(vec![ReviewDecision::Approved, ReviewDecision::Abort]),
+                    /*abort_signal*/ None,
                     /*plugin_attribution_override*/ None,
                 )
                 .await
@@ -761,6 +798,7 @@ impl Session {
                 self.request_command_approval(
                     ctx.review_context.turn(),
                     ExecApprovalKind::Command,
+                    ctx.review_context.model_context(),
                     ctx.call_id.clone(),
                     Some(approval_id.clone()),
                     Some(environment_id.clone()),
@@ -771,6 +809,7 @@ impl Session {
                     /*proposed_execpolicy_amendment*/ None,
                     additional_permissions.clone(),
                     Some(vec![ReviewDecision::Approved, ReviewDecision::Abort]),
+                    abort_signal,
                     /*plugin_attribution_override*/ None,
                 )
                 .await
@@ -833,6 +872,7 @@ impl Session {
                 self.request_command_approval(
                     ctx.review_context.turn(),
                     ExecApprovalKind::Command,
+                    ctx.review_context.model_context(),
                     ctx.call_id.clone(),
                     /*approval_id*/ None,
                     Some(environment_id.clone()),
@@ -843,6 +883,7 @@ impl Session {
                     /*proposed_execpolicy_amendment*/ None,
                     /*additional_permissions*/ None,
                     /*available_decisions*/ None,
+                    /*abort_signal*/ None,
                     /*plugin_attribution_override*/ None,
                 )
                 .await

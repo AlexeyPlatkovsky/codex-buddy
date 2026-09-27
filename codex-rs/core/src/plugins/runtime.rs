@@ -64,6 +64,7 @@ mod disabled {
             _remote_plugin_enabled: bool,
             _chatgpt_base_url: String,
             _http_client_factory: codex_http_client::HttpClientFactory,
+            _apps_mcp_product_sku: Option<String>,
         ) -> Self {
             Self { plugins_enabled }
         }
@@ -84,6 +85,20 @@ mod disabled {
     }
 
     impl PluginLoadOutcome {
+        pub fn without_plugins(self, _disabled_plugin_ids: &[String]) -> Self {
+            self
+        }
+
+        pub fn iter_effective_plugin_hook_sources(
+            &self,
+        ) -> impl Iterator<Item = &PluginHookSource> {
+            std::iter::empty()
+        }
+
+        pub fn iter_effective_plugin_hook_warnings(&self) -> impl Iterator<Item = &String> {
+            std::iter::empty()
+        }
+
         pub fn effective_plugin_skill_roots(&self) -> Vec<PluginSkillRoot> {
             Vec::new()
         }
@@ -108,6 +123,7 @@ mod disabled {
     #[derive(Debug, Clone, PartialEq)]
     pub struct LoadedPlugin {
         pub config_name: String,
+        pub remote_plugin_id: Option<String>,
         pub root: AbsolutePathBuf,
         pub mcp_servers: HashMap<String, McpServerConfig>,
         pub apps: Vec<AppDeclaration>,
@@ -160,6 +176,14 @@ mod disabled {
         }
 
         pub fn clear_cache(&self) {}
+
+        pub fn connector_snapshot(
+            &self,
+            _sources: impl IntoIterator<Item = codex_mcp::PluginConnectorSource>,
+            _disabled_plugin_ids: &[String],
+        ) -> codex_mcp::ConnectorSnapshot {
+            codex_mcp::ConnectorSnapshot::default()
+        }
 
         pub async fn plugins_for_config(&self, _config: &PluginsConfigInput) -> PluginLoadOutcome {
             PluginLoadOutcome::default()

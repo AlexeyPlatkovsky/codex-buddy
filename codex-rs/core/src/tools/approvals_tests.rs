@@ -148,7 +148,7 @@ async fn non_utf8_cwd_preserves_approval_routing(
         tty: false,
         proposed_execpolicy_amendment: None,
     };
-    let approval = session.request_reviewer_approval(action, &context);
+    let approval = session.request_reviewer_approval(action, &context, /*abort_signal*/ None);
     tokio::pin!(approval);
     let expected = if reviewer == ApprovalsReviewer::User {
         tokio::select! {
@@ -216,7 +216,11 @@ async fn explicit_mcp_reviewer_override_takes_precedence_over_action_context() {
     };
 
     tokio::select! {
-        resolution = session.request_reviewer_approval(action, &context) => {
+        resolution = session.request_reviewer_approval(
+            action,
+            &context,
+            /*abort_signal*/ None,
+        ) => {
             panic!("expected a user approval request, got {resolution:?}");
         }
         event = events.recv() => {

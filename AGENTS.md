@@ -1,3 +1,17 @@
+# Subagent model selection
+
+- Use Sol with high reasoning for most delegated work: implementation, bounded
+  exploration, merge resolution, tests, and routine reviews. The project default is
+  `gpt-6-sol` with `high` reasoning.
+- Reserve Astra for unusually demanding tasks, such as ambiguous
+  architecture decisions, difficult cross-system investigations, or an independent
+  review of especially consequential changes. State the concrete reason when choosing it.
+- Do not let subagents inherit Astra merely because the parent session uses Astra.
+  Honor explicit user model choices. When tool-level overrides require a fresh or
+  partial-context fork, provide a focused handoff instead of a full-history fork.
+- Keep the actual defaults in `.codex/config.toml` under `[agents]`. Role files should
+  inherit these defaults unless a task-specific model choice is justified.
+
 # Rust/codex-rs
 
 In the codex-rs folder where the rust code lives:
@@ -96,16 +110,18 @@ Before finalizing a large change to `codex-rs`, run `just fix -p <project>` (in 
 
 ## Codex Buddy version policy
 
-- Every completed task, feature, or bug fix increments the Codex Buddy patch version, even when
-  the change is internal. For example, `1.0.1` becomes `1.0.2`.
-- Before a substantial release, ask the user whether to take the next minor version instead, for
-  example `1.0.1` to `1.1.0`. A major version remains the next first component, for example
-  `1.0.1` to `2.0.0`.
+- Codex Buddy tracks stable upstream Codex releases one to one: upstream `0.MINOR.PATCH`
+  maps to Buddy `1.MINOR.PATCH`. For example, Codex `0.157.1` maps to Buddy `1.157.1`.
+- Keep the Buddy major version at `1`. Update the minor and patch numbers only when syncing
+  the corresponding upstream release tag; individual Buddy tasks do not bump these numbers.
+  Record Buddy-only fixes under an Unreleased changelog section until the next release sync.
+- Record the upstream release in `scripts/buddy_release/upstream-version.txt`. Merge the matching
+  `rust-v0.MINOR.PATCH` tag and update this file together with the Buddy version.
 - Keep `codex-rs/codex-buddy/Cargo.toml`, the `codex-buddy` entry in `codex-rs/Cargo.lock`, and
   `codex-rs/tui/src/version.rs` identical. Before finalizing, run
-  `python3 scripts/buddy_release/check_buddy_version.py --require-bump-from-ref HEAD` from the
-  repository root. This validates both version consistency and that the working tree is newer than
-  the last local commit.
+  `python3 scripts/buddy_release/check_buddy_version.py` from the repository root. For a release
+  sync, also use `--require-bump-from-ref HEAD` before committing. This validates version consistency,
+  upstream release mapping, and (for a sync) an increase over the previous local commit.
 
 ## The `codex-core` crate
 

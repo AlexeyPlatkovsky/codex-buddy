@@ -16,6 +16,7 @@ use codex_app_server_protocol::ThreadQueueUpdateResponse;
 use codex_core::ThreadManager;
 use codex_thread_store::ThreadStore;
 
+use crate::config_manager::ConfigManager;
 use crate::outgoing_message::ConnectionRequestId;
 use crate::outgoing_message::OutgoingMessageSender;
 use crate::queue_runtime::QueueRuntime;
@@ -27,6 +28,7 @@ impl ThreadQueueRequestProcessor {
         _thread_manager: Arc<ThreadManager>,
         _thread_store: Arc<dyn ThreadStore>,
         _outgoing: Arc<OutgoingMessageSender>,
+        _config_manager: ConfigManager,
         _runtime: QueueRuntime,
     ) -> Self {
         Self

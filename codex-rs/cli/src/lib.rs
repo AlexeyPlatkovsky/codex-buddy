@@ -5,6 +5,7 @@ mod exit_status;
 pub(crate) mod login;
 #[path = "mcp_cmd.rs"]
 pub mod mcp_cmd;
+mod mcp_login;
 
 use clap::Args;
 use clap::Parser;

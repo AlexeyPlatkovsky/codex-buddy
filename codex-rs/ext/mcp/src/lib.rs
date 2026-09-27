@@ -13,14 +13,40 @@ use codex_mcp::CODEX_APPS_MCP_SERVER_NAME;
 #[cfg(feature = "plugin-runtime")]
 use codex_mcp::hosted_plugin_runtime_mcp_server_config;
 
+#[cfg(feature = "plugin-runtime")]
+mod cloud_plugin;
 #[cfg(all(test, feature = "plugin-runtime"))]
 #[path = "event_stream_tests.rs"]
 mod event_stream_tests;
 #[cfg(feature = "plugin-runtime")]
-mod executor_plugin;
+mod plugin;
+#[cfg(feature = "plugin-runtime")]
+mod plugin_contributor;
+#[cfg(feature = "plugin-runtime")]
+mod plugin_contributor_state;
+#[cfg(feature = "plugin-runtime")]
+mod plugin_providers;
 #[cfg(feature = "plugin-runtime")]
 mod stream_manager;
 
+#[cfg(feature = "plugin-runtime")]
+pub use codex_core_plugins::PluginListQuery;
+#[cfg(feature = "plugin-runtime")]
+pub use codex_core_plugins::PluginProvider;
+#[cfg(feature = "plugin-runtime")]
+pub use codex_core_plugins::PluginProviderError;
+#[cfg(feature = "plugin-runtime")]
+pub use codex_core_plugins::PluginProviderFuture;
+#[cfg(feature = "plugin-runtime")]
+pub use codex_core_plugins::PluginProviderResult;
+#[cfg(feature = "plugin-runtime")]
+pub use plugin_contributor::install_plugin_providers;
+#[cfg(feature = "plugin-runtime")]
+pub use plugin_contributor::install_plugins;
+#[cfg(feature = "plugin-runtime")]
+pub use plugin_contributor_state::PluginsThreadState;
+#[cfg(feature = "plugin-runtime")]
+pub use plugin_providers::PluginProviders;
 #[cfg(feature = "plugin-runtime")]
 pub use stream_manager::McpEventStreamManager;
 #[cfg(feature = "plugin-runtime")]
@@ -56,6 +82,7 @@ impl McpServerContributor<Config> for HostedPluginRuntimeExtension {
                     config.apps_mcp_product_sku.as_deref(),
                     context.originator(),
                 )),
+                protocol_mode: None,
             }]
         })
     }
@@ -68,17 +95,6 @@ pub fn install(builder: &mut ExtensionRegistryBuilder<Config>) {
 
 #[cfg(not(feature = "plugin-runtime"))]
 pub fn install(_builder: &mut ExtensionRegistryBuilder<Config>) {}
-
-/// Installs discovery for MCP servers declared by thread-selected executor plugins.
-#[cfg(feature = "plugin-runtime")]
-pub fn install_executor_plugins(
-    builder: &mut ExtensionRegistryBuilder<Config>,
-    environment_manager: std::sync::Arc<codex_exec_server::EnvironmentManager>,
-) {
-    builder.mcp_server_contributor(std::sync::Arc::new(
-        executor_plugin::SelectedExecutorPluginMcpContributor::new(environment_manager),
-    ));
-}
 
 #[cfg(all(test, feature = "plugin-runtime"))]
 #[path = "lib_tests.rs"]

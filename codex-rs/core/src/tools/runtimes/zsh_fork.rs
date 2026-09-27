@@ -42,6 +42,7 @@ mod imp {
     #[derive(Debug)]
     struct ZshForkSpawnLifecycle {
         escalation_session: EscalationSession,
+        explicit_approval_abort_signal: crate::state::ExplicitApprovalAbortSignal,
     }
 
     impl SpawnLifecycle for ZshForkSpawnLifecycle {
@@ -56,6 +57,10 @@ mod imp {
 
         fn after_spawn(&mut self) {
             self.escalation_session.close_client_socket();
+        }
+
+        fn command_declined(&self) -> bool {
+            self.explicit_approval_abort_signal.was_aborted()
         }
     }
 
@@ -83,6 +88,7 @@ mod imp {
             exec_request: prepared.exec_request,
             spawn_lifecycle: Box::new(ZshForkSpawnLifecycle {
                 escalation_session: prepared.escalation_session,
+                explicit_approval_abort_signal: prepared.explicit_approval_abort_signal,
             }),
         }))
     }

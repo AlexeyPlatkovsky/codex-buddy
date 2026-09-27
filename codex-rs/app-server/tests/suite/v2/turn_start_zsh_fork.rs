@@ -22,6 +22,8 @@ use codex_app_server_protocol::ItemCompletedNotification;
 use codex_app_server_protocol::ItemStartedNotification;
 use codex_app_server_protocol::ServerRequest;
 use codex_app_server_protocol::ThreadItem;
+use codex_app_server_protocol::ThreadReadParams;
+use codex_app_server_protocol::ThreadReadResponse;
 use codex_app_server_protocol::ThreadStartParams;
 use codex_app_server_protocol::ThreadStartResponse;
 use codex_app_server_protocol::TurnCompletedNotification;
@@ -44,6 +46,9 @@ use tokio::time::timeout;
 const DEFAULT_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
 #[cfg(not(windows))]
 const DEFAULT_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+// A freshly copied macOS debug app-server binary can spend over 10 seconds in dyld before
+// reaching Rust main. Keep this package-fixture startup budget separate from protocol deadlines.
+const PACKAGE_APP_SERVER_STARTUP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 
 #[tokio::test]
 async fn turn_start_shell_zsh_fork_executes_command_v2() -> Result<()> {
@@ -542,7 +547,7 @@ async fn turn_start_shell_zsh_fork_subcommand_decline_marks_parent_declined_v2()
     let mut target_decision_index = 0;
     let first_file_str = first_file.to_string_lossy().into_owned();
     let second_file_str = second_file.to_string_lossy().into_owned();
-    let parent_shell_hint = format!("&& {}", &first_file_str);
+    let parent_shell_hint = format!("&& {first_file_str}");
     while target_decision_index < target_decisions.len() || !saw_parent_approval {
         let server_req = timeout(
             DEFAULT_READ_TIMEOUT,
@@ -641,6 +646,7 @@ async fn turn_start_shell_zsh_fork_subcommand_decline_marks_parent_declined_v2()
 
     match parent_completed_command_execution {
         Ok(Ok(parent_completed_command_execution)) => {
+            let expected_persisted_parent = parent_completed_command_execution.clone();
             let ThreadItem::CommandExecution {
                 id,
                 status,
@@ -689,6 +695,29 @@ async fn turn_start_shell_zsh_fork_subcommand_decline_marks_parent_declined_v2()
                     .await?;
                 }
             }
+
+            let read_id = mcp
+                .send_thread_read_request(ThreadReadParams {
+                    thread_id: thread.id.clone(),
+                    include_turns: true,
+                })
+                .await?;
+            let ThreadReadResponse {
+                thread: stored_thread,
+            } = timeout(DEFAULT_READ_TIMEOUT, mcp.read_response(read_id)).await??;
+            let persisted_parent = stored_thread
+                .turns
+                .iter()
+                .flat_map(|turn| &turn.items)
+                .find(|item| {
+                    matches!(
+                        item,
+                        ThreadItem::CommandExecution { id, .. }
+                            if id == "call-zsh-fork-subcommand-decline"
+                    )
+                })
+                .expect("thread/read should include the persisted parent command");
+            assert_eq!(persisted_parent, &expected_persisted_parent);
         }
         Ok(Err(error)) => return Err(error),
         Err(_) => {
@@ -729,7 +758,7 @@ async fn create_zsh_test_mcp_process(
         .with_codex_home(codex_home)
         .with_program(&app_server)
         .with_env_overrides(&[("ZDOTDIR", Some(zdotdir.as_str()))])
-        .build_initialized_with_timeout(DEFAULT_READ_TIMEOUT)
+        .build_initialized_with_timeout(PACKAGE_APP_SERVER_STARTUP_TIMEOUT)
         .await
 }
 

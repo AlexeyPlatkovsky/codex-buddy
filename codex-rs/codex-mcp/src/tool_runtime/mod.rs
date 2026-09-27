@@ -2,13 +2,20 @@
 //!
 //! Runtime snapshots are process-local live state scoped by a caller-provided
 //! context key. Disk is best-effort cold-start persistence; a context reads it
-//! once when created and never rereads it.
+//! once when created and never rereads it. Full connector metadata is
+//! owned by the connector metadata store, not by this module.
+//! Live catalog subscriptions publish only successful fetches from a matching
+//! discovery scope, never disk snapshots or another scope's discovery winner.
+//! Equivalent live contexts share one current catalog. Each fetch still contacts
+//! the server; equal definitions retain their established storage and ordering.
+//! Providers expire with their last context.
 
 use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::Weak;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
@@ -20,6 +27,7 @@ use codex_protocol::mcp::McpServerInfo;
 use serde::Deserialize;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
+use tokio::sync::watch;
 
 use self::persistence::load_cached_codex_apps_server_info;
 use self::persistence::load_cached_mcp_tool_runtime_for_identity;
@@ -29,13 +37,21 @@ use self::persistence::tools_cache_path;
 
 const MCP_TOOLS_CACHE_PUBLISH_DURATION_METRIC: &str = "codex.mcp.tools.cache_publish.duration_ms";
 
-/// Values stored in the MCP tool runtime's persisted snapshot.
-///
-/// The current persistence adapter uses the Codex Apps cache layout for every
-/// serializable, cloneable payload.
-pub trait McpToolRuntimePayload: Clone + Serialize + DeserializeOwned {}
+/// The current immutable tools for matching discovery inputs.
+struct CatalogProvider<T> {
+    scope: Vec<String>,
+    updates: watch::Sender<Option<Arc<McpToolRuntimeSnapshot<T>>>>,
+}
 
-impl<T> McpToolRuntimePayload for T where T: Clone + Serialize + DeserializeOwned {}
+/// Values stored in the MCP tool runtime's persisted tool snapshot.
+///
+/// The runtime uses the Codex Apps cache layout for every
+/// serializable, cloneable payload. Equality determines whether fresh results can
+/// retain the previous storage and tool version, so it must include all metadata
+/// that affects readers or prepared calls.
+pub trait McpToolRuntimePayload: Clone + PartialEq + Serialize + DeserializeOwned {}
+
+impl<T> McpToolRuntimePayload for T where T: Clone + PartialEq + Serialize + DeserializeOwned {}
 
 /// The account and workspace identity of an MCP tool runtime catalog.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -80,13 +96,24 @@ pub(crate) fn mcp_tool_runtime_cache_path(
 /// intentionally applied by readers rather than persisted in this snapshot.
 #[derive(Debug, Clone)]
 pub struct McpToolRuntimeSnapshot<T> {
-    tools: Vec<T>,
+    tools: Arc<[T]>,
     refreshed_at: SystemTime,
+    generation: u64,
+    tools_version: u64,
 }
 
 impl<T> McpToolRuntimeSnapshot<T> {
     pub fn tools(&self) -> &[T] {
         &self.tools
+    }
+
+    pub fn shared_tools(&self) -> Arc<[T]> {
+        Arc::clone(&self.tools)
+    }
+
+    /// Advances only when tool definitions change, so equal refreshes preserve prepared calls.
+    pub fn tools_version(&self) -> u64 {
+        self.tools_version
     }
 
     pub fn refreshed_at(&self) -> SystemTime {
@@ -155,24 +182,68 @@ impl<T: McpToolRuntimePayload> McpToolRuntimeManager<T> {
             .entry(identity.clone())
             .or_insert_with(|| Arc::new(McpToolRuntimeEntry::new(identity, self.disk_cache)))
             .clone();
-        McpToolRuntimeContext { entry }
+        McpToolRuntimeContext {
+            entry,
+            live_catalog: None,
+        }
     }
 }
 
 /// Handle to one shared account/workspace MCP tool runtime.
 pub struct McpToolRuntimeContext<T: McpToolRuntimePayload> {
     entry: Arc<McpToolRuntimeEntry<T>>,
+    live_catalog: Option<Arc<CatalogProvider<T>>>,
 }
 
 impl<T: McpToolRuntimePayload> Clone for McpToolRuntimeContext<T> {
     fn clone(&self) -> Self {
         Self {
             entry: Arc::clone(&self.entry),
+            live_catalog: self.live_catalog.clone(),
         }
     }
 }
 
 impl<T: McpToolRuntimePayload> McpToolRuntimeContext<T> {
+    /// Groups executable catalogs by equivalent discovery inputs within this account/home.
+    /// Include transport/auth, requested capabilities, and initialization results.
+    /// Calling this again refines the existing scope; it does not replace it.
+    /// Account-wide discovery reads are unaffected.
+    pub fn with_live_scope(mut self, scope: String) -> Self {
+        let mut scope_parts = self
+            .live_catalog
+            .as_ref()
+            .map(|catalog| catalog.scope.clone())
+            .unwrap_or_default();
+        scope_parts.push(scope);
+        let mut catalogs = lock_unpoisoned(&self.entry.live_catalogs);
+        catalogs.retain(|_, catalog| catalog.strong_count() > 0);
+        let catalog = catalogs.entry(scope_parts.clone()).or_default();
+        self.live_catalog = Some(catalog.upgrade().unwrap_or_else(|| {
+            let provider = Arc::new(CatalogProvider {
+                scope: scope_parts,
+                updates: watch::channel(None).0,
+            });
+            *catalog = Arc::downgrade(&provider);
+            provider
+        }));
+        drop(catalogs);
+        self
+    }
+
+    /// Detaches a server that opts out of live catalog sharing, including publication.
+    pub fn without_live_scope(mut self) -> Self {
+        self.live_catalog = None;
+        self
+    }
+
+    /// Subscribes to accepted live tools without refetching or waiting for other clients.
+    pub fn subscribe(&self) -> Option<watch::Receiver<Option<Arc<McpToolRuntimeSnapshot<T>>>>> {
+        self.live_catalog
+            .as_ref()
+            .map(|catalog| catalog.updates.subscribe())
+    }
+
     pub fn current_snapshot(&self) -> Option<Arc<McpToolRuntimeSnapshot<T>>> {
         self.entry.current_snapshot.load_full()
     }
@@ -209,7 +280,7 @@ impl<T: McpToolRuntimePayload> McpToolRuntimeContext<T> {
 
     pub fn current_tools(&self) -> Option<Vec<T>> {
         self.current_snapshot()
-            .map(|snapshot| snapshot.tools.clone())
+            .map(|snapshot| snapshot.tools.to_vec())
     }
 
     pub fn publish_runtime_if_newest_accepted(
@@ -243,6 +314,36 @@ impl<T: McpToolRuntimePayload> McpToolRuntimeContext<T> {
     ) -> Arc<McpToolRuntimeSnapshot<T>> {
         let publish_start = Instant::now();
         let mut last_accepted_generation = lock_unpoisoned(&self.entry.last_accepted_generation);
+        let prior = self
+            .live_catalog
+            .as_ref()
+            .and_then(|catalog| catalog.updates.borrow().clone());
+        let (tools, tools_version) = match prior {
+            Some(prior)
+                if prior.generation < ticket.generation && prior.tools() == tools.as_slice() =>
+            {
+                (prior.shared_tools(), prior.tools_version)
+            }
+            _ => (tools.into(), ticket.generation),
+        };
+        let snapshot = Arc::new(McpToolRuntimeSnapshot {
+            tools,
+            tools_version,
+            refreshed_at: SystemTime::now(),
+            generation: ticket.generation,
+        });
+        if let Some(live_catalog) = &self.live_catalog {
+            live_catalog.updates.send_if_modified(|current| {
+                if current
+                    .as_ref()
+                    .is_some_and(|current| current.generation >= ticket.generation)
+                {
+                    return false;
+                }
+                *current = Some(Arc::clone(&snapshot));
+                true
+            });
+        }
         if ticket.generation <= *last_accepted_generation
             && let Some(snapshot) = self.current_snapshot()
         {
@@ -254,11 +355,6 @@ impl<T: McpToolRuntimePayload> McpToolRuntimeContext<T> {
             );
             return snapshot;
         }
-
-        let snapshot = Arc::new(McpToolRuntimeSnapshot {
-            tools,
-            refreshed_at: SystemTime::now(),
-        });
 
         *last_accepted_generation = ticket.generation;
         self.entry
@@ -284,7 +380,7 @@ impl<T: McpToolRuntimePayload> McpToolRuntimeContext<T> {
     ) -> Vec<T> {
         self.publish_runtime_if_newest_accepted(ticket, server_info, tools)
             .tools
-            .clone()
+            .to_vec()
     }
 }
 
@@ -315,6 +411,7 @@ struct McpToolRuntimeEntry<T: McpToolRuntimePayload> {
     current_snapshot: ArcSwapOption<McpToolRuntimeSnapshot<T>>,
     next_fetch_generation: AtomicU64,
     last_accepted_generation: Mutex<u64>,
+    live_catalogs: Mutex<HashMap<Vec<String>, Weak<CatalogProvider<T>>>>,
 }
 
 impl<T: McpToolRuntimePayload> McpToolRuntimeEntry<T> {
@@ -331,6 +428,7 @@ impl<T: McpToolRuntimePayload> McpToolRuntimeEntry<T> {
             current_snapshot: ArcSwapOption::from(current_snapshot),
             next_fetch_generation: AtomicU64::new(0),
             last_accepted_generation: Mutex::new(0),
+            live_catalogs: Mutex::new(HashMap::new()),
         }
     }
 }

@@ -1,3 +1,6 @@
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+mod herdr;
+
 use anyhow::Result;
 use clap::Args;
 use clap::FromArgMatches;
@@ -197,6 +200,9 @@ impl FromArgMatches for SessionTuiCli {
 }
 
 fn main() -> Result<()> {
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    herdr::ensure_process_hint()?;
+
     arg0_dispatch_or_else(|paths| async move { run(paths).await })
 }
 

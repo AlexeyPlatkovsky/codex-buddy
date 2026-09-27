@@ -306,7 +306,11 @@ impl ClaudeHooksEngine {
                 // and MCP environment.
                 let target = (
                     std::mem::discriminant(&event_name),
-                    source.environment_id.clone(),
+                    source
+                        .mcp_environment_id
+                        .as_ref()
+                        .unwrap_or(&source.environment_id)
+                        .clone(),
                     server.clone(),
                     tool.clone(),
                 );
@@ -323,8 +327,8 @@ impl ClaudeHooksEngine {
                     source_path: HandlerSourcePath::ExecutorScoped {
                         plugin_id: source.plugin_id.clone(),
                         environment_id: source.environment_id.clone(),
-                        mcp_environment_id: None,
-                        mcp_metadata: None,
+                        mcp_environment_id: source.mcp_environment_id.clone(),
+                        mcp_metadata: source.mcp_metadata.clone().map(Box::new),
                         manifest_path: source.manifest_path.clone(),
                         source_relative_path: source.source_relative_path.clone(),
                     },

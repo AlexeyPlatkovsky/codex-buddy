@@ -247,3 +247,33 @@ async fn ambient_pet_is_suppressed_while_the_panel_is_visible() {
     assert!(app.should_render_ambient_pet(Size::new(/*width*/ 99, /*height*/ 24)));
     assert!(!app.should_render_ambient_pet(Size::new(/*width*/ 100, /*height*/ 24)));
 }
+
+#[tokio::test]
+async fn owned_transcript_keeps_the_subagent_panel_visible() -> Result<()> {
+    let mut app = make_test_app().await;
+    let mut tui = make_test_tui()?;
+    app.local_settings.tui.animations = false;
+    app.agent_navigation.upsert(
+        ThreadId::new(),
+        Some("Ada".to_string()),
+        Some("planner".to_string()),
+        /*is_closed*/ false,
+    );
+    let screen_size = Size::new(/*width*/ 120, /*height*/ 24);
+    tui.terminal = crate::custom_terminal::Terminal::with_screen_size_and_cursor_position_for_test(
+        ratatui::backend::CrosstermBackend::new(std::io::stdout()),
+        screen_size,
+        ratatui::layout::Position { x: 0, y: 0 },
+    );
+    tui.set_owned_screen(/*owned*/ true)?;
+    let rendered_area = app.render_chat_widget_frame(&mut tui, screen_size)?;
+    assert_eq!(rendered_area.width, 83);
+    assert!(tui.is_owned_screen());
+    let buffer = crate::custom_terminal::test_support::last_rendered_buffer(&tui.terminal);
+    let header = (84..120)
+        .map(|x| buffer[(x, 0)].symbol())
+        .collect::<String>();
+    insta::assert_snapshot!(header, @"┌ Subagents ────────────────────────");
+    tui.set_owned_screen(/*owned*/ false)?;
+    Ok(())
+}

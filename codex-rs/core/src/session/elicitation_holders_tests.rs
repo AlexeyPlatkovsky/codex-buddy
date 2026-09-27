@@ -17,6 +17,7 @@ use tokio_util::sync::CancellationToken;
 use super::tests::make_session_and_context_with_rx;
 use crate::session::step_context::StepContext;
 use crate::state::ActiveTurn;
+use crate::state::ExplicitApprovalAbortSignal;
 
 async fn wait_until_held(pause_state: &mut watch::Receiver<bool>) {
     pause_state
@@ -52,6 +53,8 @@ async fn command_approval_holds_an_elicitation_until_response() {
                 .request_command_approval(
                     turn_context.as_ref(),
                     ExecApprovalKind::Command,
+                    crate::guardian::GuardianReviewContext::from(turn_context.clone())
+                        .model_context(),
                     "call-1".to_string(),
                     /*approval_id*/ None,
                     /*environment_id*/ None,
@@ -62,6 +65,7 @@ async fn command_approval_holds_an_elicitation_until_response() {
                     /*proposed_execpolicy_amendment*/ None,
                     /*additional_permissions*/ None,
                     /*available_decisions*/ None,
+                    /*abort_signal*/ None,
                     /*plugin_attribution_override*/ Some(plugin_attribution),
                 )
                 .await
@@ -80,6 +84,58 @@ async fn command_approval_holds_an_elicitation_until_response() {
         .await;
     request.await.expect("approval task");
     wait_until_released(&mut pause_state).await;
+}
+
+#[tokio::test]
+async fn dropped_command_approval_does_not_record_an_explicit_abort() {
+    let (session, turn_context, events) = make_session_and_context_with_rx().await;
+    *session.active_turn.lock().await = Some(ActiveTurn::default());
+    #[allow(deprecated)]
+    let cwd = turn_context.cwd.clone();
+    let abort_signal = ExplicitApprovalAbortSignal::default();
+
+    let request = tokio::spawn({
+        let session = session.clone();
+        let turn_context = turn_context.clone();
+        let abort_signal = abort_signal.clone();
+        async move {
+            session
+                .request_command_approval(
+                    turn_context.as_ref(),
+                    ExecApprovalKind::Command,
+                    crate::guardian::GuardianReviewContext::from(turn_context.clone())
+                        .model_context(),
+                    "call-1".to_string(),
+                    /*approval_id*/ None,
+                    /*environment_id*/ None,
+                    vec!["echo".to_string()],
+                    cwd.into(),
+                    /*reason*/ None,
+                    /*network_approval_context*/ None,
+                    /*proposed_execpolicy_amendment*/ None,
+                    /*additional_permissions*/ None,
+                    /*available_decisions*/ None,
+                    /*abort_signal*/ Some(abort_signal),
+                    /*plugin_attribution_override*/ None,
+                )
+                .await
+        }
+    });
+
+    events.recv().await.expect("approval event");
+    let turn_state = {
+        let active_turn = session.active_turn.lock().await;
+        Arc::clone(
+            &active_turn
+                .as_ref()
+                .expect("active turn should exist")
+                .turn_state,
+        )
+    };
+    turn_state.lock().await.clear_pending_waiters();
+
+    assert_eq!(request.await.expect("approval task"), ReviewDecision::Abort);
+    assert!(!abort_signal.was_aborted());
 }
 
 #[tokio::test]
@@ -124,7 +180,7 @@ async fn permission_request_holds_an_elicitation_until_response() {
         let turn_context = turn_context.clone();
         async move {
             let environment = turn_context
-                .environments
+                .initial_environments
                 .primary()
                 .expect("primary environment")
                 .selection();

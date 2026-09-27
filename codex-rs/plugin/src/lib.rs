@@ -1,16 +1,14 @@
-//! Shared plugin package models, source providers, identifiers, and telemetry summaries.
+//! Shared plugin package models, identifiers, and telemetry summaries.
 
 use std::collections::HashSet;
 
 pub use codex_skills::mention_syntax;
 
-mod bundled_hooks;
 mod load_outcome;
 pub mod manifest;
 mod plugin_app_config;
 mod provider;
 
-pub use bundled_hooks::is_allowlisted_bundled_cleanup_hook;
 pub use codex_plugin_types::AppConnectorId;
 pub use codex_plugin_types::AppDeclaration;
 pub use codex_plugin_types::ExecutorPluginHookSource;
@@ -19,13 +17,13 @@ pub use codex_plugin_types::PluginHookSource;
 pub use codex_plugin_types::PluginId;
 pub use codex_plugin_types::PluginIdError;
 pub use codex_plugin_types::PluginTelemetryMetadata;
+pub use codex_plugin_types::is_allowlisted_bundled_cleanup_hook;
 pub use codex_plugin_types::validate_plugin_segment;
 pub use load_outcome::LoadedPlugin;
 pub use load_outcome::PluginLoadOutcome;
 pub use load_outcome::prompt_safe_plugin_description;
 pub use plugin_app_config::parse_plugin_app_config;
 pub use plugin_app_config::parse_plugin_app_config_value;
-pub use provider::PluginProvider;
 pub use provider::PluginResourceLocator;
 pub use provider::ResolvedPlugin;
 pub use provider::ResolvedPluginError;

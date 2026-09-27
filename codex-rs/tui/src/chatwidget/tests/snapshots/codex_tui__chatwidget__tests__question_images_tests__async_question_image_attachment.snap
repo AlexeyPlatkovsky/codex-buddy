@@ -1,0 +1,13 @@
+---
+source: tui/src/chatwidget/tests/question_images_tests.rs
+assertion_line: 25
+expression: "render_bottom_popup(&chat, 80)"
+---
+• Queued follow-up inputs
+
+  Show the problem
+
+    See "café":
+  [Image #1]
+
+  enter submit   ctrl+] skip   ⌥+↓ main prompt

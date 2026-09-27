@@ -146,3 +146,23 @@ async fn realtime_methods_remain_known_and_report_unavailable() -> Result<()> {
 
     Ok(())
 }
+
+#[cfg(not(feature = "memories"))]
+#[tokio::test]
+async fn memory_status_method_remains_known_and_reports_unavailable() -> Result<()> {
+    let mut app = TestAppServer::builder().build_initialized().await?;
+    let request_id = app
+        .send_raw_request("memory/status", Some(json!({})))
+        .await?;
+    let error: JSONRPCError = timeout(
+        READ_TIMEOUT,
+        app.read_stream_until_error_message(RequestId::Integer(request_id)),
+    )
+    .await??;
+    assert_eq!(error.error.code, INVALID_REQUEST_ERROR_CODE);
+    assert_eq!(
+        error.error.message,
+        "memory status is unavailable in this Codex runtime"
+    );
+    Ok(())
+}

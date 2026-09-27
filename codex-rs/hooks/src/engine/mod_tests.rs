@@ -2386,6 +2386,41 @@ async fn wait_for_mcp_calls(calls: &Arc<Mutex<Vec<HookMcpCall>>>, count: usize) 
 }
 
 #[tokio::test]
+async fn executor_cleanup_preserves_mcp_routing_and_deduplicates_target_environment() {
+    for second_target in ["cleanup-a", "cleanup-b"] {
+        let (mut engine, calls, request, mut expected_call, mut source) =
+            executor_stop_hook_fixture();
+        let routing_metadata = serde_json::Map::from_iter([(
+            "plugin-routing".to_string(),
+            serde_json::json!("trusted"),
+        )]);
+        source.mcp_environment_id = Some("cleanup-a".to_string());
+        source.mcp_metadata = Some(routing_metadata.clone());
+        let mut second_source = source.clone();
+        second_source.environment_id = "executor-b".to_string();
+        second_source.mcp_environment_id = Some(second_target.to_string());
+        engine.set_executor_hooks(vec![source, second_source]);
+
+        expected_call.environment_id = Some("cleanup-a".to_string());
+        expected_call
+            .metadata
+            .get_or_insert_default()
+            .extend(routing_metadata);
+        let mut expected_calls = vec![expected_call.clone()];
+        if second_target != "cleanup-a" {
+            expected_call.environment_id = Some(second_target.to_string());
+            expected_calls.push(expected_call);
+        }
+        assert_eq!(engine.handlers.len(), expected_calls.len());
+        engine.run_stop(request).await;
+        wait_for_mcp_calls(&calls, expected_calls.len()).await;
+        let mut actual_calls = calls.lock().expect("lock MCP calls").clone();
+        actual_calls.sort_by(|left, right| left.environment_id.cmp(&right.environment_id));
+        assert_eq!(actual_calls, expected_calls);
+    }
+}
+
+#[tokio::test]
 async fn executor_stop_hooks_run_unless_regular_hooks_block_without_stopping() {
     let (mut engine, calls, request, expected_executor_call, _source) =
         executor_stop_hook_fixture();

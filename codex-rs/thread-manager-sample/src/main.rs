@@ -42,6 +42,8 @@ use codex_core_api::Permissions;
 use codex_core_api::ProjectConfig;
 use codex_core_api::RealtimeAudioConfig;
 use codex_core_api::RealtimeConfig;
+use codex_core_api::ResolvedRuntimeProfile;
+use codex_core_api::RuntimeCompileCeiling;
 use codex_core_api::SessionPickerViewMode;
 use codex_core_api::SessionSource;
 use codex_core_api::SqliteConfig;
@@ -68,6 +70,7 @@ use codex_core_api::item_event_to_server_notification;
 use codex_core_api::local_agent_graph_store_from_state_db;
 use codex_core_api::passthrough_image_store;
 use codex_core_api::resolve_installation_id;
+use codex_core_api::runtime_profile_policy_from_stack;
 use codex_core_api::set_default_originator;
 use codex_core_api::thread_store_from_config;
 
@@ -187,6 +190,16 @@ fn new_config(model: Option<String>, arg0_paths: Arg0DispatchPaths) -> anyhow::R
         .clone();
 
     let mut config = Config {
+        runtime_profile: ResolvedRuntimeProfile::full(
+            &RuntimeCompileCeiling::full(),
+            &Default::default(),
+        ),
+        runtime_profile_policy: runtime_profile_policy_from_stack(
+            &ConfigLayerStack::default(),
+            Default::default(),
+        ),
+        application_network_policy: Default::default(),
+        application_auth_route_config: None,
         config_layer_stack: ConfigLayerStack::default(),
         startup_warnings: Vec::new(),
         bypass_hook_trust: false,
@@ -196,6 +209,7 @@ fn new_config(model: Option<String>, arg0_paths: Arg0DispatchPaths) -> anyhow::R
         model_context_window: None,
         model_auto_compact_token_limit: None,
         model_auto_compact_token_limit_scope: AutoCompactTokenLimitScope::Total,
+        model_post_turn_compact_threshold_percent: 0,
         model_provider_id,
         model_provider,
         personality: None,
@@ -213,23 +227,27 @@ fn new_config(model: Option<String>, arg0_paths: Arg0DispatchPaths) -> anyhow::R
         base_instructions_provenance: None,
         developer_instructions: None,
         guardian_policy_config: None,
+        guardian_extra_policy: None,
+        guardian_policy_template: None,
         include_permissions_instructions: false,
         include_apps_instructions: false,
         include_collaboration_mode_instructions: false,
         include_skill_instructions: false,
         skill_max_context_tokens: None,
-        orchestrator_skills_enabled: false,
-        executor_skills_enabled: true,
+        cloud_skill_enabled: false,
         orchestrator_mcp_enabled: false,
         include_environment_context: false,
         compact_prompt: None,
         notify: None,
         tui_notifications: TuiNotificationSettings::default(),
         animations: true,
-        tui_whimsy: true,
+        tui_effects: Default::default(),
+        tui_rendering: Default::default(),
         show_tooltips: true,
+        tui_show_server_version_notice: true,
         tui_auto_recap: true,
         model_availability_nux: ModelAvailabilityNuxConfig::default(),
+        tui_fullscreen_transcript: false,
         tui_alternate_screen: AltScreenMode::Auto,
         tui_status_line: None,
         tui_status_line_use_colors: true,
@@ -249,6 +267,7 @@ fn new_config(model: Option<String>, arg0_paths: Arg0DispatchPaths) -> anyhow::R
         workspace_roots_explicit: false,
         cli_auth_credentials_store_mode: AuthCredentialsStoreMode::File,
         mcp_servers: Constrained::allow_any(HashMap::new()),
+        mcp_enterprise_managed_auth: None,
         non_prefixed_mcp_tool_servers: None,
         mcp_oauth_credentials_store_mode: OAuthCredentialsStoreMode::File,
         mcp_oauth_callback_port: None,
@@ -314,6 +333,7 @@ fn new_config(model: Option<String>, arg0_paths: Arg0DispatchPaths) -> anyhow::R
         current_time_reminder: None,
         sleep_tool_mode: Default::default(),
         features: Default::default(),
+        prefer_mxc: false,
         suppress_unstable_features_warning: false,
         active_project: ProjectConfig { trust_level: None },
         notices: Notice::default(),
