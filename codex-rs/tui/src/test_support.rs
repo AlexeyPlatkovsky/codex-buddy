@@ -9,6 +9,33 @@ pub(crate) use codex_utils_absolute_path::test_support::test_path_buf;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
+/// Keep shared layout snapshots independent of release branding. Dedicated product tests
+/// exercise the real title; shared tests retain the upstream fixture's cell padding.
+pub(crate) fn normalize_snapshot_product(text: impl AsRef<str>) -> String {
+    static TITLE: LazyLock<regex_lite::Regex> = LazyLock::new(|| {
+        regex_lite::Regex::new(r"(OpenAI Codex|Codex Buddy) \(v([^)]+)\)( *)").unwrap()
+    });
+    let text = text.as_ref();
+    TITLE
+        .replace_all(text, |captures: &regex_lite::Captures<'_>| {
+            let name = &captures[1];
+            let version = &captures[2];
+            let release = version == crate::version::CODEX_CLI_VERSION
+                || version == crate::version::PRODUCT_DISPLAY_VERSION;
+            let normalized = if release { "0.0.0" } else { version };
+            let mut padding = captures[3].len();
+            if text[captures.get(0).unwrap().end()..].starts_with('│') {
+                let generated_width = name.len() + version.len();
+                let fixture_width = "OpenAI Codex".len() + normalized.len();
+                padding = padding
+                    .saturating_add(generated_width)
+                    .saturating_sub(fixture_width);
+            }
+            format!("OpenAI Codex (v{normalized}){}", " ".repeat(padding))
+        })
+        .into_owned()
+}
+
 pub(crate) static TEST_MODEL_PRESETS: LazyLock<Vec<ModelPreset>> = LazyLock::new(|| {
     let mut response = bundled_models_response()
         .unwrap_or_else(|err| panic!("bundled models.json should parse: {err}"));

@@ -3,6 +3,7 @@ use crate::app::test_support::make_test_app;
 use crate::history_cell::PlainHistoryCell;
 use crate::tui::test_support::make_test_tui;
 use pretty_assertions::assert_eq;
+use ratatui::buffer::Buffer;
 use std::sync::Arc;
 
 #[tokio::test]
@@ -149,6 +150,76 @@ async fn pinned_transcript_leaves_popup_navigation_to_the_active_menu() {
 }
 
 #[tokio::test]
+async fn pinned_transcript_navigation_does_not_recall_composer_history() {
+    let mut app = make_test_app().await;
+    let mut tui = make_test_tui().expect("test tui");
+    let mut app_server = crate::start_embedded_app_server_for_picker(&app.config)
+        .await
+        .expect("embedded app server");
+    for character in "previous prompt".chars() {
+        app.chat_widget
+            .handle_key_event(KeyEvent::new(KeyCode::Char(character), KeyModifiers::NONE));
+    }
+    app.chat_widget
+        .handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+    assert!(app.chat_widget.composer_text_with_pending().is_empty());
+
+    let cells: Vec<Arc<dyn HistoryCell>> = vec![Arc::new(PlainHistoryCell::new(
+        (1..=12)
+            .map(|line| format!("AI output line {line}").into())
+            .collect(),
+    ))];
+    app.pinned_transcript = Some(pinned_transcript::PinnedTranscript::new(
+        cells.clone(),
+        app.keymap.pager.clone(),
+    ));
+    let area = Rect::new(
+        /*x*/ 0, /*y*/ 0, /*width*/ 24, /*height*/ 4,
+    );
+    let render_transcript = |app: &mut App| {
+        let mut buffer = Buffer::empty(area);
+        app.pinned_transcript
+            .as_mut()
+            .expect("pinned transcript")
+            .sync_and_render(area, &mut buffer, &cells, &app.chat_widget);
+        area.rows()
+            .map(|row| {
+                row.positions()
+                    .map(|position| buffer[position].symbol())
+                    .collect::<String>()
+                    .trim_end()
+                    .to_string()
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    let before_scroll = render_transcript(&mut app);
+
+    app.handle_key_event(
+        &mut tui,
+        &mut app_server,
+        KeyEvent::new(KeyCode::Up, KeyModifiers::NONE),
+    )
+    .await;
+
+    assert!(app.chat_widget.composer_text_with_pending().is_empty());
+    let after_scroll = render_transcript(&mut app);
+    insta::assert_snapshot!(format!("before:\n{before_scroll}\n\nafter:\n{after_scroll}"), @r"
+    before:
+    AI output line 9
+    AI output line 10
+    AI output line 11
+    AI output line 12
+
+    after:
+    AI output line 8
+    AI output line 9
+    AI output line 10
+    AI output line 11
+    ");
+}
+
+#[tokio::test]
 #[cfg(feature = "full-runtime-extensions")]
 async fn ambient_pet_is_suppressed_while_the_panel_is_visible() {
     let mut app = make_test_app().await;
@@ -175,4 +246,34 @@ async fn ambient_pet_is_suppressed_while_the_panel_is_visible() {
 
     assert!(app.should_render_ambient_pet(Size::new(/*width*/ 99, /*height*/ 24)));
     assert!(!app.should_render_ambient_pet(Size::new(/*width*/ 100, /*height*/ 24)));
+}
+
+#[tokio::test]
+async fn owned_transcript_keeps_the_subagent_panel_visible() -> Result<()> {
+    let mut app = make_test_app().await;
+    let mut tui = make_test_tui()?;
+    app.local_settings.tui.animations = false;
+    app.agent_navigation.upsert(
+        ThreadId::new(),
+        Some("Ada".to_string()),
+        Some("planner".to_string()),
+        /*is_closed*/ false,
+    );
+    let screen_size = Size::new(/*width*/ 120, /*height*/ 24);
+    tui.terminal = crate::custom_terminal::Terminal::with_screen_size_and_cursor_position_for_test(
+        ratatui::backend::CrosstermBackend::new(std::io::stdout()),
+        screen_size,
+        ratatui::layout::Position { x: 0, y: 0 },
+    );
+    tui.set_owned_screen(/*owned*/ true)?;
+    let rendered_area = app.render_chat_widget_frame(&mut tui, screen_size)?;
+    assert_eq!(rendered_area.width, 83);
+    assert!(tui.is_owned_screen());
+    let buffer = crate::custom_terminal::test_support::last_rendered_buffer(&tui.terminal);
+    let header = (84..120)
+        .map(|x| buffer[(x, 0)].symbol())
+        .collect::<String>();
+    insta::assert_snapshot!(header, @"┌ Subagents ────────────────────────");
+    tui.set_owned_screen(/*owned*/ false)?;
+    Ok(())
 }

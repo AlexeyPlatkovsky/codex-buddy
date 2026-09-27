@@ -69,6 +69,12 @@ impl RealtimeConversationManager {
 
     pub(crate) async fn clear_active_handoff(&self) {}
 
+    pub(crate) async fn retire_handoffs_for_misalignment(&self) {}
+
+    pub(crate) async fn send_reasoning_status(&self, _text: &str) -> CodexResult<()> {
+        Ok(())
+    }
+
     pub(crate) async fn shutdown(&self) -> CodexResult<()> {
         Ok(())
     }

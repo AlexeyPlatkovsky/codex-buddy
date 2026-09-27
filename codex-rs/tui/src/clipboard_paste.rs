@@ -247,6 +247,7 @@ pub(crate) fn normalize_pasted_search_query(pasted: &str) -> Option<String> {
 /// Supports:
 /// - `file://` URLs (converted to local paths)
 /// - Windows/UNC paths
+/// - existing local files with unquoted spaces
 /// - shell-escaped single paths (via `shlex`)
 pub fn normalize_pasted_path(pasted: &str) -> Option<PathBuf> {
     let pasted = pasted.trim();
@@ -271,6 +272,12 @@ pub fn normalize_pasted_path(pasted: &str) -> Option<PathBuf> {
     // Also handles UNC paths (\\server\share\path).
     if let Some(path) = normalize_windows_path(unquoted) {
         return Some(path);
+    }
+
+    // Clipboard file paths may contain literal spaces without shell quoting. Prefer an
+    // existing local file before splitting, so its filename is not mistaken for arguments.
+    if Path::new(unquoted).is_file() {
+        return Some(PathBuf::from(unquoted));
     }
 
     // shell-escaped single path → unescaped

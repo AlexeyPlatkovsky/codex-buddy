@@ -36,6 +36,12 @@ async fn coding_runtime_profile_sends_only_the_coding_tool_inventory() -> Result
             model.shell_type = ConfigShellToolType::UnifiedExec;
             model.apply_patch_tool_type = Some(ApplyPatchToolType::Freeform);
             model.supports_search_tool = false;
+            model.experimental_supported_tools.extend([
+                "clock".to_string(),
+                "request_user_input_async".to_string(),
+                "send_message_to_user_async".to_string(),
+                "test_sync_tool".to_string(),
+            ]);
         })
         .with_config(|config| {
             config.runtime_profile = ResolvedRuntimeProfile::coding(
@@ -47,12 +53,17 @@ async fn coding_runtime_profile_sends_only_the_coding_tool_inventory() -> Result
                 Feature::RequestPermissionsTool,
                 Feature::ViewImage,
                 Feature::Collab,
+                Feature::TokenBudget,
+                Feature::CurrentTimeReminder,
+                Feature::SleepTool,
+                Feature::CodeMode,
             ] {
                 config
                     .features
                     .enable(feature)
                     .expect("coding baseline feature should be enableable");
             }
+            config.update_plan_enabled = true;
             config
                 .features
                 .disable(Feature::MultiAgentV2)

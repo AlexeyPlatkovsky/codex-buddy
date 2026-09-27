@@ -38,7 +38,12 @@ where
         app_event_rx: rx,
         initial_screen: StartupDraftInitialScreen::Composer,
         session_action: StartupDraftSessionAction::New,
+        resolved_selection: None,
+        configured_cwd: None,
         pending_paste_newline: None,
+        submission_pending: false,
+        key_chord_matcher: Default::default(),
+        key_chords: crate::keymap::RuntimeKeymap::defaults().chords,
     }
 }
 
@@ -101,17 +106,19 @@ fn startup_draft_renders_full_empty_and_multiline_composer_frames() {
         let cursor = renderable
             .cursor_pos(area)
             .expect("keep the editable composer cursor visible below its header");
-        let frame = (0..area.height)
-            .map(|row| {
-                (0..area.width)
-                    .map(|column| buffer[(column, row)].symbol())
-                    .collect::<String>()
-                    .trim_end()
-                    .to_string()
-            })
-            .collect::<Vec<_>>()
-            .join("\n")
-            .replace(crate::version::CODEX_CLI_VERSION, "<VERSION>");
+        let frame = crate::test_support::normalize_snapshot_product(
+            (0..area.height)
+                .map(|row| {
+                    (0..area.width)
+                        .map(|column| buffer[(column, row)].symbol())
+                        .collect::<String>()
+                        .trim_end()
+                        .to_string()
+                })
+                .collect::<Vec<_>>()
+                .join("\n"),
+        )
+        .replace("0.0.0", "<VERSION>");
 
         assert!(
             cursor.1 >= pump.header.desired_height(width),
@@ -120,7 +127,68 @@ fn startup_draft_renders_full_empty_and_multiline_composer_frames() {
         snapshots.push(format!("{label} ({width} columns):\n{frame}"));
     }
 
-    insta::assert_snapshot!("startup_draft_full_frames", snapshots.join("\n---\n"));
+    // The 18-column fixture clips the product before its version, so the full-title
+    // normalizer cannot see it. Both products occupy the same truncated cell count.
+    insta::assert_snapshot!(
+        "startup_draft_full_frames",
+        snapshots
+            .join("\n---\n")
+            .replace(">_ Codex Budd…", ">_ OpenAI Cod…")
+    );
+}
+
+#[test]
+fn terminal_app_ssh_fallback_renders_inline_startup() {
+    let pump = startup_test_pump(std::iter::empty());
+    let owned_layout = super::layout::OwnedStartupLayout::new(
+        &pump.header,
+        &pump.bottom_pane,
+        StartupDraftSessionAction::New,
+    );
+    let mut frames = Vec::new();
+    for terminal_app_over_ssh in [false, true] {
+        let owned = crate::determine_alt_screen_mode(
+            /*no_alt_screen*/ false,
+            codex_config::types::AltScreenMode::Auto,
+            terminal_app_over_ssh,
+        );
+        let renderable = if owned {
+            crate::render::renderable::RenderableItem::Borrowed(&owned_layout)
+        } else {
+            startup_draft_renderable(
+                &pump.header,
+                &pump.bottom_pane,
+                StartupDraftSessionAction::New,
+            )
+        };
+        let width = 48;
+        let height = if owned {
+            16
+        } else {
+            renderable.desired_height(width)
+        };
+        let area = Rect::new(/*x*/ 0, /*y*/ 0, width, height);
+        let mut buffer = Buffer::empty(area);
+        renderable.render(area, &mut buffer);
+        let frame = (0..height)
+            .map(|y| {
+                (0..width)
+                    .map(|x| buffer[(x, y)].symbol())
+                    .collect::<String>()
+                    .trim_end()
+                    .to_string()
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        frames.push(format!(
+            "terminal_app_over_ssh={terminal_app_over_ssh}, owned={owned}\n{frame}"
+        ));
+    }
+    insta::assert_snapshot!(
+        "terminal_app_ssh_startup",
+        crate::test_support::normalize_snapshot_product(frames.join("\n---\n"))
+            .replace("0.0.0", "<VERSION>")
+    );
 }
 
 #[tokio::test]
@@ -138,17 +206,19 @@ async fn startup_draft_clears_loading_status_when_starting_fresh() {
         );
         let mut buffer = Buffer::empty(area);
         renderable.render(area, &mut buffer);
-        (0..area.height)
-            .map(|row| {
-                (0..area.width)
-                    .map(|column| buffer[(column, row)].symbol())
-                    .collect::<String>()
-                    .trim_end()
-                    .to_string()
-            })
-            .collect::<Vec<_>>()
-            .join("\n")
-            .replace(crate::version::CODEX_CLI_VERSION, "<VERSION>")
+        crate::test_support::normalize_snapshot_product(
+            (0..area.height)
+                .map(|row| {
+                    (0..area.width)
+                        .map(|column| buffer[(column, row)].symbol())
+                        .collect::<String>()
+                        .trim_end()
+                        .to_string()
+                })
+                .collect::<Vec<_>>()
+                .join("\n"),
+        )
+        .replace("0.0.0", "<VERSION>")
     };
 
     for (label, initial_screen, session_action) in [
@@ -180,7 +250,7 @@ async fn startup_draft_clears_loading_status_when_starting_fresh() {
             pump.bottom_pane.insert_str("draft while loading");
         }
         let mut tui = crate::tui::test_support::make_test_tui().expect("create test terminal");
-        pump.show_initial_screen(&mut tui)
+        pump.redraw_if_visible(&mut tui)
             .expect("respect the initial composer or picker screen");
         let before = if tui.terminal.viewport_area.is_empty() {
             "hidden while picker owns input".to_string()
@@ -374,6 +444,7 @@ async fn startup_draft_preserves_non_bracketed_multiline_pastes_without_submitti
     pump.flush_pending_events(&mut tui)
         .await
         .expect("preserve multiline non-bracketed paste");
+    assert!(!pump.submission_pending);
 
     assert_eq!(
         pump.bottom_pane.composer_text(),
@@ -504,8 +575,15 @@ fn startup_draft_allows_local_editor_shortcuts_without_startup_actions() {
     .expect("use a configured editor movement");
     assert_eq!(pump.bottom_pane.composer_cursor(), 0);
 
-    for key in [
+    handle_startup_draft_key(
+        &mut pump.bottom_pane,
         KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE),
+    )
+    .expect("honor Enter rebound to local newline editing");
+    assert_eq!(pump.bottom_pane.composer_cursor(), 1);
+    assert_eq!(pump.bottom_pane.composer_text(), "\nfirst ");
+
+    for key in [
         KeyEvent::new(KeyCode::Char('v'), KeyModifiers::CONTROL),
         KeyEvent::new(KeyCode::Char('\u{16}'), KeyModifiers::NONE),
         KeyEvent::new(KeyCode::Char('r'), KeyModifiers::CONTROL),
@@ -528,8 +606,8 @@ fn startup_draft_allows_local_editor_shortcuts_without_startup_actions() {
         )
         .expect("ignore configured plain composer actions");
     }
-    assert_eq!(pump.bottom_pane.composer_cursor(), 0);
-    assert_eq!(pump.bottom_pane.composer_text(), "first ");
+    assert_eq!(pump.bottom_pane.composer_cursor(), 1);
+    assert_eq!(pump.bottom_pane.composer_text(), "\nfirst ");
     assert!(pump.app_event_rx.try_recv().is_err());
 }
 
@@ -626,6 +704,16 @@ async fn startup_draft_applies_editor_keymap_without_enabling_vim() {
     )
     .expect("honor a configured safe editor shortcut");
     assert_eq!(pump.bottom_pane.composer_cursor(), 0);
+    let mut tui = crate::tui::test_support::make_test_tui().expect("create test terminal");
+    pump.handle_event(&mut tui, TuiEvent::Key(KeyEvent::from(KeyCode::Enter)))
+        .expect("confirm draft");
+    pump.apply_config(&config);
+    assert!(pump.submission_pending);
+    config.tui_keymap.composer.submit =
+        Some(codex_config::types::KeybindingsSpec::Many(Vec::new()));
+    pump.apply_config(&config);
+    assert!(!pump.submission_pending);
+    assert_eq!(pump.bottom_pane.composer_text(), "draftx");
 }
 
 #[tokio::test]
@@ -634,7 +722,7 @@ async fn startup_draft_waits_for_onboarding_before_accepting_input() {
     let mut composer_tui =
         crate::tui::test_support::make_test_tui().expect("create composer test terminal");
     composer_pump
-        .show_initial_screen(&mut composer_tui)
+        .redraw_if_visible(&mut composer_tui)
         .expect("draw the composer when no protected screen is expected");
     assert!(!composer_tui.terminal.viewport_area.is_empty());
     drop(composer_tui);
@@ -669,7 +757,7 @@ async fn startup_draft_waits_for_onboarding_before_accepting_input() {
             StartupDraftInitialScreen::Composer
         };
     let mut tui = crate::tui::test_support::make_test_tui().expect("create test terminal");
-    pump.show_initial_screen(&mut tui)
+    pump.redraw_if_visible(&mut tui)
         .expect("keep the composer hidden until onboarding finishes");
 
     pump.flush_pending_events(&mut tui)
@@ -690,17 +778,19 @@ async fn startup_draft_waits_for_onboarding_before_accepting_input() {
     let renderable = startup_draft_renderable(&pump.header, &pump.bottom_pane, pump.session_action);
     let mut buffer = Buffer::empty(area);
     renderable.render(area, &mut buffer);
-    let visible_frame = (area.top()..area.bottom())
-        .map(|row| {
-            (area.left()..area.right())
-                .map(|column| buffer[(column, row)].symbol())
-                .collect::<String>()
-                .trim_end()
-                .to_string()
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
-        .replace(crate::version::CODEX_CLI_VERSION, "<VERSION>");
+    let visible_frame = crate::test_support::normalize_snapshot_product(
+        (area.top()..area.bottom())
+            .map(|row| {
+                (area.left()..area.right())
+                    .map(|column| buffer[(column, row)].symbol())
+                    .collect::<String>()
+                    .trim_end()
+                    .to_string()
+            })
+            .collect::<Vec<_>>()
+            .join("\n"),
+    )
+    .replace("0.0.0", "<VERSION>");
     drop(renderable);
     frames.push_str(&format!("\n---\nafter onboarding:\n{visible_frame}"));
     insta::assert_snapshot!("startup_draft_onboarding_transition", frames);

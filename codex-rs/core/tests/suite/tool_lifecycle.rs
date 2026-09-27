@@ -37,6 +37,8 @@ use core_test_support::responses;
 use core_test_support::skip_if_no_network;
 use core_test_support::skip_if_wine_exec;
 use core_test_support::test_codex::test_codex;
+#[cfg(feature = "plugins")]
+use core_test_support::test_codex::test_env;
 use core_test_support::wait_for_event;
 use core_test_support::wait_for_mcp_server;
 use pretty_assertions::assert_eq;
@@ -50,6 +52,9 @@ use wiremock::Mock;
 use wiremock::Request;
 use wiremock::ResponseTemplate;
 use wiremock::matchers::body_partial_json;
+
+#[path = "command_lifecycle_tests.rs"]
+mod command_lifecycle;
 
 struct RecordedHistory {
     call_id: String,

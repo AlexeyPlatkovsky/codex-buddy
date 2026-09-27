@@ -1,9 +1,7 @@
-//! Pending async questions are local drafts; handling one removes it immediately.
+//! Pending async questions retain drafts until handled locally, answered by another client, or a live turn ends.
 //! Message IDs survive removal so replay cannot reopen an answered or skipped question.
 
 use super::*;
-use codex_context_fragments::AnsweredQuestion;
-use codex_context_fragments::ContextualUserFragment;
 
 impl AsyncQuestions {
     pub(crate) fn append(&mut self, message_id: &str, questions: &[AsyncUserInputQuestion]) {
@@ -12,7 +10,15 @@ impl AsyncQuestions {
         }
         let was_empty = self.state.pending.is_empty();
         let expires_at = (!self.expanded).then(|| Instant::now() + Duration::from_secs(30));
-        self.state.pending.extend(questions.iter().map(|question| {
+        for (index, question) in questions.iter().enumerate() {
+            // Match the desktop's JSON.stringify([tool name, item id, question index]).
+            let question_id =
+                serde_json::json!(["request_user_input_async", message_id, index]).to_string();
+            if self.state.answered_ids.contains(&question_id)
+                || self.state.answered_ids.contains(message_id)
+            {
+                continue;
+            }
             // Bound work before cloning or wrapping model-authored suggestions.
             let question = AsyncUserInputQuestion {
                 title: question.title.clone(),
@@ -31,14 +37,15 @@ impl AsyncQuestions {
                 .is_some_and(|options| !options.is_empty());
             let mut options_state = ScrollState::new();
             options_state.selected_idx = has_options.then_some(0);
-            PendingQuestion {
+            self.state.pending.push(PendingQuestion {
                 message_id: message_id.into(),
+                question_id,
                 question,
                 options_state,
                 draft: ComposerDraft::default(),
                 expires_at,
-            }
-        }));
+            });
+        }
         if was_empty {
             self.state.current_idx = 0;
             self.restore_current_draft();
@@ -90,45 +97,39 @@ impl AsyncQuestions {
             .map(|remaining| format!("{}s", remaining.as_secs_f64().ceil() as u64))
     }
 
-    pub(super) fn go_next_or_submit(&mut self) {
-        self.save_current_draft();
-        if !self.delivery_enabled {
-            return;
-        }
-        let Some(answer) = self.current_answer() else {
-            return;
+    pub(crate) fn resolve_answers(&mut self, question_ids: &[String]) {
+        // History can arrive before live questions or before restoring local drafts.
+        self.state.answered_ids.extend(question_ids.iter().cloned());
+        // Older desktop replies identify the whole source message instead of one question.
+        let answered = |question: &PendingQuestion| {
+            question_ids.contains(&question.question_id)
+                || question_ids.contains(&question.message_id)
         };
-        let selected = answer
-            .options_state
-            .selected_idx
-            .and_then(|index| answer.question.options.as_ref()?.get(index))
-            .map(String::as_str)
-            .unwrap_or_default();
-        // Only a fully displayed model-authored option may become user authorization.
-        let (first, count) = self.visible_options.get();
-        let index = self.selected_option_index().unwrap_or(0);
-        if !self.focus_is_notes() && !(first..first + count).contains(&index) {
-            self.composer.show_footer_flash(
-                "Expand terminal to read the entire option".into(),
-                Duration::from_secs(5),
-            );
+        if !self.state.pending.iter().any(answered) {
             return;
         }
-        let text = if self.focus_is_notes() {
-            answer.draft.text_with_pending()
+        let current_answered = self.current_answer().is_some_and(answered);
+        if current_answered {
+            self.composer.flush_pending_input();
+        }
+        let current_idx = self
+            .state
+            .pending
+            .iter()
+            .take(self.state.current_idx)
+            .filter(|question| !answered(question))
+            .count();
+        self.state.pending.retain(|question| !answered(question));
+        self.state.current_idx = if current_idx < self.state.pending.len() {
+            current_idx
         } else {
-            selected.to_string()
+            0
         };
-        let text = text.trim();
-        let framing = AnsweredQuestion::new(&answer.question.title).render();
-        let limit = codex_protocol::user_input::MAX_USER_INPUT_TEXT_CHARS - framing.chars().count();
-        if text.chars().count() > limit {
-            self.composer.show_footer_flash(
-                format!("Answer too long; limit {limit} characters").into(),
-                Duration::from_secs(5),
-            );
-        } else if !text.is_empty() {
-            self.submission = Some(QuestionSubmission::Submit(format!("{framing}{text}")));
+        self.expanded &= !self.state.pending.is_empty();
+        self.visible_options.set((0, 0));
+        if current_answered {
+            self.restore_current_draft();
+            self.composer.reset_vim_mode();
         }
     }
 
@@ -147,6 +148,30 @@ impl AsyncQuestions {
         self.composer.reset_vim_mode();
     }
 
+    pub(crate) fn clear_pending(&mut self) {
+        // Keep seen_ids so replay cannot restore questions from the previous prompt.
+        self.state.pending.clear();
+        self.state.current_idx = 0;
+        self.expanded = false;
+        self.submission = None;
+        self.visible_options.set((0, 0));
+        self.restore_current_draft();
+        self.composer.reset_vim_mode();
+    }
+
+    /// Recover unsent typed answers before clearing all pending questions.
+    pub(crate) fn take_pending_drafts(&mut self) -> Vec<crate::bottom_pane::QuestionDraft> {
+        self.save_current_draft();
+        let drafts = self
+            .state
+            .pending
+            .iter()
+            .filter_map(|question| question.draft.question_draft())
+            .collect();
+        self.clear_pending();
+        drafts
+    }
+
     pub(crate) fn capture(&mut self) -> QuestionState {
         self.composer.cancel_history_search();
         self.save_current_draft();
@@ -157,6 +182,8 @@ impl AsyncQuestions {
     pub(crate) fn restore(&mut self, saved: QuestionState) {
         self.visible_options.set((0, 0));
         let incoming = std::mem::replace(&mut self.state, saved);
+        let mut answered_ids = incoming.answered_ids;
+        answered_ids.extend(self.state.answered_ids.iter().cloned());
         self.state.pending.extend(
             incoming
                 .pending
@@ -169,5 +196,6 @@ impl AsyncQuestions {
             self.snooze_auto_resolution();
         }
         self.restore_current_draft();
+        self.resolve_answers(&answered_ids.into_iter().collect::<Vec<_>>());
     }
 }

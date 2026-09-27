@@ -3,6 +3,7 @@ use crate::app::agent_tree::AgentTreeInput;
 use codex_protocol::ThreadId;
 use insta::assert_snapshot;
 use ratatui::buffer::Buffer;
+use ratatui::style::Color;
 
 fn tree() -> AgentTreeSnapshot {
     let main = ThreadId::from_string("00000000-0000-0000-0000-000000000101").unwrap();
@@ -61,6 +62,26 @@ fn buffer_text(buffer: &Buffer, area: Rect) -> String {
 }
 
 #[test]
+fn lifecycle_icons_use_distinct_accessible_colors() {
+    let running = status_symbol(AgentTreeStatus::Running, /*animation_tick*/ 8);
+    let approval = status_symbol(AgentTreeStatus::NeedsApproval, /*animation_tick*/ 0);
+    let completed = status_symbol(AgentTreeStatus::Completed, /*animation_tick*/ 0);
+
+    assert_eq!(
+        (running.content.as_ref(), running.style.fg),
+        ("⠇", status_style(StatusTone::Attention).fg,)
+    );
+    assert_eq!(
+        (approval.content.as_ref(), approval.style.fg),
+        ("●", Some(Color::Red))
+    );
+    assert_eq!(
+        (completed.content.as_ref(), completed.style.fg),
+        ("✓", Some(Color::Green))
+    );
+}
+
+#[test]
 fn wide_layout_clamps_the_panel_and_renders_tree_snapshot() {
     let area = Rect::new(
         /*x*/ 0, /*y*/ 0, /*width*/ 120, /*height*/ 7,
@@ -81,10 +102,16 @@ fn wide_layout_clamps_the_panel_and_renders_tree_snapshot() {
     );
     let panel = layout.panel_area.unwrap();
     let mut buffer = Buffer::empty(area);
-    render_agent_tree_panel(panel, &tree, &viewport, &mut buffer);
+    render_agent_tree_panel(
+        panel,
+        &tree,
+        &viewport,
+        /*animation_tick*/ 8,
+        &mut buffer,
+    );
     assert_snapshot!(buffer_text(&buffer, panel), @r"
 ┌ Subagents ────────────────────────
-│  ● Main [default] 5.6.L-M 21s
+│  ⠇ Main [default] 5.6.L-M 21s
 │›   ? Ada [planner] 5.6.L-H 21s
 │      ✓ Grace [worker] 5.6.L-H 42s
 │
@@ -151,13 +178,19 @@ fn panel_snapshot_covers_active_and_terminal_statuses() {
     viewport.resize(8, &tree);
     viewport.update(&tree, Some(active_thread_id));
     let mut buffer = Buffer::empty(area);
-    render_agent_tree_panel(area, &tree, &viewport, &mut buffer);
+    render_agent_tree_panel(
+        area,
+        &tree,
+        &viewport,
+        /*animation_tick*/ 8,
+        &mut buffer,
+    );
 
     assert_snapshot!(buffer_text(&buffer, area), @r"
 ┌ Subagents ────────────────────
-│  ● Agent 0 [worker] 5.6.L-H 1s
+│  ⠇ Agent 0 [worker] 5.6.L-H 1s
 │  ○ Agent 1 [worker] 5.6.L-H 2s
-│  ! Agent 2 [worker] 5.6.L-H 3s
+│  ● Agent 2 [worker] 5.6.L-H 3s
 │› ? Agent 3 [worker] 5.6.L-H 4s
 │  ✓ Agent 4 [worker] 5.6.L-H 5s
 │  × Agent 5 [worker] 5.6.L-H 6s
@@ -200,7 +233,13 @@ fn panel_snapshot_marks_scroll_direction_without_changing_selected_agent() {
         row.is_current = row.thread_id == selected_thread_id;
     }
     let mut buffer = Buffer::empty(area);
-    render_agent_tree_panel(area, &selected_tree, &viewport, &mut buffer);
+    render_agent_tree_panel(
+        area,
+        &selected_tree,
+        &viewport,
+        /*animation_tick*/ 8,
+        &mut buffer,
+    );
 
     assert_eq!(viewport.selected_thread_id(), Some(selected_thread_id));
     assert_snapshot!(buffer_text(&buffer, area), @r"

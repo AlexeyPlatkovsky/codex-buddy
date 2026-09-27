@@ -34,6 +34,7 @@ use super::UNIFIED_EXEC_OUTPUT_MAX_TOKENS;
 use super::UnifiedExecError;
 use super::head_tail_buffer::HeadTailBuffer;
 use super::process_state::ProcessState;
+use crate::shell_snapshot::ShellSnapshotFile;
 
 const EARLY_EXIT_GRACE_PERIOD: Duration = Duration::from_millis(150);
 pub(crate) trait SpawnLifecycle: std::fmt::Debug + Send + Sync {
@@ -47,6 +48,11 @@ pub(crate) trait SpawnLifecycle: std::fmt::Debug + Send + Sync {
     }
 
     fn after_spawn(&mut self) {}
+
+    /// Returns whether an explicit approval decision declined this process's command.
+    fn command_declined(&self) -> bool {
+        false
+    }
 }
 
 pub(crate) type SpawnLifecycleHandle = Box<dyn SpawnLifecycle>;
@@ -98,7 +104,9 @@ pub(crate) struct UnifiedExecProcess {
     output_task: Option<JoinHandle<()>>,
     sandbox_type: SandboxType,
     timed_out: AtomicBool,
-    _spawn_lifecycle: Option<SpawnLifecycleHandle>,
+    spawn_lifecycle: Option<SpawnLifecycleHandle>,
+    // The shell may still need to replay this file after process startup returns.
+    pub(crate) _shell_snapshot: Option<Arc<ShellSnapshotFile>>,
 }
 
 impl std::fmt::Debug for UnifiedExecProcess {
@@ -139,7 +147,8 @@ impl UnifiedExecProcess {
             output_task: None,
             sandbox_type,
             timed_out: AtomicBool::new(false),
-            _spawn_lifecycle: spawn_lifecycle,
+            spawn_lifecycle,
+            _shell_snapshot: None,
         }
     }
 
@@ -215,6 +224,12 @@ impl UnifiedExecProcess {
 
     pub(super) fn timed_out(&self) -> bool {
         self.timed_out.load(Ordering::Acquire)
+    }
+
+    pub(super) fn command_declined(&self) -> bool {
+        self.spawn_lifecycle
+            .as_ref()
+            .is_some_and(|lifecycle| lifecycle.command_declined())
     }
 
     fn finish_termination(&self) {

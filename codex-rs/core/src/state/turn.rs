@@ -2,6 +2,8 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
 use tokio::sync::Mutex;
 use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
@@ -17,15 +19,14 @@ use codex_sandboxing::policy_transforms::merge_permission_profiles;
 use rmcp::model::RequestId;
 use tokio::sync::oneshot;
 
-use crate::agent::control::AgentExecutionGuard;
-use crate::mcp_tool_call::McpToolApprovalMetadata;
+use super::TurnTokenUsage;
+use crate::agent::types::AgentExecutionGuard;
 use crate::session::TurnInputQueue;
 use crate::session::step_context::StepContext;
 use crate::session::turn_context::TurnContext;
 use crate::session::turn_context::TurnEnvironment;
 use crate::tasks::AnySessionTask;
 use codex_protocol::models::AdditionalPermissionProfile;
-use codex_protocol::protocol::McpInvocation;
 use codex_protocol::protocol::ReviewDecision;
 use codex_protocol::protocol::TokenUsage;
 
@@ -85,14 +86,33 @@ pub(crate) struct RunningTask {
     pub(crate) _timer: Option<codex_otel::Timer>,
 }
 
+#[derive(Clone, Debug, Default)]
+pub(crate) struct ExplicitApprovalAbortSignal {
+    aborted: Arc<AtomicBool>,
+}
+
+impl ExplicitApprovalAbortSignal {
+    pub(crate) fn record_explicit_abort(&self) {
+        self.aborted.store(true, Ordering::Release);
+    }
+
+    pub(crate) fn was_aborted(&self) -> bool {
+        self.aborted.load(Ordering::Acquire)
+    }
+}
+
+struct PendingApproval {
+    tx: oneshot::Sender<ReviewDecision>,
+    abort_signal: Option<ExplicitApprovalAbortSignal>,
+}
+
 /// Mutable state for a single turn.
 #[derive(Default)]
 pub(crate) struct TurnState {
-    pending_approvals: HashMap<String, oneshot::Sender<ReviewDecision>>,
+    pending_approvals: HashMap<String, PendingApproval>,
     pending_request_permissions: HashMap<String, PendingRequestPermissions>,
     pending_user_input: HashMap<String, oneshot::Sender<AcceptedUserInputResponse>>,
     pending_elicitations: HashMap<(String, RequestId), oneshot::Sender<ElicitationResponse>>,
-    mcp_tool_approval_metadata: HashMap<String, (Option<McpInvocation>, McpToolApprovalMetadata)>,
     pending_dynamic_tools: HashMap<String, oneshot::Sender<DynamicToolResponse>>,
     pub(crate) pending_input: TurnInputQueue,
     mailbox_delivery_phase: MailboxDeliveryPhase,
@@ -101,6 +121,7 @@ pub(crate) struct TurnState {
     pub(crate) tool_calls: u64,
     pub(crate) has_memory_citation: bool,
     pub(crate) token_usage_at_turn_start: TokenUsage,
+    pub(crate) token_usage_by_model: TurnTokenUsage,
     /// The last step captured for execution or selected from a speculative fallback.
     /// Remains absent until a step is captured; standalone local compaction has no step.
     pub(crate) last_known_step_context: Option<Arc<StepContext>>,
@@ -124,15 +145,23 @@ impl TurnState {
         &mut self,
         key: String,
         tx: oneshot::Sender<ReviewDecision>,
-    ) -> Option<oneshot::Sender<ReviewDecision>> {
-        self.pending_approvals.insert(key, tx)
+        abort_signal: Option<ExplicitApprovalAbortSignal>,
+    ) -> bool {
+        self.pending_approvals
+            .insert(key, PendingApproval { tx, abort_signal })
+            .is_some()
     }
 
     pub(crate) fn remove_pending_approval(
         &mut self,
         key: &str,
-    ) -> Option<oneshot::Sender<ReviewDecision>> {
-        self.pending_approvals.remove(key)
+    ) -> Option<(
+        oneshot::Sender<ReviewDecision>,
+        Option<ExplicitApprovalAbortSignal>,
+    )> {
+        self.pending_approvals
+            .remove(key)
+            .map(|pending| (pending.tx, pending.abort_signal))
     }
 
     pub(crate) fn clear_pending_waiters(&mut self) {
@@ -140,7 +169,6 @@ impl TurnState {
         self.pending_request_permissions.clear();
         self.pending_user_input.clear();
         self.pending_elicitations.clear();
-        self.mcp_tool_approval_metadata.clear();
         self.pending_dynamic_tools.clear();
     }
 
@@ -192,23 +220,6 @@ impl TurnState {
     ) -> Option<oneshot::Sender<ElicitationResponse>> {
         self.pending_elicitations
             .remove(&(server_name.to_string(), request_id.clone()))
-    }
-
-    pub(crate) fn insert_mcp_tool_approval_metadata(
-        &mut self,
-        call_id: String,
-        invocation: Option<McpInvocation>,
-        metadata: McpToolApprovalMetadata,
-    ) {
-        self.mcp_tool_approval_metadata
-            .insert(call_id, (invocation, metadata));
-    }
-
-    pub(crate) fn mcp_tool_approval_metadata(
-        &self,
-        call_id: &str,
-    ) -> Option<(Option<McpInvocation>, McpToolApprovalMetadata)> {
-        self.mcp_tool_approval_metadata.get(call_id).cloned()
     }
 
     pub(crate) fn insert_pending_dynamic_tool(

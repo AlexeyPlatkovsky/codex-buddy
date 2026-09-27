@@ -7,7 +7,7 @@ use crate::remote::RemotePluginServiceConfig;
 use crate::remote::sync_remote_installed_plugin_bundles_once;
 use crate::test_support::write_file;
 use codex_login::CodexAuth;
-use codex_utils_plugins::AGENT_PLUGIN_SCHEMA_URI;
+use codex_skills::plugin::AGENT_PLUGIN_SCHEMA_URI;
 use pretty_assertions::assert_eq;
 use serde_json::json;
 use tempfile::TempDir;
@@ -119,6 +119,7 @@ async fn capabilities_union_cached_versions_and_sync_reports_removal() -> anyhow
     let config = RemotePluginServiceConfig::new(
         format!("{}/backend-api", server.uri()),
         crate::test_support::test_http_client_factory(),
+        /*product_sku*/ None,
     );
     let auth = CodexAuth::create_dummy_chatgpt_auth_for_testing();
     Mock::given(method("GET"))

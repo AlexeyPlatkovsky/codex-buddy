@@ -17,6 +17,7 @@ use codex_config::RequirementSource;
 use codex_config::TomlValue;
 use codex_config::version_for_toml;
 use codex_plugin_types::PluginHookSource;
+use codex_plugin_types::is_allowlisted_bundled_cleanup_hook;
 use codex_protocol::protocol::HookEventName;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use serde::Deserialize;
@@ -663,7 +664,15 @@ fn append_matcher_groups(
             let current_hash = hook_hash(event_name, matcher, &group, &config);
             let key = crate::hook_key(&source.key_source, event_name, group_index, handler_index);
             let state = source.hook_states.get(&key);
-            let builtin = false;
+            let builtin = source.plugin_id.as_deref().is_some_and(|plugin_id| {
+                is_allowlisted_bundled_cleanup_hook(
+                    plugin_id,
+                    event_name,
+                    group.matcher.as_deref(),
+                    &config,
+                    /*app_connector_id*/ None,
+                )
+            });
             let enabled = hook_enabled(source.is_managed, builtin, state);
             let trusted_hash = hook_trusted_hash(source.is_managed, state);
             let trust_status =

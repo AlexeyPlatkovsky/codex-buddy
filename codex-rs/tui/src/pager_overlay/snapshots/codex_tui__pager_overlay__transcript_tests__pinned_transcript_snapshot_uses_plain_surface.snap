@@ -1,0 +1,12 @@
+---
+source: tui/src/pager_overlay/transcript_tests.rs
+expression: term.backend()
+---
+"short transcript                        "
+"                                        "
+"                                        "
+"                                        "
+"                                        "
+"                                        "
+"                                        "
+"                                        "

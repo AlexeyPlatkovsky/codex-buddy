@@ -62,7 +62,7 @@ impl AgentTreeStatus {
             AgentTreeLifecycleEvent::InteractiveResolved => match self {
                 Self::Completed | Self::Failed | Self::Interrupted => self,
                 Self::Running | Self::Waiting | Self::NeedsApproval | Self::NeedsInput => {
-                    Self::Waiting
+                    Self::Running
                 }
             },
             AgentTreeLifecycleEvent::NeedsApproval => {

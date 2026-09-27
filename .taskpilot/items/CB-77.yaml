@@ -1,0 +1,13 @@
+schema_version: 1
+id: CB-77
+title: Codex Buddy 1.157.1 upstream synchronization
+priority: high
+type: feature
+status: done
+created_at: '2026-09-27T05:04:07Z'
+updated_at: '2026-09-27T08:46:25Z'
+parent_id: CB-34
+tags:
+- upstream
+- release
+description: 'Merge upstream rust-v0.157.1 while preserving Buddy runtime composition, branding, agent tree, and checkpointed local fixes. Adopt upstream-aligned 1.MINOR.PATCH policy and changelog. Acceptance: conflicts reviewed, schemas and dependency locks regenerated, focused and workspace tests plus feature-boundary checks run; document host/platform limits and failures.'

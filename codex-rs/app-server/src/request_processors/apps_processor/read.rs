@@ -65,6 +65,8 @@ impl AppsRequestProcessor {
                         .map(|connector_id| connector_id.0.clone()),
                 )
             }),
+            &[],
+            std::collections::HashSet::new(),
         );
         let apps = apps
             .into_iter()

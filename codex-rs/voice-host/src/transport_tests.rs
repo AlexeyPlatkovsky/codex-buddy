@@ -63,7 +63,8 @@ async fn check_negotiation(runtime: Arc<dyn webrtc::runtime::Runtime>) {
             let remote = if tcp {
                 builder.with_tcp_addrs(vec!["0.0.0.0:0"])
             } else {
-                builder.with_udp_addrs(vec!["0.0.0.0:0"])
+                // Keep this local protocol fixture independent of LAN and VPN policy.
+                builder.with_udp_addrs(vec!["127.0.0.1:0"])
             }
             .build()
             .await
@@ -86,10 +87,15 @@ async fn check_negotiation(runtime: Arc<dyn webrtc::runtime::Runtime>) {
             for _ in candidates.len()..MAX_REMOTE_CANDIDATES {
                 answer.push_str(&format!("{}\r\n", candidates[0]));
             }
-            local
+            let outcome = local
                 .apply_answer(answer)
                 .await
                 .unwrap_or_else(|error| panic!("tcp={tcp}: {error}"));
+            assert_eq!(
+                outcome,
+                super::AnswerOutcome::Ready,
+                "tcp={tcp}, remote_ice_lite=true"
+            );
             let channel = channels.recv().await.unwrap();
             assert_eq!(
                 (

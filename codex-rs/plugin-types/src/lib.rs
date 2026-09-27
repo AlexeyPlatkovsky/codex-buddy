@@ -1,7 +1,9 @@
 //! Implementation-neutral plugin identifiers and runtime metadata shared across Codex crates.
 
+mod bundled_hooks;
 mod plugin_id;
 
+pub use bundled_hooks::is_allowlisted_bundled_cleanup_hook;
 use codex_config::HookEventsToml;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use codex_utils_path_uri::PathUri;

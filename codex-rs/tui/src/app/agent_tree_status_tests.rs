@@ -91,7 +91,7 @@ fn interactive_states_are_reached_and_resolved_without_losing_terminal_outcomes(
         .transition(AgentTreeLifecycleEvent::NeedsApproval)
         .transition(AgentTreeLifecycleEvent::Waiting)
         .transition(AgentTreeLifecycleEvent::InteractiveResolved);
-    assert_eq!(status, AgentTreeStatus::Waiting);
+    assert_eq!(status, AgentTreeStatus::Running);
     assert!(!status.needs_attention());
 
     let status = AgentTreeStatus::Running

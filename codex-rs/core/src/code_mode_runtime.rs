@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use codex_code_mode_types::CodeModeSessionDelegate;
 use codex_code_mode_types::CodeModeSessionProvider;
 use codex_code_mode_types::CodeModeSessionProviderFuture;
 
@@ -16,10 +15,7 @@ impl CodeModeSessionProvider for UnavailableCodeModeSessionProvider {
         Err(CODE_MODE_UNAVAILABLE_ERROR.to_string())
     }
 
-    fn create_session<'a>(
-        &'a self,
-        _delegate: Arc<dyn CodeModeSessionDelegate>,
-    ) -> CodeModeSessionProviderFuture<'a> {
+    fn create_session(&self) -> CodeModeSessionProviderFuture<'_> {
         Box::pin(async { Err(CODE_MODE_UNAVAILABLE_ERROR.to_string()) })
     }
 }

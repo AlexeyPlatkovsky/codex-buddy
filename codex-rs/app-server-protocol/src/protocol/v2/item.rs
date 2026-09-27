@@ -31,6 +31,8 @@ use codex_protocol::items::CollabAgentTool as CoreCollabAgentTool;
 use codex_protocol::items::CollabAgentToolCallStatus as CoreCollabAgentToolCallStatus;
 use codex_protocol::items::CommandExecutionStatus as CoreCommandExecutionStatus;
 use codex_protocol::items::DynamicToolCallStatus as CoreDynamicToolCallStatus;
+pub use codex_protocol::items::McpAppDisplayMode;
+pub use codex_protocol::items::McpAppUi;
 use codex_protocol::items::McpToolCallStatus as CoreMcpToolCallStatus;
 use codex_protocol::items::TurnItem as CoreTurnItem;
 use codex_protocol::memory_citation::MemoryCitation as CoreMemoryCitation;
@@ -287,6 +289,10 @@ pub enum ThreadItem {
     #[serde(rename_all = "camelCase")]
     #[ts(rename_all = "camelCase")]
     CommandExecution {
+        #[serde(skip)]
+        #[schemars(skip)]
+        #[ts(skip)]
+        model_context: Option<codex_protocol::items::ModelInvocationContext>,
         id: String,
         /// Trusted first-party plugin id when this command resolves to one plugin script.
         #[serde(default)]
@@ -333,8 +339,10 @@ pub enum ThreadItem {
         app_context: Option<McpToolCallAppContext>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         #[ts(optional)]
-        /// Deprecated: use `appContext.resourceUri` instead.
+        /// Legacy compatibility field; prefer `mcpAppUi.resourceUri` when available.
         mcp_app_resource_uri: Option<String>,
+        /// Presentation captured from the invoked descriptor; absent in older history.
+        mcp_app_ui: Option<McpAppUi>,
         plugin_id: Option<String>,
         read_only_hint: Option<bool>,
         result: Option<Box<McpToolCallResult>>,
@@ -914,6 +922,7 @@ impl From<CoreTurnItem> for ThreadItem {
                 );
                 ThreadItem::CommandExecution {
                     id: command.id,
+                    model_context: command.model_context,
                     plugin_id: command.plugin_id,
                     script_path: command.script_path,
                     command: presentation.command,
@@ -949,6 +958,24 @@ impl From<CoreTurnItem> for ThreadItem {
                     .and_then(|duration| i64::try_from(duration.as_millis()).ok()),
             },
             CoreTurnItem::CollabAgentToolCall(call) => ThreadItem::CollabAgentToolCall {
+                agents_states: {
+                    let receiver_agents = call
+                        .receiver_agents
+                        .into_iter()
+                        .map(|agent| (agent.thread_id, agent))
+                        .collect::<HashMap<_, _>>();
+                    call.agents_states
+                        .into_iter()
+                        .map(|(thread_id, status)| {
+                            let mut state = CollabAgentState::from(status);
+                            if let Some(agent) = receiver_agents.get(&thread_id) {
+                                state.agent_nickname.clone_from(&agent.agent_nickname);
+                                state.agent_role.clone_from(&agent.agent_role);
+                            }
+                            (thread_id.to_string(), state)
+                        })
+                        .collect()
+                },
                 id: call.id,
                 tool: call.tool.into(),
                 status: call.status.into(),
@@ -961,11 +988,6 @@ impl From<CoreTurnItem> for ThreadItem {
                 prompt: call.prompt,
                 model: call.model,
                 reasoning_effort: call.reasoning_effort,
-                agents_states: call
-                    .agents_states
-                    .into_iter()
-                    .map(|(thread_id, status)| (thread_id.to_string(), status.into()))
-                    .collect(),
             },
             CoreTurnItem::SubAgentActivity(activity) => ThreadItem::SubAgentActivity {
                 id: activity.id,
@@ -1002,6 +1024,7 @@ impl From<CoreTurnItem> for ThreadItem {
                     failure: None,
                     saved_path: image.saved_path,
                     imagegen_request_id: None,
+                    generation_id: None,
                 })
             }
             CoreTurnItem::EnteredReviewMode(review) => ThreadItem::EnteredReviewMode {
@@ -1040,6 +1063,7 @@ impl From<CoreTurnItem> for ThreadItem {
                         action_name: mcp.action_name,
                     }),
                     mcp_app_resource_uri: mcp.mcp_app_resource_uri,
+                    mcp_app_ui: mcp.mcp_app_ui,
                     plugin_id: mcp.plugin_id,
                     read_only_hint: mcp.read_only_hint,
                     result: mcp.result.map(McpToolCallResult::from).map(Box::new),
@@ -1286,6 +1310,8 @@ pub enum CollabAgentStatus {
 pub struct CollabAgentState {
     pub status: CollabAgentStatus,
     pub message: Option<String>,
+    pub agent_nickname: Option<String>,
+    pub agent_role: Option<String>,
 }
 
 impl From<CoreAgentStatus> for CollabAgentState {
@@ -1294,30 +1320,44 @@ impl From<CoreAgentStatus> for CollabAgentState {
             CoreAgentStatus::PendingInit => Self {
                 status: CollabAgentStatus::PendingInit,
                 message: None,
+                agent_nickname: None,
+                agent_role: None,
             },
             CoreAgentStatus::Running => Self {
                 status: CollabAgentStatus::Running,
                 message: None,
+                agent_nickname: None,
+                agent_role: None,
             },
             CoreAgentStatus::Interrupted => Self {
                 status: CollabAgentStatus::Interrupted,
                 message: None,
+                agent_nickname: None,
+                agent_role: None,
             },
             CoreAgentStatus::Completed(message) => Self {
                 status: CollabAgentStatus::Completed,
                 message,
+                agent_nickname: None,
+                agent_role: None,
             },
             CoreAgentStatus::Errored(message) => Self {
                 status: CollabAgentStatus::Errored,
                 message: Some(message),
+                agent_nickname: None,
+                agent_role: None,
             },
             CoreAgentStatus::Shutdown => Self {
                 status: CollabAgentStatus::Shutdown,
                 message: None,
+                agent_nickname: None,
+                agent_role: None,
             },
             CoreAgentStatus::NotFound => Self {
                 status: CollabAgentStatus::NotFound,
                 message: None,
+                agent_nickname: None,
+                agent_role: None,
             },
         }
     }

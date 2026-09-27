@@ -30,6 +30,7 @@ use crate::multi_agents::SubAgentActivityDisplay;
 use crate::multi_agents::format_agent_picker_item_name;
 use crate::multi_agents::next_agent_shortcut;
 use crate::multi_agents::previous_agent_shortcut;
+use codex_app_server_protocol::CollabAgentStatus;
 use codex_app_server_protocol::ServerNotification;
 use codex_app_server_protocol::ServerRequest;
 use codex_protocol::ThreadId;
@@ -317,6 +318,26 @@ impl AgentNavigationState {
         if let Some(event) = AgentTreeLifecycleEvent::from_server_request(request) {
             self.observe_tree_status(thread_id, event);
         }
+    }
+
+    /// Records the receiver lifecycle included in a collaboration tool result.
+    pub(crate) fn observe_collab_status(
+        &mut self,
+        thread_id: ThreadId,
+        status: &CollabAgentStatus,
+    ) {
+        let event = match status {
+            CollabAgentStatus::PendingInit | CollabAgentStatus::Running => {
+                AgentTreeLifecycleEvent::TurnStarted
+            }
+            CollabAgentStatus::Interrupted => AgentTreeLifecycleEvent::Interrupted,
+            CollabAgentStatus::Completed | CollabAgentStatus::Shutdown => {
+                AgentTreeLifecycleEvent::Completed
+            }
+            CollabAgentStatus::Errored => AgentTreeLifecycleEvent::Failed,
+            CollabAgentStatus::NotFound => return,
+        };
+        self.observe_tree_status(thread_id, event);
     }
 
     /// Clears a resolved interactive request while preserving terminal status if it arrived first.
